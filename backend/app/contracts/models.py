@@ -1,0 +1,248 @@
+from __future__ import annotations
+
+from datetime import datetime
+from typing import Any, Literal, Optional
+
+from pydantic import BaseModel, ConfigDict, Field
+from pydantic.alias_generators import to_camel
+
+__all__ = [
+    "Contract",
+    "RestPreference",
+    "Person",
+    "Space",
+    "DemoAccount",
+    "RequestContext",
+    "DeviceAction",
+    "DeviceState",
+    "Plan",
+    "Service",
+    "ActionResult",
+    "ActivityRecord",
+    "CreateRestPlanRequest",
+    "ConfirmPlanRequest",
+    "StopServiceRequest",
+    "BootstrapResponse",
+    "ConfirmPlanResponse",
+    "StopServiceResponse",
+    "ActivityResponse",
+    "ErrorBody",
+    "ErrorResponse",
+    "DataSource",
+    "PlanSource",
+    "PlanStatus",
+    "ServiceStatus",
+    "DeviceType",
+    "DeviceCommand",
+    "ActionOutcome",
+    "ActivityKind",
+    "ActivitySource",
+    "ErrorCode",
+]
+
+
+class Contract(BaseModel):
+    """Base model: snake_case in Python, camelCase on the wire."""
+
+    model_config = ConfigDict(alias_generator=to_camel, populate_by_name=True)
+
+
+# ---- enums (string literals keep generated TS simple) ----
+
+# Where a device state came from. Never mix these in demos without labelling.
+DataSource = Literal["virtual_device", "frontend_mock"]
+# Who produced a plan. "model" will be added in batch 2 (step 5).
+PlanSource = Literal["rule", "frontend_mock"]
+PlanStatus = Literal["proposed", "executed", "expired", "invalidated"]
+ServiceStatus = Literal["active", "stopped"]
+DeviceType = Literal["light", "ac", "curtain"]
+DeviceCommand = Literal["set_brightness", "set_target_temperature", "set_open_percent"]
+ActionOutcome = Literal["succeeded", "rejected", "failed", "skipped"]
+ActivityKind = Literal[
+    "plan_created",
+    "plan_confirmed",
+    "plan_confirm_repeated",
+    "plan_rejected",
+    "action_executed",
+    "action_rejected",
+    "service_stopped",
+    "demo_reset",
+]
+ActivitySource = Literal["user", "rule_engine", "executor", "virtual_device", "system", "frontend_mock"]
+ErrorCode = Literal[
+    "VALIDATION_ERROR",
+    "NOT_FOUND",
+    "FORBIDDEN_CONTEXT",
+    "PLAN_EXPIRED",
+    "PLAN_INVALIDATED",
+    "PLAN_VERSION_MISMATCH",
+    "SERVICE_ALREADY_ACTIVE",
+    "SERVICE_NOT_ACTIVE",
+    "NOT_IMPLEMENTED",
+    "INTERNAL_ERROR",
+]
+
+
+# ---- people, spaces, identity ----
+
+
+class RestPreference(Contract):
+    light_brightness: int = Field(ge=0, le=100, description="Preferred light brightness, percent")
+    ac_target_temp_c: float = Field(ge=16, le=30, description="Preferred AC set point, Celsius")
+    curtain_open_percent: int = Field(ge=0, le=100, description="Preferred curtain opening, percent")
+
+
+class Person(Contract):
+    person_id: str
+    name: str
+    description: str
+    rest_preference: RestPreference
+
+
+class Space(Contract):
+    space_id: str
+    name: str
+
+
+class DemoAccount(Contract):
+    """Demo identity only. This is NOT authentication."""
+
+    account_id: str
+    display_name: str
+    is_demo: bool
+
+
+class RequestContext(Contract):
+    """Who is acting, for whom, and where. Checked server-side against demo memberships."""
+
+    account_id: str
+    person_id: str
+    space_id: str
+
+
+# ---- devices, plans, services ----
+
+
+class DeviceAction(Contract):
+    action_id: str
+    device: DeviceType
+    command: DeviceCommand
+    value: float
+    label: str = Field(description="Human readable description shown in the app")
+
+
+class DeviceState(Contract):
+    space_id: str
+    light_brightness: int
+    ac_target_temp_c: float
+    curtain_open_percent: int
+    source: DataSource
+    version: int = Field(description="Increments on every successful device write")
+    updated_at: datetime
+
+
+class Plan(Contract):
+    plan_id: str
+    version: int
+    person_id: str
+    space_id: str
+    scenario: Literal["rest"]
+    source: PlanSource
+    summary: str
+    notes: list[str]
+    utterance: str
+    actions: list[DeviceAction]
+    status: PlanStatus
+    created_at: datetime
+    expires_at: datetime
+
+
+class Service(Contract):
+    service_id: str
+    space_id: str
+    person_id: str
+    plan_id: str
+    plan_version: int
+    status: ServiceStatus
+    started_at: datetime
+    stopped_at: Optional[datetime]
+
+
+class ActionResult(Contract):
+    action_id: str
+    device: DeviceType
+    command: DeviceCommand
+    value: float
+    outcome: ActionOutcome
+    reason: Optional[str]
+    observed_value: Optional[float] = Field(description="Value read back from the device after the write")
+
+
+class ActivityRecord(Contract):
+    activity_id: str
+    timestamp: datetime
+    space_id: str
+    kind: ActivityKind
+    source: ActivitySource
+    message: str
+    service_id: Optional[str]
+    plan_id: Optional[str]
+    person_id: Optional[str]
+    action: Optional[ActionResult]
+
+
+# ---- requests ----
+
+
+class CreateRestPlanRequest(Contract):
+    context: RequestContext
+    utterance: str = Field(min_length=1, max_length=200)
+
+
+class ConfirmPlanRequest(Contract):
+    context: RequestContext
+    plan_version: int
+
+
+class StopServiceRequest(Contract):
+    context: RequestContext
+
+
+# ---- responses ----
+
+
+class BootstrapResponse(Contract):
+    mode: Literal["demo"]
+    account: DemoAccount
+    persons: list[Person]
+    spaces: list[Space]
+    default_space_id: str
+    device_state: DeviceState
+    active_service: Optional[Service]
+
+
+class ConfirmPlanResponse(Contract):
+    plan: Plan
+    service: Service
+    results: list[ActionResult]
+    device_state: DeviceState
+    repeated: bool = Field(description="True when the plan was already executed; nothing was re-run")
+
+
+class StopServiceResponse(Contract):
+    service: Service
+    device_state: DeviceState
+
+
+class ActivityResponse(Contract):
+    items: list[ActivityRecord]
+
+
+class ErrorBody(Contract):
+    code: ErrorCode
+    message: str
+    details: Optional[dict[str, Any]]
+
+
+class ErrorResponse(Contract):
+    error: ErrorBody

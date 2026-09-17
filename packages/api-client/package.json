@@ -1,0 +1,14 @@
+{
+  "name": "@livingmind/api-client",
+  "version": "0.1.0",
+  "private": true,
+  "description": "TypeScript types generated from the backend contracts. Do not edit src/schema.ts by hand.",
+  "scripts": {
+    "generate": "openapi-typescript openapi.json -o src/schema.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "openapi-typescript": "^7.6.0",
+    "typescript": "~5.9.3"
+  }
+}
