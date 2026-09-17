@@ -12,6 +12,7 @@ import type {
   ConfirmPlanResponse,
   DeviceState,
   EventResult,
+  AdvanceClockResponse,
   Plan,
   PlannerMode,
   RequestContext,
@@ -21,7 +22,7 @@ import type {
 } from '../../services/types';
 import { planBlockReason } from './planGate';
 
-export type Busy = null | 'plan' | 'confirm' | 'stop' | 'refresh' | 'reset' | 'event' | 'unlock' | 'memory' | 'energy';
+export type Busy = null | 'plan' | 'confirm' | 'stop' | 'refresh' | 'reset' | 'event' | 'unlock' | 'memory' | 'energy' | 'clock';
 
 export interface FlowError {
   message: string;
@@ -330,6 +331,25 @@ export function useRestFlow(api: LivingMindApi) {
     [api, context, fail, loadActivity, patch],
   );
 
+  /** Simulated night clock. minutes=null jumps to the next pending step. */
+  const advanceClock = useCallback(
+    async (minutes: number | null = null): Promise<Outcome<AdvanceClockResponse>> => {
+      const ctx = context();
+      const service = stateRef.current.service;
+      if (!ctx || !service) return NO_CONTEXT;
+      patch({ busy: 'clock', error: null });
+      try {
+        const res = await api.advanceClock(service.serviceId, { context: ctx, minutes });
+        patch({ service: res.service, deviceState: res.deviceState, deviceStale: false, busy: null });
+        await loadActivity(ctx.spaceId);
+        return { ok: true, value: res };
+      } catch (e) {
+        return fail(e);
+      }
+    },
+    [api, context, fail, loadActivity, patch],
+  );
+
   const refresh = useCallback(async () => {
     const sid = stateRef.current.data?.defaultSpaceId;
     if (!sid) return;
@@ -391,11 +411,12 @@ export function useRestFlow(api: LivingMindApi) {
       stop,
       refresh,
       injectEvent,
+      advanceClock,
       resetDemo,
       dismissError: () => patch({ error: null }),
       dismissInfo: () => patch({ info: null }),
     }),
-    [load, selectPerson, unlockPerson, sendMessage, updatePreference, setEnergyMode, patch, createPlan, confirm, stop, refresh, injectEvent, resetDemo],
+    [load, selectPerson, unlockPerson, sendMessage, updatePreference, setEnergyMode, patch, createPlan, confirm, stop, refresh, injectEvent, advanceClock, resetDemo],
   );
 
   return { state, person, space, activeService, blockReason, actions };

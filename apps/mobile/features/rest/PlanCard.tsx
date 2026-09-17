@@ -1,14 +1,16 @@
-import { StyleSheet, Text, View } from 'react-native';
+import { useState } from 'react';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { Button } from '../../components/Button';
 import { Card } from '../../components/Card';
-import { DeviceIcon } from '../../components/Icon';
+import { DeviceIcon, Icon } from '../../components/Icon';
 import { Pill, type PillTone } from '../../components/Pill';
 import type { ActionResult, Plan } from '../../services/types';
 import { colors, font, radius, space } from '../../theme/tokens';
 import { PLAN_SOURCE_LABEL, PLAN_STATUS_LABEL } from '../../utils/format';
 import { TraceView } from '../agents/TraceView';
 import { EnergyLine } from '../energy/EnergyLine';
+import { NightTimeline } from '../night/NightTimeline';
 
 interface Props {
   plan: Plan | null;
@@ -89,6 +91,7 @@ export function PlanCard({ plan, results, blockReason, loading, disabled, onConf
         })}
       </View>
       {plan.energy ? <EnergyLine advice={plan.energy} /> : null}
+      {plan.schedule?.length ? <SchedulePreview plan={plan} /> : null}
       <View style={styles.notes}>
         {plan.notes.map((n) => (
           <Text key={n} style={styles.note}>
@@ -116,7 +119,28 @@ export function PlanCard({ plan, results, blockReason, loading, disabled, onConf
   );
 }
 
+/** The overnight schedule is confirmed together with the plan, so it is shown before confirming. */
+function SchedulePreview({ plan }: { plan: Plan }) {
+  const [open, setOpen] = useState(false);
+  const steps = plan.schedule ?? [];
+  return (
+    <View style={styles.schedule}>
+      <Pressable style={styles.scheduleToggle} onPress={() => setOpen((v) => !v)} accessibilityRole="button" testID="schedule-toggle">
+        <Icon name="moon-outline" size={15} color={colors.blue} />
+        <Text style={styles.scheduleText}>
+          {open ? '收起整晚安排' : `整晚安排：${steps[0].at} 起 ${steps.length} 步，${steps[steps.length - 1].at} 唤醒（模拟时钟）`}
+        </Text>
+        <Icon name={open ? 'chevron-up' : 'chevron-down'} size={14} color={colors.blue} />
+      </Pressable>
+      {open ? <NightTimeline steps={steps} testID="plan-schedule" /> : null}
+    </View>
+  );
+}
+
 const styles = StyleSheet.create({
+  schedule: { gap: space.sm },
+  scheduleToggle: { flexDirection: 'row', alignItems: 'center', gap: 6, alignSelf: 'flex-start', paddingVertical: 4, flexShrink: 1 },
+  scheduleText: { fontSize: font.small, color: colors.blue, fontWeight: '700', flexShrink: 1 },
   empty: { fontSize: font.body, color: colors.muted },
   summary: { fontSize: font.body + 1, color: colors.ink, fontWeight: '700', lineHeight: 22 },
   meta: { flexDirection: 'row', alignItems: 'center', gap: space.sm, flexWrap: 'wrap' },

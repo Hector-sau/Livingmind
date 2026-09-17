@@ -2,6 +2,7 @@
 import { ApiError, DEMO_ACCOUNT_ID, type LivingMindApi } from '../api';
 import type {
   ActivityResponse,
+  AdvanceClockResponse,
   AssistantReply,
   MemoryView,
   Space,
@@ -99,6 +100,8 @@ export function createHttpApi(options: HttpOptions): LivingMindApi {
       request<ConfirmPlanResponse>('POST', `/api/plans/${encodeURIComponent(planId)}/confirm`, req),
     stopService: (serviceId, req) =>
       request<StopServiceResponse>('POST', `/api/services/${encodeURIComponent(serviceId)}/stop`, req),
+    advanceClock: (serviceId, req) =>
+      request<AdvanceClockResponse>('POST', `/api/services/${encodeURIComponent(serviceId)}/clock/advance`, req),
     // An event may trigger model re-planning, so it gets the plan timeout too.
     injectEvent: (spaceId, req) =>
       request<EventResult>('POST', `/api/spaces/${encodeURIComponent(spaceId)}/events`, req, planTimeoutMs),

@@ -4,7 +4,7 @@
 仓库位置：`/Users/macbookair/Desktop/Business/项目材料整理/Livingmind/livingmind-app/`  
 当前分支：`main`  
 第一批实现基线提交：`99b1138 feat: step 4 rule-based backend loop, executor, virtual devices, CI`  
-当前基线：B + ⑤（真实调用已验证）+ R1 + ⑥ + ⑥b + C + ⑧ 补齐模块（1+2 Agent 编排已实现）+ ⑨ 演示打磨 — 见 `git log`
+当前基线：B + ⑤（真实调用已验证）+ R1 + ⑥ + ⑥b + C + ⑧ 补齐模块（1+2 Agent 编排已实现）+ ⑨ 演示打磨 + ⑦ 整晚服务（模拟时钟）— 见 `git log`
 
 ## 0. 项目背景与现状速览（给评审或新接手的 AI）
 
@@ -33,9 +33,10 @@
 | ⑥b | 四个入口（对话 / 空间 / 场景 / 我的）；对话主页（计划卡、结果卡、系统消息、服务状态条、语音占位）；演示 PIN 切换与访客模式；只显示本人偏好；证据面板；场景库；数据重新设计（3 位成员 + 访客、15 条评测用例） | `tests/test_people_and_scenes.py`、`tests/test_eval_cases.py`、`apps/mobile/tests/conversation.test.ts`；端到端 12 个场景 |
 | ⑥ | 模拟室温事件 → 一次自动调整：事件接口、冷却 30 秒、上限 3 次、单服务单调整、停止后忽略、规则调整（±1°C，偏好 ±3°C 内）、模型调整跟随服务模式并受偏离上限约束；App 注入按钮与调整次数；Mock 同步 | `backend/tests/test_events.py`（10 项）；端到端 `mock-event`、`http-event` |
 | ⑨ | 一键“准备演示”（重置 → 林悦 · 舒适优先 · 设备 80/26/100 · 清空对话 · 关证据面板 · 回对话页）；“场景”页“1+2 Agent 如何协作”说明卡（有计划时展示真实协作过程）；信息提示 3 秒淡出；空态大图标；README 演示启动命令；`docs/demo-script.md` 3 分钟讲稿 | `apps/mobile/tests/notices.test.ts`；端到端 `http-prepare-demo` |
+| ⑦ | 整晚服务：休息计划附带 5 步整晚安排（Space Execution Agent 规则生成、Harness 预检、随计划确认）；模拟时钟推进接口 `POST /api/services/{id}/clock/advance`；每步最多执行一次（锁内认领 + 单服务单推进）；停止取消剩余步骤；最后一步后服务 `completed`；App 运行条“快进 / 自动播放整晚”、计划卡整晚安排、空间页整晚时间线、场景“起床渐进唤醒”改为已实现 | `backend/tests/test_night_service.py`（10 项）、`apps/mobile/tests/night.test.ts`；端到端 `http-night`、`mock-night`、`http-night-stop-phone` |
 | 文档 | 本交接文档、README、architecture、acceptance、status、ui-polish；产品界面方向（第 12 节） | `587d7aa`、`8525718`、`c58a29f` |
 
-检查基线：后端 96 项 pytest、前端 24 项测试 + 类型检查、契约一致性、干净副本 CI 模拟、网页端到端 16/16（`apps/mobile/e2e/run_e2e.py`，模型路径连本地桩）。
+检查基线：后端 106 项 pytest、前端 29 项测试 + 类型检查、契约一致性、干净副本 CI 模拟、网页端到端 19/19（`apps/mobile/e2e/run_e2e.py`，模型路径连本地桩）。
 
 ### 0.3 未完成（按第 8 节顺序）
 
@@ -44,10 +45,10 @@
 | A 真机验收 | 未做 | 用户暂无 iPad；所有界面验证来自网页版，不能替代真机 |
 | 真实模型的多次统计 / 评测集打分 | 可选 | 脚本已入库（`e2e_real_model.py`、`--eval`）；用户确认不作为前提 |
 | C 视觉整理 | 已完成 | 未做项见 `docs/ui-polish.md` 顶部 |
-| ⑦ 整晚服务 | 未开始 | 可选；**下一步候选**（见第 9 节） |
+| ⑦ 整晚服务 | **已完成** | 模拟时钟，由按钮或自动播放推进；不是真实定时器 |
 | ⑧ 主 Agent / 执行 Agent / 记忆 / 能源规则 | **已完成** | 如何如实描述见 0.4 |
 | ⑨ 演示打磨 | **已完成** | 旧 HTML 清单未做（用户未提供旧页面） |
-| D 演示打包 | 未开始 | **下一步候选**：Development Build、录屏、PDF 证据表 |
+| D 演示打包 | 未开始 | **下一步**：Development Build、录屏、PDF 证据表 |
 | GitHub 远程与 CI 实跑 | 未做 | 未经用户授权不建远程 |
 
 ### 0.4 评审时最该核对的五个点
@@ -146,6 +147,7 @@ Expo App：对话 / 空间 / 场景 / 我的（计划来源开关：规则 / 模
 | R1 评审修正 | 偏离上限、兜底异常、超时联动、端到端脚本入库、真实模型端到端脚本 | `services/planner.py`、`api/errors.py`、`apps/mobile/e2e/`、`backend/scripts/e2e_real_model.py` |
 | ⑧ 补齐模块 | 主 Agent、Space Execution Agent、人物记忆、能源智能、Harness 预检、协作过程展示、偏好编辑、节能模式 | `backend/app/agents/orchestrator|space_execution/`、`memory/`、`energy/`、`harness/policy.py`；`apps/mobile/features/agents/`、`energy/`、`me/`、`space/` |
 | ⑥b 对话外壳 | 四入口外壳、对话流、我的页（PIN / 访客 / 证据面板）、空间与场景简版、演示数据与评测集 | `apps/mobile/features/shell|chat|me|space|scenes/`、`backend/app/demo/seed.py`、`backend/evals/`、`app/agents/experience/evaluation.py` |
+| ⑦ 整晚服务 | 整晚安排规则、模拟时钟推进、单次执行、停止取消、服务完成；App 快进与自动播放、整晚时间线 | `backend/app/rules/night_rule.py`、`agents/space_execution/agent.py::night_schedule`、`services/rest_service.py::advance_clock`；`apps/mobile/features/night/` |
 | ⑨ 演示打磨 | 准备演示按钮、协作说明卡、提示淡出、空态、演示讲稿 | `apps/mobile/features/shell/AppShell.tsx`、`notices.ts`、`features/scenes/ScenesScreen.tsx`、`components/EmptyState.tsx`、`docs/demo-script.md` |
 | ⑥ 一次事件调整 | 事件接口、检查顺序、调整规则、模型调整、App 注入按钮 | `services/rest_service.py::inject_event`、`rules/rest_rule.py::adjustment_rule`、`services/planner.py::plan_adjustment`、`apps/mobile/features/rest/ServiceCard.tsx` |
 
@@ -195,6 +197,7 @@ GET  /api/spaces/{spaceId}/devices
 POST /api/plans/rest
 POST /api/plans/{planId}/confirm
 POST /api/services/{serviceId}/stop
+POST /api/services/{serviceId}/clock/advance  # 模拟时钟推进整晚安排（minutes 为空 = 下一步）
 POST /api/spaces/{spaceId}/events      # 模拟环境事件（source=simulated）
 GET  /api/spaces/{spaceId}/activity
 POST /api/demo/reset
@@ -284,7 +287,7 @@ git status --short
 | ⑥ 一次事件调整 | 注入一次模拟入睡或室温事件，触发一次调整；验证停止 | 休息 → 事件 → 调整 → 停止；停止后再注入不执行 | **已完成**；功能底线（除真机 A 外）已达成 |
 | ⑥b 对话外壳 | **已完成**。按第 12 节把主页改为对话流（计划卡 / 结果卡）；新增“我的”页（人物切换 + 四位 PIN、访客模式、证据面板开关）；“空间”“场景”两页先用现有卡片搭出骨架 | 对话流走通休息 → 确认 → 停止；PIN 与访客模式可用；原始活动只在证据面板出现；测试全部通过 | 只改页面结构与 `services/`，不改后端契约（PIN 与访客上下文除外，需 `gen-api.sh`） |
 | C 视觉整理 | 按 `docs/ui-polish.md` 清单美化；只改 `theme/`、`components/`、`features/` | 两种尺寸截图前后对比；测试全部通过；来源标注仍清晰可见 | **已完成**（天蓝色主题） |
-| ⑦ 整晚服务 | 模拟时钟、夜间阶段、渐进唤醒；一个 `serviceId` 贯穿整晚 | 定时任务不重复执行；停止取消剩余任务 | 可选，未做（用户先选了 ⑧） |
+| ⑦ 整晚服务 | 模拟时钟、夜间阶段、渐进唤醒；一个 `serviceId` 贯穿整晚 | 定时任务不重复执行；停止取消剩余任务 | **已完成**（模拟时钟；见 `docs/architecture.md` 规则 25–30） |
 | ⑧ 补齐模块 | 主 Agent、Space Execution Agent、人物记忆、能源规则及所需 Harness 能力 | 每个模块一条真实工作路径、明确输入输出、调用证据 | **已完成**；如实描述见 0.4 |
 | ⑨ 补齐入口细节 | 演示脚本化与稳定性（一键演示数据、固定演示时段）、空态插画与提示淡出、“场景”页展示 1+2 Agent 场景卡；旧 HTML 清单只作参考 | 一页完成、一页验收；场景状态标签与真实实现一致 | **已完成**；旧 HTML 清单待用户提供旧页面 |
 | D 演示打包 | Development Build 装到平板；录屏三段（用户触发、事件调整、手动停止）；PDF 主张对证据表 | 每条主张有对应证据；模拟与真实来源分开标注 | 复赛前一周完成 |
@@ -293,22 +296,15 @@ git status --short
 
 不能因为建立了目录或类名，就宣称相应 Agent 已经实现。功能声明必须对应真实调用轨迹和测试。
 
-## 9. 下一位 AI 的当前任务：先问用户选 ⑦ 还是 D
+## 9. 下一位 AI 的当前任务：D 演示打包（有 iPad 时先做 A）
 
-前置：⑨ 已完成。开始前先问用户本轮做 **⑦ 整晚服务**（可选）还是 **D 演示打包**；用户有 iPad 时优先插入 **A 真机验收**。只执行选定的一步。
+前置：⑦、⑧、⑨ 已完成，功能开发告一段落。开始前先和用户确认本轮做 **D 演示打包**；用户有 iPad 或安卓平板时优先插入 **A 真机验收**。不再新增后端能力。
 
-### 选 ⑦ 整晚服务时
+### D 的最小范围
 
-- 模拟时钟（可加速），夜间阶段（入睡 → 深夜 → 渐进唤醒），一个 `serviceId` 贯穿整晚。
-- 定时动作复用 `inject_event` 的检查顺序（服务 active、单调整、代次），仍只经执行器写设备。
-- 场景库“起床渐进唤醒”在实现后才可改为“已实现”。
-- 测试：定时任务不重复执行；停止后剩余任务取消；原有 16 个端到端场景通过。
-
-### 选 D 演示打包时
-
-- Development Build 装到平板（无 iPad 时先做安卓或只做网页录屏，并如实标注）。
-- 按 `docs/demo-script.md` 录三段：用户触发、事件调整、手动停止。
-- PDF 主张对证据表：每条主张对应代码位置、测试或录屏；模拟与真实来源分开标注。
+- Development Build 装到平板（无平板时先做网页录屏，并在材料里如实标注“网页版”）。
+- 按 `docs/demo-script.md` 录三段：用户触发（休息计划 → 确认）、事件调整（模拟室温）、整晚服务（自动播放到 07:00）与手动停止。
+- PDF 主张对证据表：每条主张对应代码位置、测试或录屏；模拟与真实来源分开标注（虚拟设备、模拟事件、模拟时钟、模型桩都要写明）。
 - 不推送、不部署到公网。
 
 ### 停止条件
@@ -338,7 +334,7 @@ git status --short
 
 可直接给下一位 AI 的指令：
 
-> 请先阅读仓库根目录 `AGENT-HANDOFF.md`，然后依次阅读 `README.md`、`docs/status.md`、`docs/acceptance.md`、`docs/architecture.md`。保留现有实现和提交历史，重新运行基线检查。先问用户本轮做 ⑦（整晚服务）还是 D（演示打包）（有 iPad 时优先 A 真机验收）；只执行选定的一步，达到验收条件后更新状态文档、提交一次聚焦 commit 并停止。描述能力时遵守 0.4 的如实口径；不要去掉来源标注，不要推送或部署。
+> 请先阅读仓库根目录 `AGENT-HANDOFF.md`，然后依次阅读 `README.md`、`docs/status.md`、`docs/acceptance.md`、`docs/architecture.md`。保留现有实现和提交历史，重新运行基线检查。和用户确认本轮做 D（演示打包）（有 iPad 时优先 A 真机验收）；只执行选定的一步，达到验收条件后更新状态文档、提交一次聚焦 commit 并停止。描述能力时遵守 0.4 的如实口径；不要去掉来源标注，不要推送或部署。
 
 ## 12. 产品界面方向（用户已确认，2026-09-17）
 
@@ -376,7 +372,7 @@ git status --short
 |---|---|---|
 | 我想休息 | 已实现 | 现在 |
 | 室温变化后自动调整 | 已实现（网页与测试验证，真机未验证） | ⑥ 已完成 |
-| 起床渐进唤醒 | 规划中 | ⑦ 验收后 |
+| 起床渐进唤醒 | 已实现（模拟时钟，网页与测试验证，真机未验证） | ⑦ 已完成 |
 
 场景卡不是写死的“示例”，状态标签必须与真实实现一致；执行记录来自后端活动数据筛选，不得预录。
 

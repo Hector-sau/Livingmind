@@ -4,7 +4,8 @@ import re
 from dataclasses import dataclass, field
 from typing import Callable, Optional
 
-from app.contracts import Capability, DeviceAction, DeviceState, RestPreference
+from app.contracts import Capability, DeviceAction, DeviceState, RestPreference, ScheduledStep
+from app.rules.night_rule import night_plan
 from app.rules.rest_rule import actions_from_settings
 
 NewId = Callable[[str], str]
@@ -78,6 +79,40 @@ class SpaceExecutionAgent:
         current = {"light": state.light_brightness, "ac": state.ac_target_temp_c, "curtain": state.curtain_open_percent}
         actions, _ = self.rest_actions(target, capabilities, new_id)
         return [a for a in actions if float(a.value) != float(current[a.device])]
+
+    # ---- overnight schedule (step 7, rule) ----
+
+    def night_schedule(
+        self, target: RestPreference, preference: RestPreference, capabilities: list[Capability], new_id: NewId
+    ) -> list[ScheduledStep]:
+        supported = self.supported(capabilities)
+        steps: list[ScheduledStep] = []
+        for spec in night_plan(target, preference, self._night_light_max):
+            actions = [
+                DeviceAction(
+                    action_id=new_id("act"),
+                    device=device,  # type: ignore[arg-type]
+                    command=COMMANDS[device],  # type: ignore[arg-type]
+                    value=value,
+                    label=LABELS[device](value) if device != "light" or value else "灯光关闭",
+                )
+                for device, value in spec.targets
+                if device in supported
+            ]
+            steps.append(
+                ScheduledStep(
+                    step_id=new_id("step"),
+                    phase=spec.phase,  # type: ignore[arg-type]
+                    at=spec.at,
+                    offset_min=spec.offset_min,
+                    title=spec.title,
+                    actions=actions,
+                    status="pending",
+                    executed_at=None,
+                    source="rule",
+                )
+            )
+        return steps
 
     # ---- direct device commands (simplified branch, rule parser) ----
 

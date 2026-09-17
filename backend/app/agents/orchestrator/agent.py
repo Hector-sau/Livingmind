@@ -151,22 +151,27 @@ class Orchestrator:
         t = time.monotonic()
         caps = adapter.list_capabilities()
         actions, exec_notes = self.space.rest_actions(target, caps, new_id)
+        schedule = self.space.night_schedule(target, ctx.preference, caps, new_id)
         trace.add(
             "space_execution",
             "生成设备动作",
-            f"能力 {len(caps)} 项 · 生成 {len(actions)} 个动作" + (f" · {'；'.join(exec_notes)}" if exec_notes else ""),
+            f"能力 {len(caps)} 项 · 生成 {len(actions)} 个动作 · 整晚安排 {len(schedule)} 个定时步骤"
+            + (f" · {'；'.join(exec_notes)}" if exec_notes else ""),
             "rule",
             t,
         )
 
         t = time.monotonic()
         actions, problems = precheck(actions)
+        for step in schedule:
+            step.actions, step_problems = precheck(step.actions)
+            problems += [f"{step.at} {p}" for p in step_problems]
         model_calls = 1 if exp.generation.mode_requested == "model" and exp.generation.provider else 0
         trace.add(
             "harness",
             "执行前检查",
             ("全部通过白名单与参数范围" if not problems else f"拦截 {len(problems)} 个动作：{'；'.join(problems)}")
-            + f" · 本次模型调用 {model_calls}/1 · 需用户确认后执行",
+            + f" · 本次模型调用 {model_calls}/1 · 计划与整晚安排需用户确认后执行",
             "rule",
             t,
             ok=not problems,
@@ -176,6 +181,10 @@ class Orchestrator:
         if advice.applied:
             notes.append(
                 f"节能模式：空调由 {advice.requested_ac_c:g}°C 调到 {advice.recommended_ac_c:g}°C（仍在舒适范围内）"
+            )
+        if schedule:
+            notes.append(
+                f"整晚安排（模拟时钟，随计划一起确认）：{schedule[0].at} 起共 {len(schedule)} 步，{schedule[-1].at} 唤醒完成后服务结束"
             )
         now = self._clock()
         plan = Plan(
@@ -195,6 +204,7 @@ class Orchestrator:
             generation=exp.generation,
             trace=trace.steps,
             energy=advice,
+            schedule=schedule,
         )
         return AssistantReply(kind="plan", intent="rest", text=exp.summary, plan=plan, trace=trace.steps)
 
@@ -256,6 +266,7 @@ class Orchestrator:
             ),
             trace=trace.steps,
             energy=None,
+            schedule=[],
         )
         return AssistantReply(kind="plan", intent="device_command", text=summary, plan=plan, trace=trace.steps)
 
@@ -304,5 +315,6 @@ class Orchestrator:
             generation=exp.generation,
             trace=trace.steps,
             energy=None,
+            schedule=[],
         )
         return plan, exp.fallback_reason

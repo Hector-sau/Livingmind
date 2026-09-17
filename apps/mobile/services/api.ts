@@ -1,5 +1,7 @@
 import type {
   ActivityResponse,
+  AdvanceClockRequest,
+  AdvanceClockResponse,
   AssistantMessageRequest,
   AssistantReply,
   EnergyMode,
@@ -39,6 +41,8 @@ export interface LivingMindApi {
   setEnergyMode(ctx: RequestContext, mode: EnergyMode): Promise<Space>;
   confirmPlan(planId: string, req: ConfirmPlanRequest): Promise<ConfirmPlanResponse>;
   stopService(serviceId: string, req: StopServiceRequest): Promise<StopServiceResponse>;
+  /** Simulated night clock (demo only). minutes=null jumps to the next pending step. */
+  advanceClock(serviceId: string, req: AdvanceClockRequest): Promise<AdvanceClockResponse>;
   /** Simulated environment event (demo only). May lead to one automatic adjustment. */
   injectEvent(spaceId: string, req: InjectEventRequest): Promise<EventResult>;
   getActivity(spaceId: string, limit?: number): Promise<ActivityResponse>;

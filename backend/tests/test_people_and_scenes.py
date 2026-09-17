@@ -52,14 +52,14 @@ def test_guest_needs_no_pin_and_uses_space_defaults(client):
 def test_scene_library_status_is_honest(client):
     items = client.get("/api/scenes", params={"accountId": "demo-account"}).json()["items"]
     status = {s["sceneId"]: s["status"] for s in items}
-    assert status == {"scene-rest": "implemented", "scene-room-temp": "implemented", "scene-wake": "planned"}
+    assert status == {"scene-rest": "implemented", "scene-room-temp": "implemented", "scene-wake": "implemented"}
     wake = next(s for s in items if s["sceneId"] == "scene-wake")
-    assert "尚未实现" in wake["verification"]
-    # the planned scene has no backend entry point yet
+    # implemented on a simulated clock only, and the scene says so
+    assert "模拟时钟" in wake["verification"] and "真机未验证" in wake["verification"]
     from app.api.routes import router
 
     paths = {r.path for r in router.routes}
-    assert not any("wake" in p for p in paths)
+    assert "/api/services/{service_id}/clock/advance" in paths
 
 
 def test_three_members_have_distinct_preferences_with_room_to_adjust():

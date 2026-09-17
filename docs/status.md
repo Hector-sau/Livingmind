@@ -1,6 +1,6 @@
 # 实现状态
 
-更新：2026-09-17 · 第一批（步骤 0–4）完成；B 并发修正完成；⑤ Experience Agent **已完成并验证真实调用**（2026-09-17 在用户 Mac 上运行 `scripts/try_model.py`，deepseek-flash，2035 ms）。评审修正 R1 完成；⑥ 一次事件调整完成；⑥b 对话外壳完成；C 视觉整理完成；⑧ 补齐模块完成（1+2 Agent 编排已实现）。⑨ 演示打磨完成。⑦ 未做（可选），D 未开始。真机验收仍未做。
+更新：2026-09-17 · 第一批（步骤 0–4）完成；B 并发修正完成；⑤ Experience Agent **已完成并验证真实调用**（2026-09-17 在用户 Mac 上运行 `scripts/try_model.py`，deepseek-flash，2035 ms）。评审修正 R1 完成；⑥ 一次事件调整完成；⑥b 对话外壳完成；C 视觉整理完成；⑧ 补齐模块完成（1+2 Agent 编排已实现）。⑨ 演示打磨完成；⑦ 整晚服务完成（模拟时钟）。D 未开始。真机验收仍未做。
 
 ## 已实现
 
@@ -46,6 +46,9 @@
 | ⑨：“场景”页“1+2 Agent 如何协作”说明卡（措辞与交接文档 0.4 一致；有计划时展示真实协作过程，否则引导去对话） | `apps/mobile/features/scenes/ScenesScreen.tsx` | 同上 |
 | ⑨：信息类提示 3 秒自动淡出（警告、错误常驻）；空态改为大图标 + 引导语（对话、服务、设备、证据、场景时间线） | `features/shell/notices.ts`、`components/EmptyState.tsx` | `tests/notices.test.ts`；端到端 `http-prepare-demo` |
 | ⑨：3 分钟演示讲稿 | `docs/demo-script.md` | — |
+| ⑦：整晚安排（5 步：23:00 关灯、01:00 空调 +1°C、06:30 / 06:45 / 07:00 三步唤醒），Space Execution Agent 规则生成、Harness 预检、随休息计划确认 | `backend/app/rules/night_rule.py`、`agents/space_execution/agent.py` | `tests/test_night_service.py` |
+| ⑦：模拟时钟推进 `POST /api/services/{id}/clock/advance`；锁内认领保证每步只执行一次；单服务单推进；停止取消剩余步骤；最后一步后服务 `completed` | `backend/app/services/rest_service.py::advance_clock` | 同上（10 项，含并发推进、推进中停止）；前端 Mock 同步 `tests/night.test.ts` |
+| ⑦：App 运行条“快进 / 自动播放整晚”、计划卡整晚安排、空间页整晚时间线、对话系统消息；场景“起床渐进唤醒”改为已实现；场景时间线按触发来源归类动作 | `apps/mobile/features/night/`、`features/chat/ServiceStrip.tsx`、`features/scenes/timeline.ts` | 端到端 `http-night`、`mock-night`、`http-night-stop-phone`；`tests/conversation.test.ts` |
 | 真实模型端到端脚本（后端：5 句话 → 计划 → 确认 → 回读 → 停止，延迟统计；浏览器：`--real-model`） | `backend/scripts/e2e_real_model.py`（含 `--eval`）、`apps/mobile/e2e/run_e2e.py --real-model` | 已用本地桩空跑通过；真实模型运行为**可选项**（开发环境无法访问 api.deepseek.com，需在用户 Mac 终端运行） |
 
 ## 步骤 4 的 7 项验证
@@ -60,7 +63,7 @@
 | 6 | 非法人物 / 空间 / 账户 / 参数 / 过期 / 版本不符被拒绝 | 自动化测试通过 |
 | 7 | 后端断开时 App 明确反馈 | 前端单元测试 + 端到端场景 `http-offline`（关掉后端后点确认，出现“无法连接后端，显示的状态可能已过期”，设备数值变灰，没有假装成功） |
 
-浏览器端到端：`apps/mobile/e2e/run_e2e.py`（已入库，可复现）。用 Expo 网页导出，在 1180×820 和 390×844 两种尺寸下跑前端模拟与后端两种模式的完整流程，外加模型计划、超时降级、偏离降级、模拟模式降级、断网反馈，共 15 个场景（对话操作；含 PIN、证据面板、访客、场景库、1+2 Agent 协作、设备指令、节能模式、偏好编辑），最近一次 15/15 通过，无页面错误。模型路径连的是本地桩，不是 DeepSeek。
+浏览器端到端：`apps/mobile/e2e/run_e2e.py`（已入库，可复现）。用 Expo 网页导出，在 1180×820 和 390×844 两种尺寸下跑前端模拟与后端两种模式的完整流程，外加模型计划、超时降级、偏离降级、模拟模式降级、断网反馈，共 19 个场景（对话操作；含 PIN、证据面板、访客、场景库、1+2 Agent 协作、设备指令、节能模式、偏好编辑、准备演示、整晚服务），最近一次 19/19 通过，无页面错误。模型路径连的是本地桩，不是 DeepSeek。
 
 ## ⑤ 的验证情况
 
@@ -85,6 +88,7 @@
 - 身份只是演示账户，没有正式认证；后端不要部署到公网。
 - 设备全部是虚拟的，不代表真实硬件接入。
 - 模拟事件没有真实传感器；室温数值由按钮或 API 直接给出。
+- 整晚服务跑在模拟时钟上，由按钮或“自动播放”（每 2.5 秒推进一步）驱动；后端没有真实定时器，也不读真实时间。
 - 演示 PIN 不是认证；“我的”页上直接写出了演示 PIN，便于评审操作。
 - 语音按钮是占位，点击只提示“后续接入”。
 - Logo 来自 `KidMind-PPT/output/brand/livingmind-logo-primary-v2.png`（用户已同意在 App 中使用），为 PNG；正式发布前按品牌说明补 SVG 母版与商标检索。
@@ -97,9 +101,9 @@
 
 ## 未开始
 
-⑦ 整晚服务（可选） · D 演示打包 · A 真机验收（有 iPad 时） · 旧 HTML 前端清单（用户尚未提供旧文件）
+D 演示打包 · A 真机验收（有 iPad 时） · 旧 HTML 前端清单（用户尚未提供旧文件）
 
 ## 下一步接口
 
 - 下一步见 `AGENT-HANDOFF.md` 第 9 节。
-- ⑦：定时器可复用 `inject_event` 的检查顺序（服务 active、单调整、代次），把事件来源换成模拟时钟。
+- 若以后换成真实定时器：由定时器调用 `advance_clock`，认领与守卫逻辑不变。

@@ -20,6 +20,11 @@ __all__ = [
     "PlannerInfo",
     "PlannerMode",
     "Service",
+    "ScheduledStep",
+    "SchedulePhase",
+    "ScheduleStepStatus",
+    "AdvanceClockRequest",
+    "AdvanceClockResponse",
     "ActionResult",
     "AgentName",
     "AgentStep",
@@ -80,7 +85,10 @@ DataSource = Literal["virtual_device", "frontend_mock"]
 PlanSource = Literal["rule", "model", "rule_fallback", "frontend_mock"]
 PlannerMode = Literal["rule", "model"]
 PlanStatus = Literal["proposed", "executed", "expired", "invalidated"]
-ServiceStatus = Literal["active", "stopped"]
+# completed = the overnight schedule finished (wake-up done); stopped = the user stopped it.
+ServiceStatus = Literal["active", "stopped", "completed"]
+SchedulePhase = Literal["sleep", "deep", "wake"]
+ScheduleStepStatus = Literal["pending", "running", "done", "cancelled"]
 DeviceType = Literal["light", "ac", "curtain"]
 DeviceCommand = Literal["set_brightness", "set_target_temperature", "set_open_percent"]
 ActionOutcome = Literal["succeeded", "rejected", "failed", "skipped"]
@@ -99,9 +107,13 @@ ActivityKind = Literal[
     "memory_updated",
     "energy_mode_changed",
     "demo_reset",
+    "clock_advanced",
+    "schedule_step_executed",
+    "schedule_cancelled",
+    "service_completed",
 ]
 ActivitySource = Literal[
-    "user", "rule_engine", "experience_agent", "executor", "virtual_device", "system", "simulated_event", "frontend_mock"
+    "user", "rule_engine", "experience_agent", "executor", "virtual_device", "system", "simulated_event", "simulated_clock", "frontend_mock"
 ]
 EventType = Literal["room_temperature_changed"]
 AgentName = Literal["orchestrator", "memory", "experience", "energy", "space_execution", "harness"]
@@ -261,6 +273,20 @@ class Capability(Contract):
     integer: bool
 
 
+class ScheduledStep(Contract):
+    """One timed step of the overnight schedule. Driven by a simulated clock, never by wall time."""
+
+    step_id: str
+    phase: SchedulePhase
+    at: str = Field(description="Simulated local time, HH:MM")
+    offset_min: int = Field(description="Minutes after the simulated night start")
+    title: str
+    actions: list[DeviceAction]
+    status: ScheduleStepStatus = Field(description="running = claimed by one clock advance; a step runs at most once")
+    executed_at: Optional[datetime]
+    source: Literal["rule", "frontend_mock"]
+
+
 class Plan(Contract):
     plan_id: str
     version: int
@@ -278,6 +304,7 @@ class Plan(Contract):
     generation: PlanGeneration
     trace: list[AgentStep] = Field(default_factory=list)
     energy: Optional[EnergyAdvice] = None
+    schedule: list[ScheduledStep] = Field(description="Overnight schedule confirmed together with a rest plan; empty otherwise")
 
 
 class Service(Contract):
@@ -292,6 +319,9 @@ class Service(Contract):
     planner_mode: PlannerMode = Field(description="Mode used for this service's plans; event re-planning follows it")
     adjustments: int = Field(description="Automatic adjustments made by events so far")
     last_adjusted_at: Optional[datetime]
+    night_clock: str = Field(description="Simulated local time of the overnight schedule, HH:MM")
+    night_offset_min: int = Field(description="Simulated minutes since the night start")
+    schedule: list[ScheduledStep]
 
 
 class ActionResult(Contract):
@@ -333,6 +363,13 @@ class ConfirmPlanRequest(Contract):
 
 class StopServiceRequest(Contract):
     context: RequestContext
+
+
+class AdvanceClockRequest(Contract):
+    """Move the simulated night clock. minutes=null jumps to the next pending step."""
+
+    context: RequestContext
+    minutes: Optional[int] = Field(default=None, ge=1, le=720)
 
 
 class UnlockPersonRequest(Contract):
@@ -416,6 +453,14 @@ class EventResult(Contract):
     plan: Optional[Plan] = Field(description="The adjustment plan that was executed")
     results: list[ActionResult]
     device_state: DeviceState
+
+
+class AdvanceClockResponse(Contract):
+    service: Service
+    executed: list[ScheduledStep] = Field(description="Steps that came due and ran during this advance")
+    results: list[ActionResult]
+    device_state: DeviceState
+    note: Optional[str] = Field(description="Why nothing happened, if nothing did")
 
 
 class AssistantReply(Contract):

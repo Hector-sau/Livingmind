@@ -235,9 +235,9 @@ def scenario_guest_and_scenes(page: Page, url: str) -> None:
         sid: page.get_by_test_id(f"scene-status-{sid}").inner_text().strip()
         for sid in ("scene-rest", "scene-room-temp", "scene-wake")
     }
-    assert labels == {"scene-rest": "已实现", "scene-room-temp": "已实现", "scene-wake": "规划中"}, labels
+    assert labels == {"scene-rest": "已实现", "scene-room-temp": "已实现", "scene-wake": "已实现"}, labels
     page.get_by_test_id("scene-card-scene-wake").click()
-    page.get_by_text("尚未实现，暂无执行记录", exact=False).wait_for()
+    page.get_by_text("本次运行还没有这个场景的执行记录", exact=False).wait_for()
     shot(page, "scenes")
 
 
@@ -436,6 +436,60 @@ def scenario_prepare_demo(page: Page) -> None:
     assert page.get_by_test_id("evidence-panel-space").count() == 0, "evidence is hidden again"
 
 
+def scenario_night(page: Page, url: str, label: str, backend_api: bool) -> None:
+    """Step 7: schedule preview -> confirm -> fast-forward -> auto-play to wake-up -> completed."""
+    open_app(page, url)
+    set_mode(page, "rule")
+    send(page, "我想休息")  # 林悦
+    page.get_by_test_id("schedule-toggle").click()
+    preview = page.get_by_test_id("plan-schedule").inner_text()
+    for at in ["23:00", "01:00", "06:30", "06:45", "07:00"]:
+        assert at in preview, preview
+    page.get_by_test_id("confirm-plan").click()
+    page.get_by_test_id("night-strip").first.wait_for()
+    assert "模拟时间 22:30" in page.get_by_test_id("night-clock").first.inner_text()
+    page.get_by_test_id("clock-next").first.click()
+    page.get_by_text("模拟时间 23:00 · 入睡：关灯", exact=False).wait_for(timeout=10000)
+    assert "整晚安排 1/5" in page.get_by_test_id("night-strip").first.inner_text()
+    shot(page, f"{label}-night-first-step")
+    page.get_by_test_id("clock-auto").first.click()
+    page.get_by_text("唤醒完成，整晚服务已结束", exact=False).wait_for(timeout=30000)
+    assert page.get_by_test_id("service-strip").count() == 0, "a completed service has no running strip"
+    text = body(page)
+    for line in ["模拟时间 01:00 · 深夜：空调调高到 26°C", "模拟时间 06:30 · 唤醒 1/3", "模拟时间 07:00 · 唤醒 3/3"]:
+        assert line in text, line
+    if backend_api:
+        d = page.request.get(f"{API}/api/spaces/space-home-bedroom/devices?accountId=demo-account").json()
+        assert (d["lightBrightness"], d["acTargetTempC"], d["curtainOpenPercent"]) == (60, 25, 100), d
+    shot(page, f"{label}-night-completed")
+    tab(page, "space")
+    assert "已完成" in body(page)
+    steps = page.get_by_test_id("night-schedule").inner_text()
+    assert steps.count("已执行") == 5, steps
+    assert "模拟时间 07:00" in steps
+    shot(page, f"{label}-night-space")
+    tab(page, "scenes")
+    page.get_by_test_id("scene-card-scene-wake").click()
+    page.get_by_text("唤醒完成", exact=False).first.wait_for()
+    shot(page, f"{label}-night-timeline")
+
+
+def scenario_night_stop(page: Page, url: str) -> None:
+    """Stopping mid-night cancels every remaining step."""
+    open_app(page, url)
+    set_mode(page, "rule")
+    send(page, "我想休息")
+    page.get_by_test_id("confirm-plan").click()
+    page.get_by_test_id("clock-next").first.click()
+    page.get_by_text("模拟时间 23:00", exact=False).first.wait_for(timeout=10000)
+    page.get_by_test_id("stop-service").first.click()
+    page.get_by_text("未执行的整晚步骤已取消", exact=False).wait_for()
+    tab(page, "space")
+    steps = page.get_by_test_id("night-schedule").inner_text()
+    assert steps.count("已执行") == 1 and steps.count("已取消") == 4, steps
+    assert page.get_by_test_id("clock-next").count() == 0
+
+
 def scenario_real_model(page: Page) -> None:
     """Real provider: a model plan (or a clearly labelled fallback) appears, then confirm and stop."""
     open_app(page, f"http://localhost:{HTTP_PORT}/")
@@ -558,6 +612,20 @@ def main() -> int:
                 scenario_energy_memory(page)
 
             run("http-energy-memory", http_energy_memory)
+
+            def http_night(page):
+                reset_backend()
+                scenario_night(page, f"http://localhost:{HTTP_PORT}/", "http", True)
+
+            run("http-night", http_night)
+            run("mock-night", lambda page: scenario_night(page, f"http://localhost:{MOCK_PORT}/", "mock", False))
+
+            def phone_night_stop(page):
+                reset_backend()
+                page.set_viewport_size(VIEWPORTS["phone"])
+                scenario_night_stop(page, f"http://localhost:{HTTP_PORT}/")
+
+            run("http-night-stop-phone", phone_night_stop)
 
             def http_prepare_demo(page):
                 reset_backend()

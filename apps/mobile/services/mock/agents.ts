@@ -1,8 +1,9 @@
 // Front-end mirror of the backend agents (orchestrator router, space execution parser, energy rules,
 // adjustment rule). Pure functions; used only by the mock API. Keep in sync with:
 //   backend/app/agents/orchestrator/agent.py, agents/space_execution/agent.py,
-//   backend/app/energy/rules.py, backend/app/rules/rest_rule.py
-import type { DeviceAction, DeviceState, EnergyAdvice, EnergyMode, RestPreference } from '../types';
+//   backend/app/energy/rules.py, backend/app/rules/rest_rule.py, backend/app/rules/night_rule.py
+import type { DeviceAction, DeviceState, EnergyAdvice, EnergyMode, RestPreference, ScheduledStep } from '../types';
+import { DEEP_NIGHT_AC_RAISE_C, NIGHT_START_LOCAL, WAKE_LIGHT_MAX, WAKE_TIME_LOCAL } from './seed';
 
 export type Intent = 'rest' | 'device_command' | 'status' | 'other';
 
@@ -211,4 +212,62 @@ export function adjustmentTarget(prefAc: number, currentAc: number, roomTempC: n
   return next === currentAc
     ? { next, summary: `${why}，但已到偏好允许的调整边界` }
     : { next, summary: `${why}，空调调整到 ${next}°C` };
+}
+
+// ---- overnight schedule on a simulated clock (backend/app/rules/night_rule.py) ----
+
+const DAY = 24 * 60;
+const toMin = (hhmm: string) => {
+  const [h, m] = hhmm.split(':').map(Number);
+  return h * 60 + m;
+};
+const START_MIN = toMin(NIGHT_START_LOCAL);
+
+export function nightOffset(hhmm: string): number {
+  return (((toMin(hhmm) - START_MIN) % DAY) + DAY) % DAY;
+}
+
+export function nightClockLabel(offsetMin: number): string {
+  const total = (START_MIN + offsetMin) % DAY;
+  return `${String(Math.floor(total / 60)).padStart(2, '0')}:${String(total % 60).padStart(2, '0')}`;
+}
+
+type Device = DeviceAction['device'];
+
+/** Five timed steps: sleep, deep night, three-step wake-up ending at WAKE_TIME_LOCAL. */
+export function nightSchedule(
+  target: RestPreference,
+  preference: RestPreference,
+  nightLightMax: number,
+  newId: (p: string) => string,
+): ScheduledStep[] {
+  const ac = target.acTargetTempC;
+  const deepAc = Math.min(ac + DEEP_NIGHT_AC_RAISE_C, preference.acTargetTempC + 3, 30);
+  const wakeLight = Math.min(WAKE_LIGHT_MAX, nightLightMax);
+  const wake = nightOffset(WAKE_TIME_LOCAL);
+  const curtain = target.curtainOpenPercent;
+  const specs: [number, ScheduledStep['phase'], string, [Device, number][]][] = [
+    [nightOffset('23:00'), 'sleep', '入睡：关灯', [['light', 0]]],
+    [nightOffset('01:00'), 'deep', deepAc !== ac ? `深夜：空调调高到 ${deepAc}°C` : `深夜：空调保持 ${ac}°C（已到偏好边界）`, [['ac', deepAc]]],
+    [wake - 30, 'wake', '唤醒 1/3：窗帘微开、灯光 20%', [['curtain', Math.max(curtain, 30)], ['light', 20]]],
+    [wake - 15, 'wake', `唤醒 2/3：窗帘 60%、灯光 40%、空调回到 ${ac}°C`, [['curtain', Math.max(curtain, 60)], ['light', 40], ['ac', ac]]],
+    [wake, 'wake', `唤醒 3/3：窗帘全开、灯光 ${wakeLight}%`, [['curtain', 100], ['light', wakeLight]]],
+  ];
+  return specs.map(([offsetMin, phase, title, targets]) => ({
+    stepId: newId('step'),
+    phase,
+    at: nightClockLabel(offsetMin),
+    offsetMin,
+    title,
+    actions: targets.map(([device, value]) => ({
+      actionId: newId('a'),
+      device,
+      command: COMMAND[device],
+      value,
+      label: device === 'light' && value === 0 ? '灯光关闭' : LABEL[device](value),
+    })),
+    status: 'pending',
+    executedAt: null,
+    source: 'frontend_mock',
+  }));
 }

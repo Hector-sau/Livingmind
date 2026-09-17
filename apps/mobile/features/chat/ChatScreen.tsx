@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { ScrollView, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 
 import { EmptyState } from '../../components/EmptyState';
@@ -11,6 +11,7 @@ import { actionablePlanId, greeting, messageId, resultSummary, type Conversation
 import { Composer } from './Composer';
 import { AssistantText, MessageView } from './MessageView';
 import { ServiceStrip } from './ServiceStrip';
+import { advanceMessages, AUTO_PLAY_MS } from '../night/schedule';
 
 interface Props {
   api: LivingMindApi;
@@ -67,9 +68,34 @@ export function ChatScreen({ api, flow, messages, dispatch }: Props) {
     }
   };
 
+  const advance = async () => {
+    const res = await actions.advanceClock(null);
+    if (!res.ok) {
+      setAutoPlay(false);
+      return system(`快进失败：${res.error.message}`, res.error.connectivity ? 'warning' : 'error');
+    }
+    advanceMessages(res.value).forEach((m) => system(m.text, m.tone));
+    if (res.value.service.status !== 'active') setAutoPlay(false);
+  };
+
+  // Auto-play: one simulated step every few seconds while the service is active.
+  const [autoPlay, setAutoPlay] = useState(false);
+  const advanceRef = useRef(advance);
+  advanceRef.current = advance;
+  const running = activeService !== null;
+  useEffect(() => {
+    if (!running) setAutoPlay(false);
+  }, [running]);
+  useEffect(() => {
+    if (!autoPlay || !running || busy) return;
+    const t = setTimeout(() => void advanceRef.current(), AUTO_PLAY_MS);
+    return () => clearTimeout(t);
+  }, [autoPlay, running, busy]);
+
   const stop = async () => {
+    setAutoPlay(false);
     const res = await actions.stop();
-    if (res.ok) system('休息服务已停止，设备保持当前状态；之后的事件不会再触发调整', 'info');
+    if (res.ok) system('休息服务已停止，设备保持当前状态；未执行的整晚步骤已取消，之后的事件不会再触发调整', 'info');
     else system(`停止失败：${res.error.message}`, 'error');
   };
 
@@ -88,6 +114,10 @@ export function ChatScreen({ api, flow, messages, dispatch }: Props) {
             stopLoading={state.busy === 'stop'}
             onInjectEvent={injectEvent}
             onStop={stop}
+            clockLoading={state.busy === 'clock'}
+            autoPlay={autoPlay}
+            onAdvance={() => void advance()}
+            onToggleAuto={() => setAutoPlay((v) => !v)}
           />
         </View>
       ) : null}
@@ -147,6 +177,10 @@ export function ChatScreen({ api, flow, messages, dispatch }: Props) {
           stopLoading={state.busy === 'stop'}
           onInjectEvent={injectEvent}
           onStop={stop}
+          clockLoading={state.busy === 'clock'}
+          autoPlay={autoPlay}
+          onAdvance={() => void advance()}
+          onToggleAuto={() => setAutoPlay((v) => !v)}
         />
         <DevicePanel
           state={state.deviceState}

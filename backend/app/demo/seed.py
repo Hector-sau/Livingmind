@@ -67,9 +67,15 @@ SPACE_RULES: dict[str, list[SpaceRule]] = {
     "space-home-bedroom": [
         SpaceRule(rule_id="rule-night-light", text=f"休息时灯光不超过 {NIGHT_LIGHT_MAX}%", enforced=True),
         SpaceRule(rule_id="rule-guest-privacy", text="访客模式不读取任何个人偏好", enforced=True),
-        SpaceRule(rule_id="rule-confirm", text="所有设备动作都要先确认再执行（模拟事件的自动调整除外）", enforced=True),
+        SpaceRule(rule_id="rule-confirm", text="所有设备动作都要先确认再执行（整晚安排随休息计划一起确认；模拟事件的自动调整除外）", enforced=True),
     ]
 }
+
+# Overnight schedule (step 7). Simulated clock only: the demo advances it with a button.
+NIGHT_START_LOCAL = "22:30"
+WAKE_TIME_LOCAL = "07:00"
+DEEP_NIGHT_AC_RAISE_C = 1.0  # body temperature drops in deep sleep; stays within preference ±3 °C
+WAKE_LIGHT_MAX = 60
 
 # Simulated environment for energy advice (no real weather or tariff feed).
 OUTDOOR_TEMP_C = 29.0
@@ -110,9 +116,9 @@ SCENES: list[Scene] = [
     Scene(
         scene_id="scene-wake",
         title="起床渐进唤醒",
-        description="按起床时间逐步打开窗帘、调亮灯光",
-        status="planned",
-        verification="尚未实现（计划在步骤 ⑦）",
-        trigger="定时（规划中）",
+        description="确认休息计划后按整晚安排运行：入睡关灯、深夜微调空调，07:00 前分三步打开窗帘、调亮灯光",
+        status="implemented",
+        verification="后端与前端测试、网页端到端验证（模拟时钟，由演示按钮推进）；真机未验证",
+        trigger="定时（模拟时钟）",
     ),
 ]

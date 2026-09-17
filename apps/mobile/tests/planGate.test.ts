@@ -19,6 +19,7 @@ const plan = (over: Partial<Plan> = {}): Plan => ({
   createdAt: '2026-09-17T12:00:00Z',
   expiresAt: '2026-09-17T12:10:00Z',
   generation: { modeRequested: 'rule', provider: null, model: null, latencyMs: 0, fallbackReason: null, goal: null },
+  schedule: [],
   ...over,
 });
 const now = new Date('2026-09-17T12:01:00Z');

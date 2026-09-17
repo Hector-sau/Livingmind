@@ -62,7 +62,7 @@ export const NIGHT_LIGHT_MAX = 60;
 export const MOCK_SPACE_RULES: SpaceRule[] = [
   { ruleId: 'rule-night-light', text: `休息时灯光不超过 ${NIGHT_LIGHT_MAX}%`, enforced: true },
   { ruleId: 'rule-guest-privacy', text: '访客模式不读取任何个人偏好', enforced: true },
-  { ruleId: 'rule-confirm', text: '所有设备动作都要先确认再执行（模拟事件的自动调整除外）', enforced: true },
+  { ruleId: 'rule-confirm', text: '所有设备动作都要先确认再执行（整晚安排随休息计划一起确认；模拟事件的自动调整除外）', enforced: true },
 ];
 
 export const MOCK_INITIAL_DEVICES = { lightBrightness: 80, acTargetTempC: 26, curtainOpenPercent: 100 };
@@ -87,9 +87,15 @@ export const MOCK_SCENES: Scene[] = [
   {
     sceneId: 'scene-wake',
     title: '起床渐进唤醒',
-    description: '按起床时间逐步打开窗帘、调亮灯光',
-    status: 'planned',
-    verification: '尚未实现（计划在步骤 ⑦）',
-    trigger: '定时（规划中）',
+    description: '确认休息计划后按整晚安排运行：入睡关灯、深夜微调空调，07:00 前分三步打开窗帘、调亮灯光',
+    status: 'implemented',
+    verification: '后端与前端测试、网页端到端验证（模拟时钟，由演示按钮推进）；真机未验证',
+    trigger: '定时（模拟时钟）',
   },
 ];
+
+// Overnight schedule (mirror of backend/app/demo/seed.py).
+export const NIGHT_START_LOCAL = '22:30';
+export const WAKE_TIME_LOCAL = '07:00';
+export const DEEP_NIGHT_AC_RAISE_C = 1;
+export const WAKE_LIGHT_MAX = 60;

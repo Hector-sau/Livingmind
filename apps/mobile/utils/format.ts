@@ -28,6 +28,7 @@ export const ACTIVITY_SOURCE_LABEL: Record<ActivitySource, string> = {
   virtual_device: '虚拟设备',
   system: '系统',
   simulated_event: '模拟事件',
+  simulated_clock: '模拟时钟',
   frontend_mock: '前端模拟',
 };
 
@@ -46,4 +47,8 @@ export const ACTIVITY_KIND_LABEL: Record<ActivityKind, string> = {
   memory_updated: '偏好更新',
   energy_mode_changed: '节能设置',
   demo_reset: '重置演示',
+  clock_advanced: '模拟时钟',
+  schedule_step_executed: '整晚步骤',
+  schedule_cancelled: '步骤取消',
+  service_completed: '服务完成',
 };

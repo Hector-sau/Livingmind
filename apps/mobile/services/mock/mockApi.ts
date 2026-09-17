@@ -4,6 +4,8 @@
 import { ApiError, type LivingMindApi } from '../api';
 import type {
   ActionResult,
+  AdvanceClockRequest,
+  AdvanceClockResponse,
   ActivityRecord,
   AgentStep,
   AssistantMessageRequest,
@@ -11,6 +13,7 @@ import type {
   BootstrapResponse,
   ConfirmPlanRequest,
   ConfirmPlanResponse,
+  ScheduledStep,
   CreateRestPlanRequest,
   DeviceAction,
   DeviceState,
@@ -31,6 +34,8 @@ import {
   commandActions,
   energyAdvise,
   INTENT_LABEL,
+  nightClockLabel,
+  nightSchedule,
   parseCommand,
   precheck,
   restActions,
@@ -202,15 +207,17 @@ export function createMockApi(options: MockOptions = {}): LivingMindApi {
         ),
       );
       const built = restActions(target, id, NIGHT_LIGHT_MAX);
-      trace.push(step('space_execution', '生成设备动作', `生成 ${built.actions.length} 个动作`));
+      const schedule = nightSchedule(target, pref, NIGHT_LIGHT_MAX, id);
+      trace.push(step('space_execution', '生成设备动作', `生成 ${built.actions.length} 个动作 · 整晚安排 ${schedule.length} 个定时步骤`));
       const checked = precheck(built.actions);
-      trace.push(step('harness', '执行前检查', `${checked.problems.length ? checked.problems.join('；') : '全部通过白名单与参数范围'} · 需用户确认后执行`, !checked.problems.length));
+      trace.push(step('harness', '执行前检查', `${checked.problems.length ? checked.problems.join('；') : '全部通过白名单与参数范围'} · 计划与整晚安排需用户确认后执行`, !checked.problems.length));
       const notes = [
         ...(person.isGuest ? ['访客模式：使用空间默认设置，没有读取任何个人偏好'] : []),
         wantsModel ? `前端模拟：${fallbackReason}` : '前端模拟：计划由本地规则生成，没有调用后端或模型',
         '当前为固定休息场景，输入文字只做记录，不做语义理解',
         ...built.notes,
         ...(advice.applied ? [`节能模式：空调由 ${advice.requestedAcC}°C 调到 ${advice.recommendedAcC}°C（仍在舒适范围内）`] : []),
+        `整晚安排（模拟时钟，随计划一起确认）：${schedule[0].at} 起共 ${schedule.length} 步，${schedule[schedule.length - 1].at} 唤醒完成后服务结束`,
       ];
       const plan = newPlan({
         personId: person.personId,
@@ -224,6 +231,7 @@ export function createMockApi(options: MockOptions = {}): LivingMindApi {
         generation: { modeRequested: mode, provider: null, model: null, latencyMs: 0, fallbackReason, goal: null },
         trace,
         energy: advice,
+        schedule,
       });
       record(plan);
       if (fallbackReason) note('plan_fallback', fallbackReason, { planId: plan.planId, personId: person.personId });
@@ -258,6 +266,7 @@ export function createMockApi(options: MockOptions = {}): LivingMindApi {
         generation: { modeRequested: mode, provider: null, model: null, latencyMs: 0, fallbackReason: null, goal: null },
         trace,
         energy: null,
+        schedule: [],
       });
       record(plan);
       note('plan_created', `主 Agent → 执行 Agent：${summary}（${person.name}）`, { planId: plan.planId, personId: person.personId });
@@ -368,6 +377,9 @@ export function createMockApi(options: MockOptions = {}): LivingMindApi {
           plannerMode: plan.generation.modeRequested,
           adjustments: 0,
           lastAdjustedAt: null,
+          nightClock: nightClockLabel(0),
+          nightOffsetMin: 0,
+          schedule: plan.schedule.map((s) => ({ ...s, actions: s.actions.map((a) => ({ ...a })) })),
         };
         services.set(service.serviceId, service);
         rec.serviceId = service.serviceId;
@@ -399,7 +411,60 @@ export function createMockApi(options: MockOptions = {}): LivingMindApi {
       service.stoppedAt = now().toISOString();
       epoch += 1;
       log({ kind: 'service_stopped', source: 'user', message: '用户停止服务，设备保持当前状态', serviceId, planId: service.planId, personId: service.personId, action: null });
+      const pending = service.schedule.filter((s) => s.status === 'pending');
+      pending.forEach((s) => (s.status = 'cancelled'));
+      if (pending.length) note('schedule_cancelled', `已取消 ${pending.length} 个未执行的整晚步骤（${pending[0].at} 起）`, { serviceId, personId: service.personId });
       return delay({ service, deviceState: devices });
+    },
+
+    async advanceClock(serviceId: string, req: AdvanceClockRequest): Promise<AdvanceClockResponse> {
+      checkContext(req.context);
+      const service = services.get(serviceId);
+      if (!service) throw new ApiError('NOT_FOUND', '服务不存在', 404);
+      if (service.status !== 'active') throw new ApiError('SERVICE_NOT_ACTIVE', '服务已经结束', 409);
+      const pending = service.schedule.filter((s) => s.status === 'pending');
+      const reply = (executed: ScheduledStep[], results: ActionResult[], why: string | null) =>
+        delay({ service, executed, results, deviceState: devices, note: why });
+      if (pending.length === 0) return reply([], [], '整晚安排已全部执行');
+      const before = service.nightClock;
+      const last = service.schedule[service.schedule.length - 1].offsetMin;
+      const wanted = req.minutes == null ? pending[0].offsetMin : service.nightOffsetMin + req.minutes;
+      const target = Math.min(Math.max(wanted, service.nightOffsetMin), last);
+      service.nightOffsetMin = target;
+      service.nightClock = nightClockLabel(target);
+      const due = pending.filter((s) => s.offsetMin <= target);
+      due.forEach((s) => (s.status = 'running'));
+      log({
+        kind: 'clock_advanced',
+        source: 'frontend_mock',
+        message: `模拟时钟 ${before} → ${service.nightClock}${due.length ? `，到点 ${due.length} 步` : '，没有到点的步骤'}（前端模拟）`,
+        serviceId,
+        planId: null,
+        personId: service.personId,
+        action: null,
+      });
+      if (due.length === 0) return reply([], [], `下一步在 ${pending[0].at}`);
+      const results: ActionResult[] = [];
+      for (const s of due) {
+        note('schedule_step_executed', `整晚安排 ${s.at} ${s.title}（前端模拟）`, { serviceId, personId: service.personId });
+        for (const a of s.actions) {
+          const r = apply(a);
+          note('action_executed', a.label, { serviceId, personId: service.personId, action: r });
+          results.push(r);
+        }
+        s.status = 'done';
+        s.executedAt = now().toISOString();
+      }
+      if (service.schedule.every((s) => s.status === 'done' || s.status === 'cancelled')) {
+        service.status = 'completed';
+        service.stoppedAt = now().toISOString();
+        note('service_completed', `${service.nightClock} 唤醒完成，整晚服务结束，设备保持当前状态（前端模拟）`, {
+          serviceId,
+          planId: service.planId,
+          personId: service.personId,
+        });
+      }
+      return reply(due, results, null);
     },
 
     async injectEvent(_spaceId: string, req: InjectEventRequest): Promise<EventResult> {
@@ -448,6 +513,7 @@ export function createMockApi(options: MockOptions = {}): LivingMindApi {
             step('harness', '执行前检查', '通过'),
           ],
           energy: null,
+          schedule: [],
         }),
         status: 'executed',
       };

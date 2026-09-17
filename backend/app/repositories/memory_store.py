@@ -24,6 +24,7 @@ class MemoryStore:
     activity: list[ActivityRecord] = field(default_factory=list)
     epochs: dict[str, int] = field(default_factory=dict)
     replanning: set[str] = field(default_factory=set)  # service ids with an adjustment in flight
+    advancing: set[str] = field(default_factory=set)  # service ids with a clock advance in flight
     _counter: itertools.count = field(default_factory=lambda: itertools.count(1))
 
     def new_id(self, prefix: str) -> str:
@@ -44,3 +45,4 @@ class MemoryStore:
         self.activity.clear()
         self.epochs.clear()
         self.replanning.clear()
+        self.advancing.clear()

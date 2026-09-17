@@ -166,6 +166,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/services/{service_id}/clock/advance": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Advance Clock
+         * @description Simulated night clock (demo only). minutes=null jumps to the next pending step; each step runs once.
+         */
+        post: operations["advanceClock"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/services/{service_id}/stop": {
         parameters: {
             query?: never;
@@ -313,7 +333,7 @@ export interface components {
              * Kind
              * @enum {string}
              */
-            kind: "plan_created" | "plan_fallback" | "event_received" | "event_ignored" | "service_adjusted" | "plan_confirmed" | "plan_confirm_repeated" | "plan_rejected" | "action_executed" | "action_rejected" | "service_stopped" | "memory_updated" | "energy_mode_changed" | "demo_reset";
+            kind: "plan_created" | "plan_fallback" | "event_received" | "event_ignored" | "service_adjusted" | "plan_confirmed" | "plan_confirm_repeated" | "plan_rejected" | "action_executed" | "action_rejected" | "service_stopped" | "memory_updated" | "energy_mode_changed" | "demo_reset" | "clock_advanced" | "schedule_step_executed" | "schedule_cancelled" | "service_completed";
             /** Message */
             message: string;
             /** Personid */
@@ -326,7 +346,7 @@ export interface components {
              * Source
              * @enum {string}
              */
-            source: "user" | "rule_engine" | "experience_agent" | "executor" | "virtual_device" | "system" | "simulated_event" | "frontend_mock";
+            source: "user" | "rule_engine" | "experience_agent" | "executor" | "virtual_device" | "system" | "simulated_event" | "simulated_clock" | "frontend_mock";
             /** Spaceid */
             spaceId: string;
             /**
@@ -339,6 +359,32 @@ export interface components {
         ActivityResponse: {
             /** Items */
             items: components["schemas"]["ActivityRecord"][];
+        };
+        /**
+         * AdvanceClockRequest
+         * @description Move the simulated night clock. minutes=null jumps to the next pending step.
+         */
+        AdvanceClockRequest: {
+            context: components["schemas"]["RequestContext"];
+            /** Minutes */
+            minutes?: number | null;
+        };
+        /** AdvanceClockResponse */
+        AdvanceClockResponse: {
+            deviceState: components["schemas"]["DeviceState"];
+            /**
+             * Executed
+             * @description Steps that came due and ran during this advance
+             */
+            executed: components["schemas"]["ScheduledStep"][];
+            /**
+             * Note
+             * @description Why nothing happened, if nothing did
+             */
+            note: string | null;
+            /** Results */
+            results: components["schemas"]["ActionResult"][];
+            service: components["schemas"]["Service"];
         };
         /**
          * AgentStep
@@ -687,6 +733,11 @@ export interface components {
              */
             scenario: "rest" | "rest_adjustment" | "device_command";
             /**
+             * Schedule
+             * @description Overnight schedule confirmed together with a rest plan; empty otherwise
+             */
+            schedule: components["schemas"]["ScheduledStep"][];
+            /**
              * Source
              * @enum {string}
              */
@@ -821,6 +872,46 @@ export interface components {
             /** Items */
             items: components["schemas"]["Scene"][];
         };
+        /**
+         * ScheduledStep
+         * @description One timed step of the overnight schedule. Driven by a simulated clock, never by wall time.
+         */
+        ScheduledStep: {
+            /** Actions */
+            actions: components["schemas"]["DeviceAction"][];
+            /**
+             * At
+             * @description Simulated local time, HH:MM
+             */
+            at: string;
+            /** Executedat */
+            executedAt: string | null;
+            /**
+             * Offsetmin
+             * @description Minutes after the simulated night start
+             */
+            offsetMin: number;
+            /**
+             * Phase
+             * @enum {string}
+             */
+            phase: "sleep" | "deep" | "wake";
+            /**
+             * Source
+             * @enum {string}
+             */
+            source: "rule" | "frontend_mock";
+            /**
+             * Status
+             * @description running = claimed by one clock advance; a step runs at most once
+             * @enum {string}
+             */
+            status: "pending" | "running" | "done" | "cancelled";
+            /** Stepid */
+            stepId: string;
+            /** Title */
+            title: string;
+        };
         /** Service */
         Service: {
             /**
@@ -830,6 +921,16 @@ export interface components {
             adjustments: number;
             /** Lastadjustedat */
             lastAdjustedAt: string | null;
+            /**
+             * Nightclock
+             * @description Simulated local time of the overnight schedule, HH:MM
+             */
+            nightClock: string;
+            /**
+             * Nightoffsetmin
+             * @description Simulated minutes since the night start
+             */
+            nightOffsetMin: number;
             /** Personid */
             personId: string;
             /** Planid */
@@ -842,6 +943,8 @@ export interface components {
              * @enum {string}
              */
             plannerMode: "rule" | "model";
+            /** Schedule */
+            schedule: components["schemas"]["ScheduledStep"][];
             /** Serviceid */
             serviceId: string;
             /** Spaceid */
@@ -855,7 +958,7 @@ export interface components {
              * Status
              * @enum {string}
              */
-            status: "active" | "stopped";
+            status: "active" | "stopped" | "completed";
             /** Stoppedat */
             stoppedAt: string | null;
         };
@@ -1509,6 +1612,77 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ScenesResponse"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    advanceClock: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                service_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AdvanceClockRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdvanceClockResponse"];
                 };
             };
             /** @description Forbidden */

@@ -5,6 +5,8 @@ from fastapi import APIRouter, Depends, Query
 from app.api.errors import ERROR_RESPONSES
 from app.contracts import (
     ActivityResponse,
+    AdvanceClockRequest,
+    AdvanceClockResponse,
     AssistantMessageRequest,
     AssistantReply,
     MemoryView,
@@ -97,6 +99,17 @@ def confirm_plan(plan_id: str, body: ConfirmPlanRequest, svc: RestService = Svc)
 )
 def stop_service(service_id: str, body: StopServiceRequest, svc: RestService = Svc) -> StopServiceResponse:
     return svc.stop_service(service_id, body.context)
+
+
+@router.post(
+    "/services/{service_id}/clock/advance",
+    response_model=AdvanceClockResponse,
+    operation_id="advanceClock",
+    tags=["services"],
+)
+def advance_clock(service_id: str, body: AdvanceClockRequest, svc: RestService = Svc) -> AdvanceClockResponse:
+    """Simulated night clock (demo only). minutes=null jumps to the next pending step; each step runs once."""
+    return svc.advance_clock(service_id, body.context, body.minutes)
 
 
 @router.post(

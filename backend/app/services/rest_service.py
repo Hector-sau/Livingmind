@@ -25,6 +25,8 @@ from app.agents.orchestrator import Orchestrator
 from app.agents.space_execution import SpaceExecutionAgent
 from app.contracts import (
     ActionResult,
+    AdvanceClockResponse,
+    ScheduledStep,
     AssistantReply,
     EnergyMode,
     MemoryView,
@@ -53,6 +55,7 @@ from app.energy import EnergyIntelligence
 from app.harness.executor import Executor
 from app.memory import MemoryService
 from app.repositories.memory_store import MemoryStore, PlanRecord
+from app.rules.night_rule import clock_label
 from app.services.planner import Planner, planner_from_config
 
 
@@ -343,6 +346,10 @@ class RestService:
                     planner_mode=plan.generation.mode_requested,
                     adjustments=0,
                     last_adjusted_at=None,
+                    night_clock=clock_label(0),
+                    night_offset_min=0,
+                    # The service owns its own copy; the plan keeps the confirmed preview.
+                    schedule=[step.model_copy(deep=True) for step in plan.schedule],
                 )
                 self._store.services[service.service_id] = service
                 plan.status = "executed"
@@ -365,7 +372,7 @@ class RestService:
             self._execute_command(plan, actions, epoch_at_start, record)
             service = None
         else:
-            self._execute(service, actions, epoch_at_start, record)
+            self._execute(service, actions, epoch_at_start, record.results)
 
         with self._lock:
             return ConfirmPlanResponse(
@@ -399,7 +406,9 @@ class RestService:
 
         Executor(self._devices[plan.space_id]).run(actions, guard, on_result)
 
-    def _execute(self, service: Service, actions: list[DeviceAction], epoch_at_start: int, record: PlanRecord) -> None:
+    def _execute(
+        self, service: Service, actions: list[DeviceAction], epoch_at_start: int, results: list[ActionResult]
+    ) -> None:
         def guard() -> Optional[str]:
             # Re-check under the lock right before each external write.
             with self._lock:
@@ -412,7 +421,7 @@ class RestService:
         def on_result(action: DeviceAction, result: ActionResult) -> None:
             ok = result.outcome == "succeeded"
             with self._lock:
-                record.results.append(result)
+                results.append(result)
                 self._log(
                     service.space_id,
                     "action_executed" if ok else "action_rejected",
@@ -518,7 +527,7 @@ class RestService:
                 )
                 actions = list(plan.actions)
 
-            self._execute(service, actions, epoch_at_start, record)
+            self._execute(service, actions, epoch_at_start, record.results)
 
             with self._lock:
                 return EventResult(
@@ -535,6 +544,115 @@ class RestService:
             with self._lock:
                 self._store.replanning.discard(service.service_id)
 
+    # ---- overnight schedule on a simulated clock (step 7) ----
+
+    def advance_clock(self, service_id: str, ctx: RequestContext, minutes: Optional[int]) -> AdvanceClockResponse:
+        """Move the simulated night clock and run the steps that came due.
+
+        A step is claimed (pending -> running) under the lock before it runs, so it runs at most
+        once; only one advance per service is in flight. Every write still goes through the
+        executor guard (service active + space epoch), so a stop cancels the rest.
+        """
+        self._check_context(ctx)
+        adapter = self._devices[ctx.space_id]
+        with self._lock:
+            service = self._store.services.get(service_id)
+            if service is None or service.space_id != ctx.space_id:
+                raise ApiError("NOT_FOUND", "服务不存在", {"serviceId": service_id})
+            if service.status != "active":
+                raise ApiError("SERVICE_NOT_ACTIVE", "服务已经结束", {"serviceId": service_id})
+            if service_id in self._store.advancing:
+                return AdvanceClockResponse(
+                    service=service, executed=[], results=[], device_state=adapter.read_state(), note="上一次推进仍在进行"
+                )
+            pending = [st for st in service.schedule if st.status == "pending"]
+            if not pending:
+                return AdvanceClockResponse(
+                    service=service, executed=[], results=[], device_state=adapter.read_state(), note="整晚安排已全部执行"
+                )
+            before = service.night_clock
+            target = pending[0].offset_min if minutes is None else service.night_offset_min + minutes
+            target = min(max(target, service.night_offset_min), service.schedule[-1].offset_min)
+            service.night_offset_min = target
+            service.night_clock = clock_label(target)
+            due = [st for st in pending if st.offset_min <= target]
+            for st in due:
+                st.status = "running"
+            self._log(
+                service.space_id,
+                "clock_advanced",
+                "simulated_clock",
+                f"模拟时钟 {before} → {service.night_clock}" + (f"，到点 {len(due)} 步" if due else "，没有到点的步骤"),
+                service_id=service_id,
+                person_id=service.person_id,
+            )
+            if not due:
+                return AdvanceClockResponse(
+                    service=service,
+                    executed=[],
+                    results=[],
+                    device_state=adapter.read_state(),
+                    note=f"下一步在 {pending[0].at}",
+                )
+            self._store.advancing.add(service_id)
+            epoch_at_start = self._store.epoch(service.space_id)
+
+        executed: list[ScheduledStep] = []
+        results: list[ActionResult] = []
+        try:
+            for st in due:
+                with self._lock:
+                    self._log(
+                        service.space_id,
+                        "schedule_step_executed",
+                        "rule_engine",
+                        f"整晚安排 {st.at} {st.title}",
+                        service_id=service_id,
+                        person_id=service.person_id,
+                    )
+                step_results: list[ActionResult] = []
+                self._execute(service, st.actions, epoch_at_start, step_results)
+                with self._lock:
+                    ran = not st.actions or any(r.outcome == "succeeded" for r in step_results)
+                    st.status = "done" if ran else "cancelled"
+                    st.executed_at = self._clock() if ran else None
+                    results += step_results
+                    executed.append(st)
+        finally:
+            with self._lock:
+                self._store.advancing.discard(service_id)
+                # A step that never got to run (e.g. an exception) is cancelled, never retried silently.
+                for st in due:
+                    if st.status == "running":
+                        st.status = "cancelled"
+                skipped = [st for st in due if st.status == "cancelled"]
+                if skipped:
+                    self._log(
+                        service.space_id,
+                        "schedule_cancelled",
+                        "system",
+                        f"服务已停止，{len(skipped)} 个到点步骤未执行（{skipped[0].at} 起）",
+                        service_id=service_id,
+                        person_id=service.person_id,
+                    )
+                if service.status == "active" and all(st.status in ("done", "cancelled") for st in service.schedule):
+                    service.status = "completed"
+                    service.stopped_at = self._clock()
+                    self._log(
+                        service.space_id,
+                        "service_completed",
+                        "system",
+                        f"{service.night_clock} 唤醒完成，整晚服务结束，设备保持当前状态",
+                        service_id=service_id,
+                        plan_id=service.plan_id,
+                        person_id=service.person_id,
+                    )
+
+        with self._lock:
+            return AdvanceClockResponse(
+                service=service, executed=executed, results=results, device_state=adapter.read_state(), note=None
+            )
+
     def stop_service(self, service_id: str, ctx: RequestContext) -> StopServiceResponse:
         self._check_context(ctx)
         with self._lock:
@@ -550,6 +668,9 @@ class RestService:
             for rec in self._store.plans.values():
                 if rec.plan.space_id == service.space_id and rec.plan.status == "proposed":
                     rec.plan.status = "invalidated"
+            pending = [st for st in service.schedule if st.status == "pending"]
+            for st in pending:
+                st.status = "cancelled"
             self._log(
                 service.space_id,
                 "service_stopped",
@@ -559,6 +680,15 @@ class RestService:
                 plan_id=service.plan_id,
                 person_id=service.person_id,
             )
+            if pending:
+                self._log(
+                    service.space_id,
+                    "schedule_cancelled",
+                    "system",
+                    f"已取消 {len(pending)} 个未执行的整晚步骤（{pending[0].at} 起）",
+                    service_id=service_id,
+                    person_id=service.person_id,
+                )
             # Default: keep devices as they are (no automatic restore).
             return StopServiceResponse(service=service, device_state=self._devices[service.space_id].read_state())
 

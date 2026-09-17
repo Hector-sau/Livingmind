@@ -20,6 +20,7 @@ const plan = (planId: string): Plan => ({
   createdAt: '2026-09-17T12:00:00Z',
   expiresAt: '2026-09-17T12:10:00Z',
   generation: { modeRequested: 'rule', provider: null, model: null, latencyMs: 0, fallbackReason: null, goal: null },
+  schedule: [],
 });
 
 test('conversations are kept per person', () => {
@@ -82,4 +83,26 @@ test('scene timelines split rest actions from adjustment actions', () => {
   const temp = sceneTimeline('scene-room-temp', items).map((e) => e.text);
   assert.deepEqual(temp, ['模拟事件 · 室温变为 28°C', '自动调整：室温 28°C 高于设定 25°C，空调调整到 24°C', '空调设定 24°C']);
   assert.deepEqual(sceneTimeline('scene-wake', items), []);
+});
+
+test('scene timelines attribute actions by what started them (backend logs service actions under the rest plan)', () => {
+  const items: ActivityRecord[] = [
+    rec({ kind: 'service_completed', message: '07:00 唤醒完成，整晚服务结束，设备保持当前状态' }),
+    rec({ kind: 'action_executed', planId: 'rest', message: '窗帘开到 100%（回读 100）' }),
+    rec({ kind: 'schedule_step_executed', message: '整晚安排 07:00 唤醒 3/3：窗帘全开、灯光 60%' }),
+    rec({ kind: 'clock_advanced', message: '模拟时钟 06:45 → 07:00，到点 1 步' }),
+    rec({ kind: 'action_executed', planId: 'rest', message: '空调设定 24°C（回读 24）' }),
+    rec({ kind: 'service_adjusted', planId: 'adj', message: '自动调整（规则）：室温 28°C 高于设定 25°C，空调调整到 24°C' }),
+    rec({ kind: 'action_executed', planId: 'rest', message: '灯光亮度调到 15%（回读 15）' }),
+    rec({ kind: 'plan_confirmed', planId: 'rest' }),
+  ];
+  assert.deepEqual(sceneTimeline('scene-rest', items).map((e) => e.text), ['确认了休息计划', '灯光亮度调到 15%']);
+  assert.deepEqual(sceneTimeline('scene-room-temp', items).map((e) => e.text), [
+    '自动调整：室温 28°C 高于设定 25°C，空调调整到 24°C',
+    '空调设定 24°C',
+  ]);
+  assert.deepEqual(sceneTimeline('scene-wake', items).map((e) => e.text), [
+    '模拟时间 07:00 唤醒 3/3：窗帘全开、灯光 60%',
+    '07:00 唤醒完成，整晚服务结束，设备保持当前状态',
+  ]);
 });
