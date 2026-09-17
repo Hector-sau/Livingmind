@@ -1,0 +1,26 @@
+{
+  "expo": {
+    "name": "LivingMind",
+    "slug": "livingmind",
+    "version": "1.0.0",
+    "orientation": "default",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "light",
+    "ios": {
+      "supportsTablet": true,
+      "requireFullScreen": false
+    },
+    "android": {
+      "adaptiveIcon": {
+        "backgroundColor": "#EEF3FF",
+        "foregroundImage": "./assets/android-icon-foreground.png",
+        "backgroundImage": "./assets/android-icon-background.png",
+        "monochromeImage": "./assets/android-icon-monochrome.png"
+      },
+      "predictiveBackGestureEnabled": false
+    },
+    "web": {
+      "favicon": "./assets/favicon.png"
+    }
+  }
+}
