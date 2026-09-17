@@ -13,6 +13,9 @@ const TONE: Partial<Record<ActivityRecord['kind'], PillTone>> = {
   service_stopped: 'muted',
   plan_confirm_repeated: 'amber',
   plan_fallback: 'amber',
+  event_received: 'violet',
+  event_ignored: 'muted',
+  service_adjusted: 'green',
 };
 
 export function ActivityList({ items }: { items: ActivityRecord[] }) {

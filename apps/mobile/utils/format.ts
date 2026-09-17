@@ -27,12 +27,16 @@ export const ACTIVITY_SOURCE_LABEL: Record<ActivitySource, string> = {
   executor: '执行器',
   virtual_device: '虚拟设备',
   system: '系统',
+  simulated_event: '模拟事件',
   frontend_mock: '前端模拟',
 };
 
 export const ACTIVITY_KIND_LABEL: Record<ActivityKind, string> = {
   plan_created: '生成计划',
   plan_fallback: '规则降级',
+  event_received: '收到事件',
+  event_ignored: '事件忽略',
+  service_adjusted: '自动调整',
   plan_confirmed: '确认执行',
   plan_confirm_repeated: '重复确认',
   plan_rejected: '计划被拒绝',

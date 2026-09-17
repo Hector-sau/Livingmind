@@ -6,6 +6,7 @@ import type {
   ConfirmPlanResponse,
   DeviceState,
   ErrorResponse,
+  EventResult,
   Plan,
   StopServiceResponse,
 } from '../types';
@@ -81,6 +82,9 @@ export function createHttpApi(options: HttpOptions): LivingMindApi {
       request<ConfirmPlanResponse>('POST', `/api/plans/${encodeURIComponent(planId)}/confirm`, req),
     stopService: (serviceId, req) =>
       request<StopServiceResponse>('POST', `/api/services/${encodeURIComponent(serviceId)}/stop`, req),
+    // An event may trigger model re-planning, so it gets the plan timeout too.
+    injectEvent: (spaceId, req) =>
+      request<EventResult>('POST', `/api/spaces/${encodeURIComponent(spaceId)}/events`, req, planTimeoutMs),
     getActivity: (spaceId, limit = 50) =>
       request<ActivityResponse>('GET', `/api/spaces/${encodeURIComponent(spaceId)}/activity?${q}&limit=${limit}`),
     resetDemo: () => request<BootstrapResponse>('POST', `/api/demo/reset?${q}`).then(learnPlannerTimeout),

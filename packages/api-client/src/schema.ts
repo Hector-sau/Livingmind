@@ -123,6 +123,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/spaces/{space_id}/events": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Inject Event
+         * @description Simulated environment event. There is no real sensor; results are labelled source=simulated.
+         */
+        post: operations["injectEvent"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/health": {
         parameters: {
             query?: never;
@@ -182,7 +202,7 @@ export interface components {
              * Kind
              * @enum {string}
              */
-            kind: "plan_created" | "plan_fallback" | "plan_confirmed" | "plan_confirm_repeated" | "plan_rejected" | "action_executed" | "action_rejected" | "service_stopped" | "demo_reset";
+            kind: "plan_created" | "plan_fallback" | "event_received" | "event_ignored" | "service_adjusted" | "plan_confirmed" | "plan_confirm_repeated" | "plan_rejected" | "action_executed" | "action_rejected" | "service_stopped" | "demo_reset";
             /** Message */
             message: string;
             /** Personid */
@@ -195,7 +215,7 @@ export interface components {
              * Source
              * @enum {string}
              */
-            source: "user" | "rule_engine" | "experience_agent" | "executor" | "virtual_device" | "system" | "frontend_mock";
+            source: "user" | "rule_engine" | "experience_agent" | "executor" | "virtual_device" | "system" | "simulated_event" | "frontend_mock";
             /** Spaceid */
             spaceId: string;
             /**
@@ -335,12 +355,52 @@ export interface components {
         ErrorResponse: {
             error: components["schemas"]["ErrorBody"];
         };
+        /** EventResult */
+        EventResult: {
+            deviceState: components["schemas"]["DeviceState"];
+            /** Eventid */
+            eventId: string;
+            /**
+             * Outcome
+             * @enum {string}
+             */
+            outcome: "adjusted" | "ignored";
+            /** @description The adjustment plan that was executed */
+            plan: components["schemas"]["Plan"] | null;
+            /**
+             * Reason
+             * @description Why the event was ignored, if it was
+             */
+            reason: string | null;
+            /** Results */
+            results: components["schemas"]["ActionResult"][];
+            service: components["schemas"]["Service"] | null;
+            /**
+             * Source
+             * @constant
+             */
+            source: "simulated";
+        };
         /** HealthResponse */
         HealthResponse: {
             /** Status */
             status: string;
             /** Version */
             version: string;
+        };
+        /**
+         * InjectEventRequest
+         * @description Simulated environment event (demo only; there is no real sensor).
+         */
+        InjectEventRequest: {
+            context: components["schemas"]["RequestContext"];
+            /** Roomtempc */
+            roomTempC: number;
+            /**
+             * Type
+             * @constant
+             */
+            type: "room_temperature_changed";
         };
         /** Person */
         Person: {
@@ -375,9 +435,9 @@ export interface components {
             planId: string;
             /**
              * Scenario
-             * @constant
+             * @enum {string}
              */
-            scenario: "rest";
+            scenario: "rest" | "rest_adjustment";
             /**
              * Source
              * @enum {string}
@@ -484,12 +544,25 @@ export interface components {
         };
         /** Service */
         Service: {
+            /**
+             * Adjustments
+             * @description Automatic adjustments made by events so far
+             */
+            adjustments: number;
+            /** Lastadjustedat */
+            lastAdjustedAt: string | null;
             /** Personid */
             personId: string;
             /** Planid */
             planId: string;
             /** Planversion */
             planVersion: number;
+            /**
+             * Plannermode
+             * @description Mode used for this service's plans; event re-planning follows it
+             * @enum {string}
+             */
+            plannerMode: "rule" | "model";
             /** Serviceid */
             serviceId: string;
             /** Spaceid */
@@ -967,6 +1040,77 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["DeviceState"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    injectEvent: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                space_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["InjectEventRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EventResult"];
                 };
             };
             /** @description Forbidden */

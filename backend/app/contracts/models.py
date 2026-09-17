@@ -21,6 +21,10 @@ __all__ = [
     "PlannerMode",
     "Service",
     "ActionResult",
+    "InjectEventRequest",
+    "EventResult",
+    "EventType",
+    "EventOutcome",
     "ActivityRecord",
     "CreateRestPlanRequest",
     "ConfirmPlanRequest",
@@ -65,6 +69,9 @@ ActionOutcome = Literal["succeeded", "rejected", "failed", "skipped"]
 ActivityKind = Literal[
     "plan_created",
     "plan_fallback",
+    "event_received",
+    "event_ignored",
+    "service_adjusted",
     "plan_confirmed",
     "plan_confirm_repeated",
     "plan_rejected",
@@ -74,8 +81,10 @@ ActivityKind = Literal[
     "demo_reset",
 ]
 ActivitySource = Literal[
-    "user", "rule_engine", "experience_agent", "executor", "virtual_device", "system", "frontend_mock"
+    "user", "rule_engine", "experience_agent", "executor", "virtual_device", "system", "simulated_event", "frontend_mock"
 ]
+EventType = Literal["room_temperature_changed"]
+EventOutcome = Literal["adjusted", "ignored"]
 ErrorCode = Literal[
     "VALIDATION_ERROR",
     "NOT_FOUND",
@@ -163,7 +172,7 @@ class Plan(Contract):
     version: int
     person_id: str
     space_id: str
-    scenario: Literal["rest"]
+    scenario: Literal["rest", "rest_adjustment"]
     source: PlanSource
     summary: str
     notes: list[str]
@@ -184,6 +193,9 @@ class Service(Contract):
     status: ServiceStatus
     started_at: datetime
     stopped_at: Optional[datetime]
+    planner_mode: PlannerMode = Field(description="Mode used for this service's plans; event re-planning follows it")
+    adjustments: int = Field(description="Automatic adjustments made by events so far")
+    last_adjusted_at: Optional[datetime]
 
 
 class ActionResult(Contract):
@@ -227,6 +239,14 @@ class StopServiceRequest(Contract):
     context: RequestContext
 
 
+class InjectEventRequest(Contract):
+    """Simulated environment event (demo only; there is no real sensor)."""
+
+    context: RequestContext
+    type: EventType
+    room_temp_c: float = Field(ge=5, le=45)
+
+
 # ---- responses ----
 
 
@@ -259,6 +279,17 @@ class ConfirmPlanResponse(Contract):
 
 class StopServiceResponse(Contract):
     service: Service
+    device_state: DeviceState
+
+
+class EventResult(Contract):
+    event_id: str
+    source: Literal["simulated"]
+    outcome: EventOutcome
+    reason: Optional[str] = Field(description="Why the event was ignored, if it was")
+    service: Optional[Service]
+    plan: Optional[Plan] = Field(description="The adjustment plan that was executed")
+    results: list[ActionResult]
     device_state: DeviceState
 
 

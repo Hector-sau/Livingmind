@@ -34,6 +34,7 @@ python e2e/run_e2e.py --real-model
 | http-flow-tablet / phone | 同上，连接真实后端 |
 | mock-model-fallback | 前端模拟下选模型模式，显示“前端模拟模式没有模型” |
 | http-model-paths | 模型计划（桩）、超时降级、偏离上限降级，并确认降级计划用的是本人偏好 |
+| mock-event / http-event | 休息服务运行中 → 注入模拟室温事件 → 自动调整一次（空调 25→24°C）→ 冷却中再注入被忽略 → 停止；后端版本再通过 API 注入事件，确认设备不变 |
 | http-real-model（仅 `--real-model`） | 真实 DeepSeek：计划出现且来源有标注 → 确认 → 停止；打印端到端耗时 |
 | http-offline | 关掉后端后点确认，显示“无法连接后端 / 可能已过期”，不假装成功 |
 

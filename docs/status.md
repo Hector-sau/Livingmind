@@ -1,6 +1,6 @@
 # 实现状态
 
-更新：2026-09-17 · 第一批（步骤 0–4）完成；B 并发修正完成；⑤ Experience Agent **已完成并验证真实调用**（2026-09-17 在用户 Mac 上运行 `scripts/try_model.py`，deepseek-flash，2035 ms）。评审修正 R1 完成。⑥ 起未开始。真机验收仍未做。
+更新：2026-09-17 · 第一批（步骤 0–4）完成；B 并发修正完成；⑤ Experience Agent **已完成并验证真实调用**（2026-09-17 在用户 Mac 上运行 `scripts/try_model.py`，deepseek-flash，2035 ms）。评审修正 R1 完成；⑥ 一次事件调整完成。⑥b 起未开始。真机验收仍未做。
 
 ## 已实现
 
@@ -30,6 +30,8 @@
 | R1：App 计划请求超时 = 后端模型超时 + 3 秒 | `apps/mobile/services/http/httpApi.ts` | `tests/httpApi.test.ts` |
 | R1：计划过期提示每 15 秒重新计算；模拟模式措辞修正；重置写入 `demo_reset` | `features/rest/useRestFlow.ts`、`ModeToggle.tsx`、`rest_service.py`、`mockApi.ts` | 前后端测试 |
 | R1：网页端到端脚本入库（7 个场景，一条命令） | `apps/mobile/e2e/` | `python apps/mobile/e2e/run_e2e.py`：7/7 通过 |
+| ⑥：模拟室温事件接口 `POST /api/spaces/{spaceId}/events`；冷却 30 秒、上限 3 次、单服务单调整、停止后忽略；规则调整（±1°C，不超出偏好 ±3°C）；模型调整跟随服务模式并受偏离上限约束 | `backend/app/services/rest_service.py`、`services/planner.py`、`rules/rest_rule.py` | `tests/test_events.py`（10 项，含停止与调整并发） |
+| ⑥：App“注入模拟事件”按钮、调整次数、事件结果提示、服务动态中的事件记录；前端 Mock 同步规则 | `apps/mobile/features/rest/ServiceCard.tsx`、`services/mock/mockApi.ts` | `tests/mockApi.test.ts`；端到端 `mock-event`、`http-event` |
 | 真实模型端到端脚本（后端：5 句话 → 计划 → 确认 → 回读 → 停止，延迟统计；浏览器：`--real-model`） | `backend/scripts/e2e_real_model.py`、`apps/mobile/e2e/run_e2e.py` | 已用本地桩空跑通过；**真实 DeepSeek 结果待用户在 Mac 上运行**（开发环境与 Mac 内的沙箱都无法访问 api.deepseek.com） |
 
 ## 步骤 4 的 7 项验证
@@ -44,7 +46,7 @@
 | 6 | 非法人物 / 空间 / 账户 / 参数 / 过期 / 版本不符被拒绝 | 自动化测试通过 |
 | 7 | 后端断开时 App 明确反馈 | 前端单元测试 + 端到端场景 `http-offline`（关掉后端后点确认，出现“无法连接后端，显示的状态可能已过期”，设备数值变灰，没有假装成功） |
 
-浏览器端到端：`apps/mobile/e2e/run_e2e.py`（已入库，可复现）。用 Expo 网页导出，在 1180×820 和 390×844 两种尺寸下跑前端模拟与后端两种模式的完整流程，外加模型计划、超时降级、偏离降级、模拟模式降级、断网反馈，共 7 个场景，最近一次 7/7 通过，无页面错误。模型路径连的是本地桩，不是 DeepSeek。
+浏览器端到端：`apps/mobile/e2e/run_e2e.py`（已入库，可复现）。用 Expo 网页导出，在 1180×820 和 390×844 两种尺寸下跑前端模拟与后端两种模式的完整流程，外加模型计划、超时降级、偏离降级、模拟模式降级、断网反馈，共 9 个场景，最近一次 9/9 通过（新增 `mock-event`、`http-event`），无页面错误。模型路径连的是本地桩，不是 DeepSeek。
 
 ## ⑤ 的验证情况
 
@@ -68,14 +70,15 @@
 - 数据全部在内存中，后端重启即重置。
 - 身份只是演示账户，没有正式认证；后端不要部署到公网。
 - 设备全部是虚拟的，不代表真实硬件接入。
+- 模拟事件没有真实传感器；室温数值由按钮或 API 直接给出。
 - 规则模式下输入文字只记录，不做语义理解。模型模式已验证一次真实调用；延迟只有单次样本。
 - CI 配置写好了，但还没有在 GitHub 上跑过。
 
 ## 未开始
 
-⑥ 一次事件调整 · C 视觉整理 · ⑦ 整晚服务 · ⑧ 主 Agent / 执行 Agent / 记忆 / 能源 · ⑨ 逐页迁移旧页面 · D 演示打包 · A 真机验收（有 iPad 时）
+⑥b 对话外壳 · C 视觉整理 · ⑦ 整晚服务 · ⑧ 主 Agent / 执行 Agent / 记忆 / 能源 · ⑨ 空间与场景页 · D 演示打包 · A 真机验收（有 iPad 时）
 
 ## 下一步接口
 
-- ⑥：新增事件入口（如 `POST /api/spaces/{spaceId}/events`，来源标 `simulated`），调用 `RestService` 的重规划方法：检查服务 active、冷却时间、代次，再走 `Planner` → `_execute`（复用 guard 与 epoch）。事件类型先只做室温变化一种。
-- 前端 ⑥：加“注入模拟事件”按钮和动态里的事件记录；不做视觉调整（留给 C）。
+- ⑥b：页面结构改为对话主页 + “我的”页，复用 `useRestFlow` 与 `services/`；要求见 `AGENT-HANDOFF.md` 第 9 节。
+- ⑦：定时器可复用 `inject_event` 的检查顺序（服务 active、单调整、代次），把事件来源换成模拟时钟。

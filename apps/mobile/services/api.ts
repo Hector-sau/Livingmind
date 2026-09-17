@@ -6,6 +6,8 @@ import type {
   CreateRestPlanRequest,
   DeviceState,
   ErrorCode,
+  EventResult,
+  InjectEventRequest,
   Plan,
   StopServiceRequest,
   StopServiceResponse,
@@ -19,6 +21,8 @@ export interface LivingMindApi {
   createRestPlan(req: CreateRestPlanRequest): Promise<Plan>;
   confirmPlan(planId: string, req: ConfirmPlanRequest): Promise<ConfirmPlanResponse>;
   stopService(serviceId: string, req: StopServiceRequest): Promise<StopServiceResponse>;
+  /** Simulated environment event (demo only). May lead to one automatic adjustment. */
+  injectEvent(spaceId: string, req: InjectEventRequest): Promise<EventResult>;
   getActivity(spaceId: string, limit?: number): Promise<ActivityResponse>;
   resetDemo(): Promise<BootstrapResponse>;
 }

@@ -21,3 +21,7 @@ MODEL_TIMEOUT_S = float(os.getenv("LIVINGMIND_MODEL_TIMEOUT_S", "6"))
 DEEPSEEK_API_KEY = os.getenv("DEEPSEEK_API_KEY", "")
 DEEPSEEK_BASE_URL = os.getenv("DEEPSEEK_BASE_URL", "https://api.deepseek.com")
 DEEPSEEK_MODEL = os.getenv("DEEPSEEK_MODEL", "deepseek-flash")
+
+# ---- environment events (step 6) ----
+EVENT_COOLDOWN_S = float(os.getenv("LIVINGMIND_EVENT_COOLDOWN_S", "30"))
+EVENT_MAX_ADJUSTMENTS = int(os.getenv("LIVINGMIND_EVENT_MAX_ADJUSTMENTS", "3"))

@@ -10,6 +10,8 @@ import type {
   CreateRestPlanRequest,
   DeviceAction,
   DeviceState,
+  EventResult,
+  InjectEventRequest,
   Plan,
   RequestContext,
   Service,
@@ -19,10 +21,17 @@ import type {
 import { MOCK_ACCOUNT, MOCK_INITIAL_DEVICES, MOCK_PERSONS, MOCK_SPACES } from './seed';
 
 const PLAN_TTL_MS = 10 * 60 * 1000;
+// Mirrors backend config defaults and backend/app/rules/rest_rule.py adjustment_rule.
+const EVENT_COOLDOWN_MS = 30 * 1000;
+const EVENT_MAX_ADJUSTMENTS = 3;
+const ADJUST_TRIGGER_C = 2;
+const ADJUST_STEP_C = 1;
+const ADJUST_BAND_C = 3;
 
 export interface MockOptions {
   latencyMs?: number;
   now?: () => Date;
+  eventCooldownMs?: number;
 }
 
 interface PlanRecord {
@@ -33,6 +42,7 @@ interface PlanRecord {
 export function createMockApi(options: MockOptions = {}): LivingMindApi {
   const latencyMs = options.latencyMs ?? 350;
   const now = options.now ?? (() => new Date());
+  const cooldownMs = options.eventCooldownMs ?? EVENT_COOLDOWN_MS;
   let seq = 0;
   const id = (prefix: string) => `${prefix}-mock-${++seq}`;
 
@@ -191,6 +201,9 @@ export function createMockApi(options: MockOptions = {}): LivingMindApi {
         status: 'active',
         startedAt: now().toISOString(),
         stoppedAt: null,
+        plannerMode: plan.generation.modeRequested,
+        adjustments: 0,
+        lastAdjustedAt: null,
       };
       services.set(service.serviceId, service);
       plan.status = 'executed';
@@ -214,6 +227,63 @@ export function createMockApi(options: MockOptions = {}): LivingMindApi {
       epoch += 1;
       log({ kind: 'service_stopped', source: 'user', message: '用户停止服务，设备保持当前状态', serviceId, planId: service.planId, personId: service.personId, action: null });
       return delay({ service, deviceState: devices });
+    },
+
+    async injectEvent(_spaceId: string, req: InjectEventRequest): Promise<EventResult> {
+      checkContext(req.context);
+      const eventId = id('event');
+      const service = activeService();
+      log({ kind: 'event_received', source: 'frontend_mock', message: `模拟事件：室温变为 ${req.roomTempC}°C（前端模拟）`, serviceId: service?.serviceId ?? null, planId: null, personId: null, action: null });
+      const ignore = (reason: string): Promise<EventResult> => {
+        log({ kind: 'event_ignored', source: 'frontend_mock', message: `事件已忽略：${reason}`, serviceId: service?.serviceId ?? null, planId: null, personId: service?.personId ?? null, action: null });
+        return delay({ eventId, source: 'simulated', outcome: 'ignored', reason, service, plan: null, results: [], deviceState: devices });
+      };
+      if (!service) return ignore('当前没有运行中的服务');
+      if (service.adjustments >= EVENT_MAX_ADJUSTMENTS) return ignore(`本次服务已调整 ${service.adjustments} 次，达到上限`);
+      if (service.lastAdjustedAt && now().getTime() - Date.parse(service.lastAdjustedAt) < cooldownMs) {
+        const left = Math.ceil((cooldownMs - (now().getTime() - Date.parse(service.lastAdjustedAt))) / 1000);
+        return ignore(`冷却中，约 ${left} 秒后才会再次调整`);
+      }
+      const person = MOCK_PERSONS.find((p) => p.personId === service.personId)!;
+      const pref = person.restPreference.acTargetTempC;
+      const target = devices.acTargetTempC;
+      let next = target;
+      if (req.roomTempC >= target + ADJUST_TRIGGER_C) next = Math.max(target - ADJUST_STEP_C, pref - ADJUST_BAND_C, 16);
+      else if (req.roomTempC <= target - ADJUST_TRIGGER_C) next = Math.min(target + ADJUST_STEP_C, pref + ADJUST_BAND_C, 30);
+      if (next === target) return ignore(Math.abs(req.roomTempC - target) < ADJUST_TRIGGER_C ? `室温 ${req.roomTempC}°C 与设定 ${target}°C 接近，无需调整` : '已到偏好允许的调整边界');
+      const wantsModel = service.plannerMode === 'model';
+      const created = now();
+      const action: DeviceAction = { actionId: id('a'), device: 'ac', command: 'set_target_temperature', value: next, label: `空调设定 ${next}°C` };
+      const plan: Plan = {
+        planId: id('plan'),
+        version: 1,
+        personId: person.personId,
+        spaceId: devices.spaceId,
+        scenario: 'rest_adjustment',
+        source: 'frontend_mock',
+        summary: `室温 ${req.roomTempC}°C，空调调整到 ${next}°C`,
+        notes: [wantsModel ? '前端模拟：前端模拟模式没有模型，改用本地调整规则' : '前端模拟：本地调整规则'],
+        utterance: `【模拟事件】室温 ${req.roomTempC}°C`,
+        actions: [action],
+        status: 'executed',
+        createdAt: created.toISOString(),
+        expiresAt: new Date(created.getTime() + PLAN_TTL_MS).toISOString(),
+        generation: {
+          modeRequested: service.plannerMode,
+          provider: null,
+          model: null,
+          latencyMs: 0,
+          fallbackReason: wantsModel ? '前端模拟模式没有模型，改用本地规则' : null,
+          goal: null,
+        },
+      };
+      plans.set(plan.planId, { plan, epoch });
+      service.adjustments += 1;
+      service.lastAdjustedAt = created.toISOString();
+      log({ kind: 'service_adjusted', source: 'frontend_mock', message: `自动调整（前端模拟）：${plan.summary}`, serviceId: service.serviceId, planId: plan.planId, personId: person.personId, action: null });
+      const result = apply(action);
+      log({ kind: 'action_executed', source: 'frontend_mock', message: action.label, serviceId: service.serviceId, planId: plan.planId, personId: person.personId, action: result });
+      return delay({ eventId, source: 'simulated', outcome: 'adjusted', reason: null, service, plan, results: [result], deviceState: devices });
     },
 
     async getActivity(_spaceId: string, limit = 50) {

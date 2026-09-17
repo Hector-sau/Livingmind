@@ -13,9 +13,13 @@ interface Props {
   loading: boolean;
   disabled: boolean;
   onStop: () => void;
+  /** Current AC set point; the demo event simulates the room being 3 °C warmer. */
+  acTargetTempC: number | null;
+  eventLoading: boolean;
+  onInjectEvent: (roomTempC: number) => void;
 }
 
-export function ServiceCard({ service, persons, loading, disabled, onStop }: Props) {
+export function ServiceCard({ service, persons, loading, disabled, onStop, acTargetTempC, eventLoading, onInjectEvent }: Props) {
   if (!service) {
     return (
       <Card title="休息服务">
@@ -31,8 +35,22 @@ export function ServiceCard({ service, persons, loading, disabled, onStop }: Pro
         {who} · 开始于 {formatTime(service.startedAt)}
         {service.stoppedAt ? ` · 停止于 ${formatTime(service.stoppedAt)}` : ''}
       </Text>
+      <Text style={styles.muted}>
+        自动调整 {service.adjustments} 次{service.lastAdjustedAt ? ` · 最近 ${formatTime(service.lastAdjustedAt)}` : ''}
+      </Text>
       {active ? (
         <>
+          {acTargetTempC !== null ? (
+            <Button
+              label={`注入模拟事件：室温升到 ${acTargetTempC + 3}°C`}
+              variant="secondary"
+              onPress={() => onInjectEvent(acTargetTempC + 3)}
+              loading={eventLoading}
+              disabled={disabled}
+              testID="inject-event"
+            />
+          ) : null}
+          <Text style={styles.muted}>模拟事件用于演示持续服务，没有真实传感器。</Text>
           <Text style={styles.muted}>停止后不再发出新的设备动作，设备保持当前状态（不会自动恢复）。</Text>
           <Button label="停止服务" variant="danger" onPress={onStop} loading={loading} disabled={disabled} testID="stop-service" />
         </>

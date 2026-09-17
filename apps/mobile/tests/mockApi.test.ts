@@ -59,3 +59,31 @@ test('mock never pretends to call a model: model mode degrades to a labelled fal
   const activity = await api.getActivity('space-home-bedroom');
   assert.ok(activity.items.some((i) => i.kind === 'plan_fallback'));
 });
+
+test('events: ignored without service, one adjustment, cooldown, ignored after stop', async () => {
+  let t = Date.parse('2026-09-17T22:00:00Z');
+  const api = createMockApi({ latencyMs: 0, now: () => new Date(t) });
+  const c = ctx('person-lin');
+  const ev = (roomTempC: number) => api.injectEvent('space-home-bedroom', { context: c, type: 'room_temperature_changed', roomTempC });
+
+  assert.equal((await ev(30)).outcome, 'ignored');
+
+  const plan = await api.createRestPlan({ context: c, utterance: '我想休息' });
+  const started = await api.confirmPlan(plan.planId, { context: c, planVersion: 1 });
+  const first = await ev(28);
+  assert.equal(first.outcome, 'adjusted');
+  assert.equal(first.deviceState.acTargetTempC, 24);
+  assert.equal(first.service?.adjustments, 1);
+  assert.equal(first.plan?.source, 'frontend_mock');
+
+  t += 10_000;
+  const cooling = await ev(28);
+  assert.equal(cooling.outcome, 'ignored');
+  assert.match(cooling.reason ?? '', /冷却/);
+
+  await api.stopService(started.service.serviceId, { context: c });
+  const version = (await api.getDeviceState('space-home-bedroom')).version;
+  t += 60_000;
+  assert.equal((await ev(30)).outcome, 'ignored');
+  assert.equal((await api.getDeviceState('space-home-bedroom')).version, version);
+});

@@ -11,8 +11,10 @@ Front-end mock (apps/mobile/services/mock/mockApi.ts) mirrors the visible rules.
 from __future__ import annotations
 
 import threading
+from datetime import timedelta
 from typing import Optional
 
+from app import config
 from app.adapters.virtual.devices import VirtualDeviceAdapter
 from app.api.errors import ApiError
 from app.clock import Clock, utc_now
@@ -26,6 +28,8 @@ from app.contracts import (
     ConfirmPlanResponse,
     DeviceAction,
     DeviceState,
+    EventResult,
+    EventType,
     Person,
     Plan,
     RequestContext,
@@ -39,8 +43,16 @@ from app.services.planner import Planner, planner_from_config
 
 
 class RestService:
-    def __init__(self, clock: Clock = utc_now, planner: Optional[Planner] = None):
+    def __init__(
+        self,
+        clock: Clock = utc_now,
+        planner: Optional[Planner] = None,
+        event_cooldown_s: Optional[float] = None,
+        event_max_adjustments: Optional[int] = None,
+    ):
         self._clock = clock
+        self._cooldown = timedelta(seconds=config.EVENT_COOLDOWN_S if event_cooldown_s is None else event_cooldown_s)
+        self._max_adjustments = config.EVENT_MAX_ADJUSTMENTS if event_max_adjustments is None else event_max_adjustments
         self._lock = threading.RLock()
         self._store = MemoryStore()
         self._planner = planner or planner_from_config(clock)
@@ -213,6 +225,9 @@ class RestService:
                 status="active",
                 started_at=now,
                 stopped_at=None,
+                planner_mode=plan.generation.mode_requested,
+                adjustments=0,
+                last_adjusted_at=None,
             )
             self._store.services[service.service_id] = service
             plan.status = "executed"
@@ -268,6 +283,116 @@ class RestService:
                 )
 
         Executor(self._devices[service.space_id]).run(actions, guard, on_result)
+
+    # ---- environment events (step 6) ----
+
+    def inject_event(self, space_id: str, ctx: RequestContext, event_type: EventType, room_temp_c: float) -> EventResult:
+        """Simulated room-temperature event -> at most one automatic adjustment of the active service."""
+        self._check_context(ctx)
+        if ctx.space_id != space_id:
+            raise ApiError("FORBIDDEN_CONTEXT", "事件空间与请求上下文不一致", {"spaceId": space_id})
+        adapter = self._devices[space_id]
+
+        def ignored(event_id: str, reason: str, service: Optional[Service]) -> EventResult:
+            self._log(
+                space_id,
+                "event_ignored",
+                "system",
+                f"事件已忽略：{reason}",
+                service_id=service.service_id if service else None,
+                person_id=service.person_id if service else None,
+            )
+            return EventResult(
+                event_id=event_id,
+                source="simulated",
+                outcome="ignored",
+                reason=reason,
+                service=service,
+                plan=None,
+                results=[],
+                device_state=adapter.read_state(),
+            )
+
+        with self._lock:
+            event_id = self._store.new_id("event")
+            service = self._store.active_service(space_id)
+            self._log(
+                space_id,
+                "event_received",
+                "simulated_event",
+                f"模拟事件：室温变为 {room_temp_c:g}°C",
+                service_id=service.service_id if service else None,
+            )
+            now = self._clock()
+            if service is None:
+                return ignored(event_id, "当前没有运行中的服务", None)
+            if service.service_id in self._store.replanning:
+                return ignored(event_id, "上一次调整仍在进行", service)
+            if service.adjustments >= self._max_adjustments:
+                return ignored(event_id, f"本次服务已调整 {service.adjustments} 次，达到上限", service)
+            if service.last_adjusted_at and now - service.last_adjusted_at < self._cooldown:
+                left = int((self._cooldown - (now - service.last_adjusted_at)).total_seconds()) + 1
+                return ignored(event_id, f"冷却中，约 {left} 秒后才会再次调整", service)
+            self._store.replanning.add(service.service_id)
+            epoch_at_start = self._store.epoch(space_id)
+            person = next(p for p in seed.PERSONS if p.person_id == service.person_id)
+            mode = service.planner_mode
+
+        try:
+            # Planning (possibly a model call) happens outside the lock.
+            outcome = self._planner.plan_adjustment(
+                person, space_id, room_temp_c, adapter.read_state(), self._store.new_id, mode
+            )
+            plan = outcome.plan
+            with self._lock:
+                if service.status != "active" or self._store.epoch(space_id) != epoch_at_start:
+                    return ignored(event_id, "规划期间服务已停止", service)
+                record = PlanRecord(plan=plan, epoch=epoch_at_start, service_id=service.service_id)
+                self._store.plans[plan.plan_id] = record
+                if outcome.fallback_reason:
+                    self._log(
+                        space_id,
+                        "plan_fallback",
+                        "system",
+                        f"模型计划未采用，改用调整规则：{outcome.fallback_reason}（{plan.generation.latency_ms} ms）",
+                        service_id=service.service_id,
+                        plan_id=plan.plan_id,
+                        person_id=person.person_id,
+                    )
+                if not plan.actions:
+                    plan.status = "executed"
+                    return ignored(event_id, plan.summary, service)
+                plan.status = "executed"
+                service.adjustments += 1
+                service.last_adjusted_at = self._clock()
+                label = {"model": "模型", "rule": "规则", "rule_fallback": "规则降级"}.get(plan.source, plan.source)
+                self._log(
+                    space_id,
+                    "service_adjusted",
+                    "experience_agent" if plan.source == "model" else "rule_engine",
+                    f"自动调整（{label}）：{plan.summary}",
+                    service_id=service.service_id,
+                    plan_id=plan.plan_id,
+                    person_id=person.person_id,
+                )
+                actions = list(plan.actions)
+
+            self._execute(service, actions, epoch_at_start, record)
+
+            with self._lock:
+                return EventResult(
+                    event_id=event_id,
+                    source="simulated",
+                    outcome="adjusted",
+                    reason=None,
+                    service=service,
+                    plan=plan,
+                    results=list(record.results),
+                    device_state=adapter.read_state(),
+                )
+        finally:
+            with self._lock:
+                self._store.replanning.discard(service.service_id)
 
     def stop_service(self, service_id: str, ctx: RequestContext) -> StopServiceResponse:
         self._check_context(ctx)

@@ -112,6 +112,9 @@ export function HomeScreen({ api, backendLabel }: Props) {
         loading={state.busy === 'stop'}
         disabled={busy}
         onStop={actions.stop}
+        acTargetTempC={state.deviceState?.acTargetTempC ?? null}
+        eventLoading={state.busy === 'event'}
+        onInjectEvent={actions.injectEvent}
       />
       <DevicePanel
         state={state.deviceState}

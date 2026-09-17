@@ -13,7 +13,7 @@ import type {
 } from '../../services/types';
 import { planBlockReason } from './planGate';
 
-export type Busy = null | 'plan' | 'confirm' | 'stop' | 'refresh' | 'reset';
+export type Busy = null | 'plan' | 'confirm' | 'stop' | 'refresh' | 'reset' | 'event';
 
 export interface FlowError {
   message: string;
@@ -208,6 +208,31 @@ export function useRestFlow(api: LivingMindApi) {
     }
   }, [api, fail, loadActivity, patch]);
 
+  const injectEvent = useCallback(
+    async (roomTempC: number) => {
+      const ctx = context();
+      if (!ctx) return;
+      patch({ busy: 'event', error: null, info: null });
+      try {
+        const res = await api.injectEvent(ctx.spaceId, { context: ctx, type: 'room_temperature_changed', roomTempC });
+        patch({
+          service: res.service ?? stateRef.current.service,
+          deviceState: res.deviceState,
+          deviceStale: false,
+          busy: null,
+          info:
+            res.outcome === 'adjusted'
+              ? `模拟事件：室温 ${roomTempC}°C → 已自动调整：${res.plan?.summary ?? ''}`
+              : `模拟事件：室温 ${roomTempC}°C → 未调整：${res.reason ?? ''}`,
+        });
+        await loadActivity(ctx.spaceId);
+      } catch (e) {
+        fail(e);
+      }
+    },
+    [api, context, fail, loadActivity, patch],
+  );
+
   const resetDemo = useCallback(async () => {
     patch({ busy: 'reset', error: null, info: null });
     try {
@@ -246,11 +271,12 @@ export function useRestFlow(api: LivingMindApi) {
       confirm,
       stop,
       refresh,
+      injectEvent,
       resetDemo,
       dismissError: () => patch({ error: null }),
       dismissInfo: () => patch({ info: null }),
     }),
-    [load, selectPerson, patch, createPlan, confirm, stop, refresh, resetDemo],
+    [load, selectPerson, patch, createPlan, confirm, stop, refresh, injectEvent, resetDemo],
   );
 
   return { state, activeService, blockReason, actions };

@@ -10,6 +10,8 @@ from app.contracts import (
     ConfirmPlanResponse,
     CreateRestPlanRequest,
     DeviceState,
+    EventResult,
+    InjectEventRequest,
     Plan,
     StopServiceRequest,
     StopServiceResponse,
@@ -45,6 +47,14 @@ def confirm_plan(plan_id: str, body: ConfirmPlanRequest, svc: RestService = Svc)
 )
 def stop_service(service_id: str, body: StopServiceRequest, svc: RestService = Svc) -> StopServiceResponse:
     return svc.stop_service(service_id, body.context)
+
+
+@router.post(
+    "/spaces/{space_id}/events", response_model=EventResult, operation_id="injectEvent", tags=["events"]
+)
+def inject_event(space_id: str, body: InjectEventRequest, svc: RestService = Svc) -> EventResult:
+    """Simulated environment event. There is no real sensor; results are labelled source=simulated."""
+    return svc.inject_event(space_id, body.context, body.type, body.room_temp_c)
 
 
 @router.get(

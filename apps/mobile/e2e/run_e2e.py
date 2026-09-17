@@ -160,6 +160,44 @@ def scenario_full_flow(page: Page, url: str, label: str, viewport: str) -> None:
     shot(page, f"{label}-{viewport}-stopped")
 
 
+def post_event(page: Page, temp: float) -> dict:
+    res = page.request.post(
+        f"{API}/api/spaces/space-home-bedroom/events",
+        data={
+            "context": {"accountId": "demo-account", "personId": "person-lin", "spaceId": "space-home-bedroom"},
+            "type": "room_temperature_changed",
+            "roomTempC": temp,
+        },
+    )
+    assert res.ok, res.text()
+    return res.json()
+
+
+def scenario_event(page: Page, url: str, label: str, backend_api: bool) -> None:
+    """Rest -> simulated room-temperature event -> one automatic adjustment -> stop -> later events do nothing."""
+    open_app(page, url)
+    generate(page, "我想休息", "rule")  # 林悦: AC 25
+    page.get_by_test_id("confirm-plan").click()
+    page.get_by_text("运行中", exact=True).wait_for()
+    page.get_by_test_id("inject-event").click()
+    page.get_by_text("已自动调整", exact=False).wait_for(timeout=10000)
+    page.wait_for_timeout(300)
+    text = body(page)
+    assert "24°C" in text and "自动调整 1 次" in text, text[:600]
+    assert "模拟事件" in text
+    shot(page, f"{label}-event-adjusted")
+    page.get_by_test_id("inject-event").click()
+    page.get_by_text("未调整：冷却中", exact=False).wait_for(timeout=10000)
+    page.get_by_test_id("stop-service").click()
+    page.get_by_text("已停止", exact=True).wait_for()
+    if backend_api:
+        before = page.request.get(f"{API}/api/spaces/space-home-bedroom/devices?accountId=demo-account").json()
+        result = post_event(page, 32)
+        after = page.request.get(f"{API}/api/spaces/space-home-bedroom/devices?accountId=demo-account").json()
+        assert result["outcome"] == "ignored" and after["version"] == before["version"]
+    shot(page, f"{label}-event-stopped")
+
+
 def scenario_mock_model(page: Page) -> None:
     """Mock mode never pretends to call a model."""
     open_app(page, f"http://localhost:{MOCK_PORT}/")
@@ -277,6 +315,13 @@ def main() -> int:
                 run(f"mock-flow-{vp}", mock_flow)
                 run(f"http-flow-{vp}", http_flow)
             run("mock-model-fallback", scenario_mock_model)
+            run("mock-event", lambda page: scenario_event(page, f"http://localhost:{MOCK_PORT}/", "mock", False))
+
+            def http_event(page):
+                reset_backend()
+                scenario_event(page, f"http://localhost:{HTTP_PORT}/", "http", True)
+
+            run("http-event", http_event)
 
             if args.real_model:
                 def real_model(page):

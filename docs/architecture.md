@@ -12,6 +12,12 @@ App 页面 → services/api（http 实现）→ FastAPI 路由
   → 用户确认 → 执行器 harness/executor.py（白名单、参数范围、服务是否仍有效）
   → 虚拟设备 adapters/virtual/devices.py（真实维护状态）
   → 回读设备状态 → 写活动记录 → 返回 App
+
+模拟事件（⑥）：POST /api/spaces/{spaceId}/events（source=simulated）
+  → 锁内检查：有活跃服务？上一次调整还在进行？次数上限？冷却时间？
+  → 锁外规划：Planner.plan_adjustment（跟随服务的规则/模型模式；同样有降级与偏离上限）
+  → 锁内复查服务仍 active 且代次未变 → 只对有变化的设备生成动作
+  → 执行器（同一 guard）→ 回读 → 活动记录（event_received / event_ignored / service_adjusted）
 ```
 
 ## 模块职责
@@ -34,7 +40,8 @@ App 页面 → services/api（http 实现）→ FastAPI 路由
 | `packages/api-client/` | 由 OpenAPI 生成的 TS 类型 | 第一批实现 |
 | `backend/app/agents/orchestrator/`、`space_execution/` | 主 Agent / 执行 Agent | **未创建**，第二批 ⑧ |
 | `backend/app/memory/`、`energy/` | 人物记忆、能源规则 | **未创建**，第二批 ⑧ |
-| 事件与定时器、SpaceMind / 语音 Adapter | 持续服务与真实接入 | **未创建**，第二批 ⑥⑦ 及以后 |
+| 事件入口与调整（`services/rest_service.py::inject_event`、`rules/rest_rule.py::adjustment_rule`） | 一次事件调整 | ⑥ 实现 |
+| 定时器、SpaceMind / 语音 Adapter | 整晚服务与真实接入 | **未创建**，⑦ 及以后 |
 
 按“只建当前需要的模块”原则，未实现的模块不建空目录。
 
@@ -59,7 +66,11 @@ App 页面 → services/api（http 实现）→ FastAPI 路由
 11. 同一演示账户下的任何人物都能停止空间里正在运行的服务，不要求是发起人。这是有意的：共享空间里，谁都应该能让设备停下来。
 12. 模型计划相对本人偏好的偏离有上限：灯光与窗帘 ±40、空调 ±3°C（`services/planner.py` 的 `MAX_DEVIATION`）；超出即改用规则计划并标注原因。这是“体验是约束”在代码里的落点，由后端强制，不只靠提示词。
 13. 未预期的异常统一返回 `INTERNAL_ERROR`（500），不暴露堆栈；详细信息只写服务器日志。
-14. App 等待计划的时间 = 后端模型超时 + 3 秒（从 bootstrap 读取），避免 App 先于后端放弃；其他请求仍是 8 秒。
+14. App 等待计划的时间 = 后端模型超时 + 3 秒（从 bootstrap 读取），避免 App 先于后端放弃；事件请求同样；其他请求仍是 8 秒。
+15. 事件只调整正在运行的服务：没有服务、上一次调整未结束、达到次数上限（默认 3）、冷却中（默认 30 秒）都会忽略并记录原因。每个服务同时只有一个调整在进行。
+16. 事件的规则调整：室温偏离空调设定 2°C 以上时，空调每次调 1°C，且不超出本人偏好 ±3°C；灯光和窗帘不动。模型调整只执行与当前状态不同的项，仍受偏离上限约束。
+17. 事件调整跟随服务的计划模式（`Service.plannerMode`）：规则模式启动的服务，事件时也不调用模型。
+18. 调整次数在执行前计数；执行中被停止，剩余动作跳过，已开始的那一个不撤销。
 
 ## 模型调用边界（⑤）
 

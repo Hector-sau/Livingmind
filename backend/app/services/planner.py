@@ -15,7 +15,7 @@ from app import config
 from app.agents.experience import ExperienceAgent, ExperienceError
 from app.agents.experience.provider import ChatProvider, DeepSeekProvider
 from app.contracts import DeviceState, Person, Plan, PlanGeneration, PlannerInfo, PlannerMode, RestPreference
-from app.rules.rest_rule import build_plan, build_rest_plan
+from app.rules.rest_rule import build_adjustment_rule_plan, build_plan, build_rest_plan, changed_actions
 
 
 # Harness rule: how far a model plan may move away from the person's authorised preference.
@@ -131,6 +131,76 @@ class Planner:
             ),
         )
         return PlanOutcome(plan, None)
+
+    def plan_adjustment(
+        self,
+        person: Person,
+        space_id: str,
+        room_temp_c: float,
+        device_state: DeviceState,
+        new_id: Callable[[str], str],
+        mode: PlannerMode,
+    ) -> PlanOutcome:
+        """One adjustment after an environment event. Same fallback and deviation rules as plan()."""
+
+        def rule(reason: Optional[str], latency_ms: int = 0) -> PlanOutcome:
+            return PlanOutcome(
+                build_adjustment_rule_plan(
+                    person, space_id, room_temp_c, device_state, self._clock(), new_id,
+                    latency_ms=latency_ms, fallback_reason=reason,
+                ),
+                reason,
+            )
+
+        if mode == "rule":
+            return rule(None)
+        if self._agent is None:
+            return rule("模型未配置（缺少 API key 或 provider）")
+        started = time.monotonic()
+        try:
+            result = self._agent.plan(person, device_state, _adjustment_prompt(room_temp_c))
+        except ExperienceError as exc:
+            return rule(exc.message, exc.latency_ms)
+        out = result.output
+        settings = RestPreference(
+            light_brightness=out.light_brightness,
+            ac_target_temp_c=out.ac_target_temp_c,
+            curtain_open_percent=out.curtain_open_percent,
+        )
+        elapsed = int((time.monotonic() - started) * 1000)
+        too_far = deviation_violation(person.rest_preference, settings)
+        if too_far:
+            return rule(too_far, elapsed)
+        plan = build_plan(
+            person=person,
+            space_id=space_id,
+            utterance=f"【模拟事件】室温 {room_temp_c:g}°C",
+            now=self._clock(),
+            new_id=new_id,
+            settings=settings,
+            source="model",
+            summary=out.goal,
+            notes=[f"模型调整：{result.provider} / {result.model}，{result.latency_ms} ms", f"理由：{out.rationale}"],
+            generation=PlanGeneration(
+                mode_requested="model",
+                provider=result.provider,
+                model=result.model,
+                latency_ms=elapsed,
+                fallback_reason=None,
+                goal=out.goal,
+            ),
+            scenario="rest_adjustment",
+            actions=changed_actions(settings, device_state, new_id),
+        )
+        return PlanOutcome(plan, None)
+
+
+def _adjustment_prompt(room_temp_c: float) -> str:
+    return (
+        f"【模拟环境事件】用户已经在休息，卧室室温现在是 {room_temp_c:g}°C。"
+        "请给出调整后的设置：只调整确有必要的项，其余保持当前设备状态的数值；"
+        "不要为了调整而打扰休息（例如不要调亮灯光、不要打开窗帘）。"
+    )
 
 
 def provider_from_config() -> Optional[ChatProvider]:

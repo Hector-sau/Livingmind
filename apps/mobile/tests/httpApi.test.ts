@@ -44,7 +44,7 @@ test('backend error body is mapped to ApiError code', async () => {
 });
 
 test('plan requests wait for the backend model timeout plus a margin', async () => {
-  const planner = { defaultMode: 'model', modelConfigured: true, provider: 'deepseek', model: 'm', timeoutMs: 50 };
+  const planner = { defaultMode: 'model', modelConfigured: true, provider: 'deepseek', model: 'm', timeoutMs: 50 } as const;
   const json = (body: unknown) => new Response(JSON.stringify(body), { status: 200, headers: { 'Content-Type': 'application/json' } });
   const api = createHttpApi({
     baseUrl: 'http://backend.invalid',
