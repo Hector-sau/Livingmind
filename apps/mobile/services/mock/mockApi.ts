@@ -21,6 +21,7 @@ import type {
   EventResult,
   InjectEventRequest,
   MemoryView,
+  OfflineEnergySimulation,
   Plan,
   PlannerMode,
   RequestContext,
@@ -43,7 +44,7 @@ import {
   TIER_LABEL,
   type Intent,
 } from './agents';
-import { MOCK_ACCOUNT, MOCK_INITIAL_DEVICES, MOCK_PERSONS, MOCK_PINS, MOCK_SCENES, MOCK_SPACE_RULES, MOCK_SPACES, NIGHT_LIGHT_MAX } from './seed';
+import { MOCK_ACCOUNT, MOCK_INITIAL_DEVICES, MOCK_OFFLINE_ENERGY_SIMULATION, MOCK_PERSONS, MOCK_PINS, MOCK_SCENES, MOCK_SPACE_RULES, MOCK_SPACES, NIGHT_LIGHT_MAX } from './seed';
 
 const PLAN_TTL_MS = 10 * 60 * 1000;
 const EVENT_COOLDOWN_MS = 30 * 1000;
@@ -338,6 +339,11 @@ export function createMockApi(options: MockOptions = {}): LivingMindApi {
       energyMode = mode;
       note('energy_mode_changed', `节能设置改为：${mode === 'eco' ? '节能模式' : '舒适优先'}（前端模拟）`);
       return delay({ ...MOCK_SPACES[0], energyMode });
+    },
+
+    async getOfflineEnergySimulation(spaceId: string): Promise<OfflineEnergySimulation> {
+      if (spaceId !== MOCK_SPACES[0].spaceId) throw new ApiError('FORBIDDEN_CONTEXT', '该空间不属于演示账户', 403);
+      return delay(MOCK_OFFLINE_ENERGY_SIMULATION);
     },
 
     async confirmPlan(planId: string, req: ConfirmPlanRequest): Promise<ConfirmPlanResponse> {

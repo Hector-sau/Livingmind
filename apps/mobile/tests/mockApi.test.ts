@@ -60,6 +60,23 @@ test('mock never pretends to call a model: model mode degrades to a labelled fal
   assert.ok(activity.items.some((i) => i.kind === 'plan_fallback'));
 });
 
+test('offline energy simulation is supplied fixed-day evidence, separate from App control', async () => {
+  const api = createMockApi({ latencyMs: 0 });
+  const simulation = await api.getOfflineEnergySimulation('space-home-bedroom');
+  const metrics = Object.fromEntries(simulation.metrics.map((metric) => [metric.key, metric]));
+
+  assert.equal(simulation.source, 'provided_precomputed_offline_simulation');
+  assert.equal(simulation.agentCount, 1);
+  assert.equal(simulation.profile.length, 24);
+  assert.equal(metrics.daily_cost.rule, 1.87);
+  assert.equal(metrics.daily_cost.matd3, -0.02);
+  assert.ok(simulation.limits.some((limit) => limit.includes('实时设备')));
+  await assert.rejects(
+    api.getOfflineEnergySimulation('unknown-space'),
+    (e: unknown) => e instanceof ApiError && e.code === 'FORBIDDEN_CONTEXT',
+  );
+});
+
 test('events: ignored without service, one adjustment, cooldown, ignored after stop', async () => {
   let t = Date.parse('2026-09-17T22:00:00Z');
   const api = createMockApi({ latencyMs: 0, now: () => new Date(t) });

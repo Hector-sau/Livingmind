@@ -15,6 +15,7 @@ import type {
   DeviceState,
   ErrorCode,
   EventResult,
+  OfflineEnergySimulation,
   InjectEventRequest,
   RequestContext,
   Plan,
@@ -39,6 +40,8 @@ export interface LivingMindApi {
   getMemory(ctx: RequestContext): Promise<MemoryView>;
   updatePreference(ctx: RequestContext, preference: RestPreference): Promise<MemoryView>;
   setEnergyMode(ctx: RequestContext, mode: EnergyMode): Promise<Space>;
+  /** Supplied fixed-day MATD3 evidence. Read-only; never an App control loop. */
+  getOfflineEnergySimulation(spaceId: string): Promise<OfflineEnergySimulation>;
   confirmPlan(planId: string, req: ConfirmPlanRequest): Promise<ConfirmPlanResponse>;
   stopService(serviceId: string, req: StopServiceRequest): Promise<StopServiceResponse>;
   /** Simulated night clock (demo only). minutes=null jumps to the next pending step. */

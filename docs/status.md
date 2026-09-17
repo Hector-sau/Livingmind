@@ -1,6 +1,6 @@
 # 实现状态
 
-更新：2026-09-17 · 第一批（步骤 0–4）完成；B 并发修正完成；⑤ Experience Agent **已完成并验证真实调用**（2026-09-17 在用户 Mac 上运行 `scripts/try_model.py`，deepseek-flash，2035 ms）。评审修正 R1 完成；⑥ 一次事件调整完成；⑥b 对话外壳完成；C 视觉整理完成；⑧ 补齐模块完成（1+2 Agent 编排已实现）。⑨ 演示打磨完成；⑦ 整晚服务完成（模拟时钟）。D 演示打包的云端部分完成（网页版录屏、主张证据表、开发版构建配置）；平板构建与真机录屏待有设备后做。真机验收仍未做。
+更新：2026-09-18 · 第一批（步骤 0–4）完成；B 并发修正完成；⑤ Experience Agent **已完成并验证真实调用**（2026-09-17 在用户 Mac 上运行 `scripts/try_model.py`，deepseek-flash，2035 ms）。评审修正 R1 完成；⑥ 一次事件调整完成；⑥b 对话外壳完成；C 视觉整理完成；⑧ 补齐模块完成（1+2 Agent 编排已实现）。⑨ 演示打磨完成；⑦ 整晚服务完成（模拟时钟）。D 演示打包的云端部分完成（网页版录屏、主张证据表、开发版构建配置）；P07 给定的家庭能源研究快照、只读 API 与 App 展示已迁入。平板构建与真机录屏待有设备后做。
 
 ## 已实现
 
@@ -15,6 +15,7 @@
 | 可点击原型：人物 → 需求 → 计划 → 确认 → 设备 → 停止 → 服务动态 | `apps/mobile/features/` | 浏览器自动点击（见下） |
 | 前端模拟接口（与后端规则一致，标注“前端模拟”） | `apps/mobile/services/mock/` | `tests/mockApi.test.ts` |
 | 真实 API 客户端（断网/超时明确报错，不回退模拟） | `apps/mobile/services/http/` | `tests/httpApi.test.ts` |
+| P07：固定日家庭能源离线仿真（规则 vs 单智能体 MATD3）只读 API 与空间页展示 | `simulation/home-energy/`、`backend/app/energy/simulation.py`、`features/energy/OfflineSimulationCard.tsx` | `tests/test_offline_energy_simulation.py`（2 项）、`tests/mockApi.test.ts` |
 | 固定休息规则（无模型） | `backend/app/rules/rest_rule.py` | `tests/test_rest_flow.py` |
 | 统一执行器：白名单、参数范围、每个动作前检查服务、回读 | `backend/app/harness/executor.py` | 同上 |
 | 有状态虚拟设备（灯光、空调、窗帘） | `backend/app/adapters/virtual/devices.py` | 同上 |
@@ -94,17 +95,18 @@
 - 整晚服务跑在模拟时钟上，由按钮或“自动播放”（每 2.5 秒推进一步）驱动；后端没有真实定时器，也不读真实时间。
 - 演示 PIN 不是认证；“我的”页上直接写出了演示 PIN，便于评审操作。
 - 语音按钮是占位，点击只提示“后续接入”。
-- Logo 来自 `KidMind-PPT/output/brand/livingmind-logo-primary-v2.png`（用户已同意在 App 中使用），为 PNG；正式发布前按品牌说明补 SVG 母版与商标检索。
+- Logo 来自团队既有的 LivingMind 品牌源文件（用户已同意在 App 中使用），为 PNG；正式发布前按品牌说明补 SVG 母版与商标检索。
 - 所有人物、偏好、评测用例、室外温度与电价时段都是设计的模拟数据（见 `docs/test-data.md`）。
 - 主 Agent 路由与 Space Execution Agent 的指令解析是规则实现；只有 Experience Agent 可调用模型。
 - 能源负荷是规则估算，不是实测，也不代表节省比例。
+- P07 的能源数值是给定模块的固定预设日离线结果：单智能体、美元/华氏度参数，未重训或重新评估，未接入实时设备；不得外推成真实节能效果。
 - 演示身份下，谁能读哪份记忆由请求上下文决定，不是认证。
 - 规则模式下输入文字只记录，不做语义理解。模型模式已验证一次真实调用；延迟只有单次样本。
 - CI 配置写好了，但还没有在 GitHub 上跑过。
 
 ## 未开始
 
-A 真机验收（有 iPad 时） · D 的设备部分（EAS 开发版构建、平板录屏） · P07 能源仿真证据补登（需团队提供仿真代码与输出） · 旧 HTML 前端清单（用户尚未提供旧文件）
+A 真机验收（有 iPad 时） · D 的设备部分（EAS 开发版构建、平板录屏） · 旧 HTML 前端清单（用户尚未提供旧文件）
 
 ## 下一步接口
 

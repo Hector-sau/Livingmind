@@ -1,5 +1,5 @@
 // Front-end mock seed. Mirrors backend/app/demo/seed.py (see docs/test-data.md).
-import type { DemoAccount, Person, RestPreference, Scene, Space, SpaceRule } from '../types';
+import type { DemoAccount, OfflineEnergySimulation, Person, RestPreference, Scene, Space, SpaceRule } from '../types';
 
 export const MOCK_ACCOUNT: DemoAccount = {
   accountId: 'demo-account',
@@ -66,6 +66,44 @@ export const MOCK_SPACE_RULES: SpaceRule[] = [
 ];
 
 export const MOCK_INITIAL_DEVICES = { lightBrightness: 80, acTargetTempC: 26, curtainOpenPercent: 100 };
+
+/** Supplied fixed-day evidence. This mirrors the backend's offline data and is never a device-control loop. */
+const PV = [0, 0, 0, 0, 0, 0, 0.2, 0.8, 1.8, 3, 4.2, 5, 5.5, 5.2, 4.6, 3.5, 2, 0.8, 0.2, 0, 0, 0, 0, 0];
+const WIND = [0.4, 0.4, 0.3, 0.3, 0.2, 0.2, 0.2, 0.3, 0.3, 0.4, 0.3, 0.3, 0.4, 0.4, 0.5, 0.5, 0.4, 0.4, 0.3, 0.3, 0.3, 0.3, 0.3, 0.3];
+const LOAD = [0.55, 0.5, 0.45, 0.45, 0.45, 0.55, 0.8, 1.2, 1, 0.85, 0.8, 0.9, 1, 0.9, 0.85, 1, 1.4, 2.2, 2.8, 2.5, 2, 1.5, 1, 0.7];
+const PRICE = [0.12, 0.12, 0.12, 0.12, 0.12, 0.12, 0.15, 0.18, 0.18, 0.18, 0.18, 0.18, 0.18, 0.18, 0.18, 0.22, 0.35, 0.45, 0.45, 0.45, 0.35, 0.22, 0.18, 0.15];
+const OUTDOOR_F = [66, 65, 64, 64, 63, 64, 66, 69, 73, 77, 81, 85, 88, 90, 91, 90, 87, 83, 79, 75, 72, 70, 68, 67];
+
+export const MOCK_OFFLINE_ENERGY_SIMULATION: OfflineEnergySimulation = {
+  source: 'provided_precomputed_offline_simulation',
+  scenario: 'Fixed predefined 24-hour household-energy day',
+  controller: 'MATD3 framework, single-agent supplied run',
+  agentCount: 1,
+  resolution: '24 hourly steps',
+  metrics: [
+    { key: 'daily_cost', label: '日运行成本', unit: 'USD/day', rule: 1.87, matd3: -0.02, lowerIsBetter: true },
+    { key: 'grid_import', label: '电网购电', unit: 'kWh/day', rule: 13.61, matd3: 0.76, lowerIsBetter: true },
+    { key: 'peak_import', label: '峰值购电', unit: 'kW', rule: 1.95, matd3: 0.37, lowerIsBetter: true },
+    { key: 'comfort_violation', label: '舒适违规', unit: 'F*h', rule: 0, matd3: 0, lowerIsBetter: true },
+  ],
+  assets: [
+    { id: 'pv', name: '光伏发电', role: 'supply', control: '只读环境输入' },
+    { id: 'wind', name: '风力发电', role: 'supply', control: '只读环境输入' },
+    { id: 'base_load', name: '家庭基础负荷', role: 'demand', control: '只读环境输入' },
+    { id: 'hvac', name: 'HVAC 空调', role: 'demand', control: '研究动作；App 当前只控制虚拟空调' },
+    { id: 'battery', name: '家庭电池', role: 'storage', control: '离线仿真动作，非 App 实时控制' },
+    { id: 'grid', name: '电网购售电', role: 'trading', control: '由离线能量平衡计算' },
+    { id: 'diesel', name: '柴油备用发电', role: 'backup', control: '离线仿真动作，非 App 实时控制' },
+  ],
+  profile: PV.map((pvKw, hour) => ({ hour, pvKw, windKw: WIND[hour], baseLoadKw: LOAD[hour], buyPriceUsdPerKwh: PRICE[hour], outdoorTempF: OUTDOOR_F[hour] })),
+  limits: [
+    '固定预设日；训练和评估使用同一日，结果不外推到其他天气或家庭。',
+    'MATD3 框架在本结果中只有一个智能体，不作为多智能体协作证据。',
+    '温度为华氏度、成本为美元仿真参数，不是国内家庭实测。',
+    '结果为离线仿真，未接入 LivingMind 实时设备或在线能源决策。',
+    '旧成本图的总成本包含柴油机成本，但其可见分项未单列柴油机；本数据只展示已确认的最终 KPI。',
+  ],
+};
 
 export const MOCK_SCENES: Scene[] = [
   {

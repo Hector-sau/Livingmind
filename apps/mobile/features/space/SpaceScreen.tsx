@@ -6,6 +6,7 @@ import { Pill } from '../../components/Pill';
 import { colors, font, radius, space, SPLIT_BREAKPOINT } from '../../theme/tokens';
 import { ActivityList } from '../activity/ActivityList';
 import { EnergyLine } from '../energy/EnergyLine';
+import { OfflineSimulationCard } from '../energy/OfflineSimulationCard';
 import { DevicePanel } from '../devices/DevicePanel';
 import { ServiceCard } from '../rest/ServiceCard';
 import type { RestFlow } from '../rest/useRestFlow';
@@ -82,6 +83,7 @@ export function SpaceScreen({ flow, showEvidence }: { flow: RestFlow; showEviden
           </Card>
         </View>
       </View>
+      <OfflineSimulationCard simulation={state.energySimulation} />
       {showEvidence ? (
         <View testID="evidence-panel-space">
           <ActivityList items={state.activity} />

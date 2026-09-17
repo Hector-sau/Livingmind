@@ -8,6 +8,7 @@ import type {
   BootstrapResponse,
   EnergyMode,
   MemoryView,
+  OfflineEnergySimulation,
   RestPreference,
   ConfirmPlanResponse,
   DeviceState,
@@ -46,6 +47,8 @@ export interface RestFlowState {
   deviceState: DeviceState | null;
   deviceStale: boolean;
   activity: ActivityRecord[];
+  /** Supplied fixed-day evidence, separate from the online energy-rule plan advice. */
+  energySimulation: OfflineEnergySimulation | null;
   busy: Busy;
   error: FlowError | null;
   info: string | null;
@@ -64,6 +67,7 @@ const initial: RestFlowState = {
   deviceState: null,
   deviceStale: false,
   activity: [],
+  energySimulation: null,
   busy: null,
   error: null,
   info: null,
@@ -125,8 +129,11 @@ export function useRestFlow(api: LivingMindApi) {
     try {
       const data = await api.bootstrap();
       applyBootstrap(data, false);
-      const scenes = await api.getScenes().catch(() => ({ items: [] as Scene[] }));
-      patch({ scenes: scenes.items });
+      const [scenes, energySimulation] = await Promise.all([
+        api.getScenes().catch(() => ({ items: [] as Scene[] })),
+        api.getOfflineEnergySimulation(data.defaultSpaceId).catch(() => null),
+      ]);
+      patch({ scenes: scenes.items, energySimulation });
       await loadActivity(data.defaultSpaceId);
     } catch (e) {
       patch({ phase: 'error', error: toFlowError(e) });

@@ -10,12 +10,12 @@
 
 ### 0.1 背景
 
-- **项目**：LivingMind，参加 SpaceMind AI Agent 创新应用大赛，已进入复赛，需要约 8 分钟汇报 + 可演示原型。对外品牌统一用 LivingMind；历史代码名 KidMind 只在解释旧原型时出现。
+- **项目**：LivingMind，参加 SpaceMind AI Agent 创新应用大赛，已进入复赛，需要约 8 分钟汇报 + 可演示原型。对外品牌和代码命名统一用 LivingMind；旧名称不再使用。
 - **定位**：家庭住宅（Home Living）为核心场景，酒店（Smart Stay）为延展；两者共享 Energy Intelligence。叙事核心：“一次表达，持续服务；体验是约束，能源是优化”。
 - **目标架构**（汇报口径）：主 Agent + 两个专业 Agent（Experience、Space Execution）+ 共享 Memory + Harness；SpaceMind 为“拟对接能力”，具体接口待官方文档与联调确认。
 - **团队约束**：学生团队，出发点是“演示有原型支持、简历有技术可讲”。深度标准：**演示可见、面试可答、代码可指**，够用即停。
 - **数据约定（用户已确认）**：测试与演示数据用设计的模拟数据即可，重点是讲清方案与验证方法、体现测试意识；数据设计见 `docs/test-data.md`。真实模型的多次统计是可选项。
-- **相关材料**（只读参考，不是执行授权）：`../汇报演示/LivingMind_presentationV1.pdf`（10 页）、`../架构评审/LivingMind-架构评审与迁移步骤-v0.2.md`（架构定稿）、`/Users/macbookair/Documents/Project/KidMind-PPT/AGENT-HANDOFF.md`（汇报材料交接）。
+- **相关材料**（只读参考，不是执行授权）：`../汇报演示/LivingMind_presentationV1.pdf`（10 页）、`../架构评审/LivingMind-架构评审与迁移步骤-v0.2.md`（架构定稿）。
 
 ### 0.2 已完成（有代码、有测试、有提交）
 
@@ -50,7 +50,7 @@
 | ⑧ 主 Agent / 执行 Agent / 记忆 / 能源规则 | **已完成** | 如何如实描述见 0.4 |
 | ⑨ 演示打磨 | **已完成** | 旧 HTML 清单未做（用户未提供旧页面） |
 | D 演示打包 | **云端部分已完成** | 网页版录屏 3 段、主张证据表（`docs/evidence.md`）、开发版配置与安装说明（`docs/device-build.md`）；EAS 构建与平板录屏待设备 |
-| P07 能源仿真证据 | 仓库外 | 汇报第 7 页的规则 vs MATD3 结果不在本仓库，需团队补仿真代码与输出 |
+| P07 能源仿真证据 | **已迁入（离线展示）** | `simulation/home-energy/` 保存给定研究快照、结果与溯源；App 通过只读 API 展示固定日结果，不重训、不重新评估、不参与控制 |
 | GitHub 远程与 CI 实跑 | 未做 | 未经用户授权不建远程 |
 
 ### 0.4 评审时最该核对的五个点
@@ -107,7 +107,7 @@ Expo App：对话 / 空间 / 场景 / 我的（计划来源开关：规则 / 模
   → 同一执行器 → 回读 → 记录；停止后事件一律忽略
 ```
 
-场景范围只有 Home Living 的“我想休息”。当前没有数据库、真实认证、真实传感器、整晚定时服务、SpaceMind 或真实设备接入；事件只有模拟室温一种；能源是在线规则，不是 MATD3。模型调用已用真实 DeepSeek 密钥验证过一次（deepseek-flash，2035 ms）；延迟为单次样本。
+场景范围只有 Home Living 的“我想休息”。当前没有数据库、真实认证、真实传感器、SpaceMind 或真实设备接入；事件只有模拟室温一种；在线能源建议是规则，MATD3 仅作为固定日的只读离线仿真展示。模型调用已用真实 DeepSeek 密钥验证过一次（deepseek-flash，2035 ms）；延迟为单次样本。
 
 ## 2. 接手后的必读顺序
 
@@ -190,6 +190,7 @@ e8ffb61 feat: step 3 clickable rest-flow prototype with front-end mock
 GET  /health
 GET  /api/bootstrap
 GET  /api/scenes                        # 场景库（状态如实）
+GET  /api/spaces/{spaceId}/energy/simulation  # 给定的固定日离线仿真证据；只读、不参与设备控制
 POST /api/assistant/messages            # 主 Agent 入口：计划或回答（附协作轨迹）
 GET  /api/memory                        # 本人偏好 + 空间规则
 PUT  /api/memory/preference             # 编辑本人偏好（访客不可）
@@ -310,7 +311,7 @@ git status --short
 
 ### 没有平板时可做
 
-- 团队提供 P07 能源仿真的代码与输出后，在 `scripts/build_evidence.py` 里补登证据（不要改成“已实现”，写“仿真，另一个项目”）。
+- P07 已迁入给定研究快照；如未来重新训练或复评，必须另建带时间戳的结果，不能覆盖 `data/provided-day-comparison.json` 或改写为实时控制。
 - 用户提供旧 HTML 前端后，只列清单，不迁移代码。
 
 ### 停止条件
@@ -386,4 +387,3 @@ git status --short
 
 - ⑧ 已实现：计划卡与“空间”页显示能源建议、估算负荷档位（标注“规则估算，非实测”）与原因；可切换舒适优先 / 节能模式。
 - **不显示节省百分比或金额**（见第 10 节与设计规范）。
-

@@ -11,6 +11,7 @@ import type {
   DeviceState,
   ErrorResponse,
   EventResult,
+  OfflineEnergySimulation,
   Plan,
   ScenesResponse,
   StopServiceResponse,
@@ -96,6 +97,8 @@ export function createHttpApi(options: HttpOptions): LivingMindApi {
     updatePreference: (ctx, preference) => request<MemoryView>('PUT', '/api/memory/preference', { context: ctx, preference }),
     setEnergyMode: (ctx, mode) =>
       request<Space>('PUT', `/api/spaces/${encodeURIComponent(ctx.spaceId)}/energy-mode`, { context: ctx, mode }),
+    getOfflineEnergySimulation: (spaceId) =>
+      request<OfflineEnergySimulation>('GET', `/api/spaces/${encodeURIComponent(spaceId)}/energy/simulation?${q}`),
     confirmPlan: (planId, req) =>
       request<ConfirmPlanResponse>('POST', `/api/plans/${encodeURIComponent(planId)}/confirm`, req),
     stopService: (serviceId, req) =>

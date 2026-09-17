@@ -63,6 +63,8 @@ App 页面 → services/api（http 实现）→ FastAPI 路由
 | `backend/app/agents/space_execution/` | Space Execution Agent：设备能力、空间规则（夜间灯光上限）、休息动作、调整动作、设备指令解析（规则） | ⑧ 实现 |
 | `backend/app/memory/` | 人物记忆：本人偏好（可编辑，访客不可）、空间共享规则；共享列表不含任何人的偏好 | ⑧ 实现 |
 | `backend/app/energy/` | 能源智能（在线规则）：舒适范围、分时电价、估算负荷档位、舒适优先 / 节能模式 | ⑧ 实现 |
+| `backend/app/energy/simulation.py` | 只读加载给定的固定日离线仿真 JSON，绝不加载 torch/gym 或写设备 | P07 迁入 |
+| `simulation/home-energy/` | 家庭能源研究快照、模型权重、给定指标与溯源；与 App 运行时隔离 | P07 迁入 |
 | `backend/app/harness/policy.py` | 规划阶段预检（与执行器同一套白名单和范围） | ⑧ 实现 |
 | 事件入口与调整（`services/rest_service.py::inject_event`、`rules/rest_rule.py::adjustment_rule`） | 一次事件调整 | ⑥ 实现 |
 | 定时器、SpaceMind / 语音 Adapter | 整晚服务与真实接入 | **未创建**，⑦ 及以后 |
@@ -133,3 +135,4 @@ App 页面 → services/api（http 实现）→ FastAPI 路由
 28. 停止服务时，未执行的步骤改为 `cancelled`；正在执行的推进在下一个动作前被拦下，剩余步骤也记为 `cancelled`。已开始的那个动作不撤销。
 29. 最后一步完成后服务状态变为 `completed`（与用户停止的 `stopped` 区分），设备保持当前状态；之后的推进返回 `SERVICE_NOT_ACTIVE`，事件被忽略，可以开始新的休息服务。
 30. 深夜步骤把空调调高 1°C，但不超出本人偏好 +3°C；唤醒分三步（06:30、06:45、07:00），空调回到当晚目标，灯光最高 60%（空间规则）。
+31. `GET /api/spaces/{spaceId}/energy/simulation` 只返回给定的离线固定日仿真证据；它不进入规划、Agent、Harness 或执行器路径。MATD3 在该给定结果中只有一个智能体，不能表述为多智能体协同或实时控制。

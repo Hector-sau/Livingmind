@@ -355,6 +355,11 @@ def scenario_energy_memory(page: Page) -> None:
     """Eco mode applies advice inside the comfort band; editing one's own preference changes the next plan."""
     open_app(page, f"http://localhost:{HTTP_PORT}/")
     tab(page, "space")
+    offline = page.get_by_test_id("offline-energy-simulation")
+    offline.wait_for()
+    offline_text = offline.inner_text()
+    assert "MATD3" in offline_text and "$1.87" in offline_text and "$-0.02" in offline_text, offline_text
+    shot(page, "offline-energy-simulation")
     page.get_by_test_id("energy-mode-eco").click()
     page.get_by_text("节能模式：高峰电价时", exact=False).wait_for()
     tab(page, "chat")

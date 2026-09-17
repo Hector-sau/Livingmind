@@ -22,6 +22,7 @@
 | 固定规则计划 + 有状态虚拟设备 + 统一执行器 | 整晚定时服务、事件触发调整 |
 | 内存存储（重启即重置） | 数据库、正式登录、WebSocket、向量库 |
 | 演示身份（demo account） | 真实设备 / SpaceMind / 音箱接入 |
+| 24 小时家庭能源离线仿真：给定的固定日规则 vs 单智能体 MATD3 结果，只读展示（不参与控制） | 在线 MATD3 控制、重训或重新评估 |
 
 ## 目录
 
@@ -33,6 +34,7 @@ packages/api-client/  由后端契约生成的 TypeScript 类型（不要手改�
 scripts/              跨端脚本（类型生成）
 docs/                 架构、验收、状态
 .github/              PR 模板与 CI
+simulation/home-energy/  给定的离线家庭能源研究快照、数据、权重与溯源（不在 App 运行路径）
 ```
 
 ## 演示流程
@@ -120,6 +122,10 @@ python scripts/build_evidence.py --pdf           # 主张证据表 → docs/evid
 ```
 
 录屏每一帧都带“网页版录屏 · 后端虚拟设备 · 规则模式”字幕；证据表逐条对照汇报 PDF，写明原型实际情况、证据位置和来源类型（见 [`docs/evidence.md`](docs/evidence.md)）。
+
+## 离线能源仿真（P07）
+
+“空间”页的 **24 小时能源仿真** 卡读取的是给定研究快照的固定日结果：规则策略日成本 `$1.87`、MATD3 `$-0.02`，舒适违规均为 `0 F·h`。它有 7 类模拟资产（光伏、风电、基础负荷、空调、电池、电网、柴油备用），但都是离线展示，不新增可控制设备。完整来源、限制和可选研究依赖见 [`simulation/home-energy/README.md`](simulation/home-energy/README.md)。在线能源建议仍是 `backend/app/energy/rules.py` 的可解释规则。
 
 ## 安全说明
 
