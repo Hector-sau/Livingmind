@@ -1,6 +1,7 @@
 import { ScrollView, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 
 import { Card } from '../../components/Card';
+import { Icon } from '../../components/Icon';
 import { Pill } from '../../components/Pill';
 import { colors, font, space, SPLIT_BREAKPOINT } from '../../theme/tokens';
 import { ActivityList } from '../activity/ActivityList';
@@ -18,7 +19,10 @@ export function SpaceScreen({ flow, showEvidence }: { flow: RestFlow; showEviden
 
   return (
     <ScrollView contentContainerStyle={styles.page}>
-      <Text style={styles.title}>{space_?.name ?? '空间'}</Text>
+      <View>
+        <Text style={styles.kicker}>空间</Text>
+        <Text style={styles.title}>{space_?.name ?? '空间'}</Text>
+      </View>
       <View style={wide ? styles.row : styles.col}>
         <View style={wide ? styles.flex : undefined}>
           <DevicePanel
@@ -40,8 +44,11 @@ export function SpaceScreen({ flow, showEvidence }: { flow: RestFlow; showEviden
             eventLoading={state.busy === 'event'}
             onInjectEvent={(t) => void actions.injectEvent(t)}
           />
-          <Card title="节能" right={<Pill label="未接入" tone="muted" />}>
-            <Text style={styles.muted}>暂无数据（能源模块未接入，计划在后续步骤提供功耗档位与原因说明）。</Text>
+          <Card title="节能" icon="leaf-outline" right={<Pill label="未接入" tone="muted" />}>
+            <View style={styles.energy}>
+              <Icon name="leaf-outline" size={28} color={colors.faint} />
+              <Text style={styles.muted}>暂无数据（能源模块未接入，计划在后续步骤提供功耗档位与原因说明）。</Text>
+            </View>
           </Card>
         </View>
       </View>
@@ -55,10 +62,12 @@ export function SpaceScreen({ flow, showEvidence }: { flow: RestFlow; showEviden
 }
 
 const styles = StyleSheet.create({
-  page: { padding: space.lg, gap: space.md },
-  title: { fontSize: 22, fontWeight: '700', color: colors.ink },
+  page: { padding: space.lg, gap: space.md, maxWidth: 1100, width: '100%', alignSelf: 'center' },
+  kicker: { fontSize: font.caption, color: colors.blue, fontWeight: '700', letterSpacing: 1 },
+  title: { fontSize: 24, fontWeight: '800', color: colors.ink },
+  energy: { flexDirection: 'row', alignItems: 'center', gap: space.md },
   row: { flexDirection: 'row', gap: space.md, alignItems: 'flex-start' },
   col: { gap: space.md },
   flex: { flex: 1 },
-  muted: { fontSize: font.small, color: colors.muted },
+  muted: { fontSize: font.small, color: colors.muted, flex: 1 },
 });

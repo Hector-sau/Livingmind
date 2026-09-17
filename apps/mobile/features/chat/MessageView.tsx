@@ -1,11 +1,16 @@
-import { StyleSheet, Text, View } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
+import { Image, StyleSheet, Text, View } from 'react-native';
 
 import { Card } from '../../components/Card';
+import { DeviceIcon, Icon, type IconName } from '../../components/Icon';
+import { FadeIn } from '../../components/motion';
 import { Pill } from '../../components/Pill';
-import { colors, font, radius, space } from '../../theme/tokens';
-import { PlanCard } from '../rest/PlanCard';
 import type { Plan } from '../../services/types';
+import { colors, font, gradients, radius, space } from '../../theme/tokens';
+import { PlanCard } from '../rest/PlanCard';
 import { resultSummary, type Message } from './conversation';
+
+const MARK = require('../../assets/logo-mark.png');
 
 interface Props {
   message: Message;
@@ -18,39 +23,49 @@ interface Props {
   onConfirm: () => void;
 }
 
-const SYSTEM_TONE = {
-  info: { bg: colors.homeTint, fg: colors.blue },
-  success: { bg: colors.greenTint, fg: colors.green },
-  warning: { bg: colors.amberTint, fg: colors.amber },
-  error: { bg: colors.redTint, fg: colors.red },
-} as const;
+const SYSTEM_TONE: Record<string, { bg: string; fg: string; icon: IconName }> = {
+  info: { bg: colors.homeTint, fg: colors.blue, icon: 'information-circle-outline' },
+  success: { bg: colors.greenTint, fg: colors.green, icon: 'checkmark-circle-outline' },
+  warning: { bg: colors.amberTint, fg: colors.amber, icon: 'cloud-offline-outline' },
+  error: { bg: colors.redTint, fg: colors.red, icon: 'alert-circle-outline' },
+};
 
 const DEVICE_NAME = { light: '灯光', ac: '空调', curtain: '窗帘' } as const;
 const UNIT = { light: '%', ac: '°C', curtain: '%' } as const;
+
+function AssistantAvatar() {
+  return (
+    <View style={styles.avatar}>
+      <Image source={MARK} style={styles.avatarImg} />
+    </View>
+  );
+}
 
 export function MessageView({ message, livePlan, actionable, blockReason, busy, confirmLoading, onConfirm }: Props) {
   switch (message.kind) {
     case 'user':
       return (
-        <View style={[styles.row, styles.right]}>
-          <View style={styles.userBubble}>
+        <FadeIn style={[styles.row, styles.right]}>
+          <LinearGradient colors={[...gradients.sky]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.userBubble}>
             <Text style={styles.userText}>{message.text}</Text>
-          </View>
-        </View>
+          </LinearGradient>
+        </FadeIn>
       );
     case 'system': {
       const tone = SYSTEM_TONE[message.tone];
       return (
-        <View style={[styles.row, styles.center]} testID="system-message">
-          <View style={[styles.systemBox, { backgroundColor: tone.bg }]}>
+        <FadeIn style={[styles.row, styles.center]}>
+          <View testID="system-message" style={[styles.systemBox, { backgroundColor: tone.bg }]}>
+            <Icon name={tone.icon} size={16} color={tone.fg} />
             <Text style={[styles.systemText, { color: tone.fg }]}>{message.text}</Text>
           </View>
-        </View>
+        </FadeIn>
       );
     }
     case 'plan':
       return (
-        <View style={[styles.row, styles.left]}>
+        <FadeIn style={[styles.row, styles.left]}>
+          <AssistantAvatar />
           <View style={styles.assistantBlock}>
             <PlanCard
               title="我的建议"
@@ -63,71 +78,107 @@ export function MessageView({ message, livePlan, actionable, blockReason, busy, 
               actionable={actionable}
             />
           </View>
-        </View>
+        </FadeIn>
       );
     case 'result':
       return (
-        <View style={[styles.row, styles.left]} testID="result-card">
-          <View style={styles.assistantBlock}>
-            <Card title={message.repeated ? '这个计划之前已执行' : '已执行'} right={<Pill label={resultSummary(message.results)} tone="green" />}>
-              {message.results.map((r) => (
-                <View key={r.actionId} style={styles.resultRow}>
-                  <Text style={styles.resultName}>{DEVICE_NAME[r.device]}</Text>
-                  <Text style={styles.resultValue}>
-                    {r.outcome === 'succeeded' ? `${r.observedValue}${UNIT[r.device]}` : `未执行：${r.reason ?? r.outcome}`}
-                  </Text>
-                </View>
-              ))}
+        <FadeIn style={[styles.row, styles.left]}>
+          <AssistantAvatar />
+          <View style={styles.assistantBlock} testID="result-card">
+            <Card
+              title={message.repeated ? '这个计划之前已执行' : '已为你调整好'}
+              icon="checkmark-done-outline"
+              right={<Pill label={resultSummary(message.results)} tone="green" />}
+            >
+              <View style={styles.results}>
+                {message.results.map((r) => (
+                  <View key={r.actionId} style={styles.resultTile}>
+                    <DeviceIcon device={r.device} size={18} color={colors.blue} />
+                    <Text style={styles.resultName}>{DEVICE_NAME[r.device]}</Text>
+                    <Text style={styles.resultValue}>
+                      {r.outcome === 'succeeded' ? `${r.observedValue}${UNIT[r.device]}` : `未执行`}
+                    </Text>
+                    {r.outcome !== 'succeeded' ? <Text style={styles.resultReason}>{r.reason ?? r.outcome}</Text> : null}
+                  </View>
+                ))}
+              </View>
               <Text style={styles.note}>
                 {message.deviceState.source === 'virtual_device' ? '数值读回自后端虚拟设备' : '前端模拟设备'}，不代表真实硬件。
               </Text>
             </Card>
           </View>
-        </View>
+        </FadeIn>
       );
   }
 }
 
 export function AssistantText({ text }: { text: string }) {
   return (
-    <View style={[styles.row, styles.left]}>
+    <FadeIn style={[styles.row, styles.left]}>
+      <AssistantAvatar />
       <View style={styles.assistantBubble}>
         <Text style={styles.assistantText}>{text}</Text>
       </View>
-    </View>
+    </FadeIn>
   );
 }
 
 const styles = StyleSheet.create({
-  row: { flexDirection: 'row' },
+  row: { flexDirection: 'row', gap: space.sm, alignItems: 'flex-start' },
   right: { justifyContent: 'flex-end' },
   left: { justifyContent: 'flex-start' },
   center: { justifyContent: 'center' },
+  avatar: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: colors.card,
+    alignItems: 'center',
+    justifyContent: 'center',
+    boxShadow: '0px 2px 8px rgba(2, 132, 199, 0.15)',
+  },
+  avatarImg: { width: 24, height: 24 },
   userBubble: {
     maxWidth: '80%',
-    backgroundColor: colors.blue,
     borderRadius: radius.lg,
-    borderBottomRightRadius: 4,
+    borderBottomRightRadius: 6,
     paddingHorizontal: space.lg,
     paddingVertical: space.md,
   },
-  userText: { color: '#fff', fontSize: font.body + 1 },
+  userText: { color: '#fff', fontSize: font.body + 1, fontWeight: '500' },
   assistantBubble: {
-    maxWidth: '85%',
+    maxWidth: '82%',
+    flexShrink: 1,
     backgroundColor: colors.card,
     borderRadius: radius.lg,
-    borderBottomLeftRadius: 4,
-    borderWidth: 1,
-    borderColor: colors.border,
+    borderTopLeftRadius: 6,
     paddingHorizontal: space.lg,
     paddingVertical: space.md,
+    boxShadow: '0px 4px 14px rgba(2, 132, 199, 0.07)',
   },
-  assistantText: { color: colors.ink, fontSize: font.body + 1, lineHeight: 22 },
-  assistantBlock: { width: '100%', maxWidth: 560 },
-  systemBox: { maxWidth: '92%', borderRadius: radius.md, paddingHorizontal: space.md, paddingVertical: space.sm },
-  systemText: { fontSize: font.small, fontWeight: '600', textAlign: 'center' },
-  resultRow: { flexDirection: 'row', justifyContent: 'space-between' },
-  resultName: { fontSize: font.body, color: colors.muted },
-  resultValue: { fontSize: font.body, color: colors.ink, fontWeight: '600' },
+  assistantText: { color: colors.ink, fontSize: font.body + 1, lineHeight: 23 },
+  assistantBlock: { flex: 1, maxWidth: 560 },
+  systemBox: {
+    maxWidth: '92%',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    borderRadius: radius.pill,
+    paddingHorizontal: space.md,
+    paddingVertical: 6,
+  },
+  systemText: { fontSize: font.small, fontWeight: '600', flexShrink: 1 },
+  results: { flexDirection: 'row', flexWrap: 'wrap', gap: space.sm },
+  resultTile: {
+    flexGrow: 1,
+    flexBasis: 90,
+    backgroundColor: colors.skyMist,
+    borderRadius: radius.md,
+    padding: space.md,
+    gap: 2,
+  },
+  resultName: { fontSize: font.caption, color: colors.muted, marginTop: 4 },
+  resultValue: { fontSize: 20, color: colors.ink, fontWeight: '800' },
+  resultReason: { fontSize: font.caption, color: colors.red },
   note: { fontSize: font.caption, color: colors.muted },
 });

@@ -1,8 +1,12 @@
-import { ActivityIndicator, Pressable, StyleSheet, Text } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
+import { useRef } from 'react';
+import { ActivityIndicator, Animated, Pressable, StyleSheet, Text, View } from 'react-native';
 
-import { colors, font, radius, space } from '../theme/tokens';
+import { colors, font, gradients, radius, space } from '../theme/tokens';
+import { Icon, type IconName } from './Icon';
+import { NATIVE_DRIVER } from './motion';
 
-type Variant = 'primary' | 'secondary' | 'danger';
+type Variant = 'primary' | 'secondary' | 'danger' | 'ghost';
 
 interface Props {
   label: string;
@@ -11,46 +15,81 @@ interface Props {
   disabled?: boolean;
   loading?: boolean;
   testID?: string;
+  icon?: IconName;
+  /** Show only the icon (label is still used for accessibility). */
+  iconOnly?: boolean;
+  compact?: boolean;
 }
 
-export function Button({ label, onPress, variant = 'primary', disabled, loading, testID }: Props) {
+const FG: Record<Variant, string> = {
+  primary: '#FFFFFF',
+  secondary: colors.blue,
+  danger: colors.red,
+  ghost: colors.blue,
+};
+
+export function Button({ label, onPress, variant = 'primary', disabled, loading, testID, icon, iconOnly, compact }: Props) {
   const inactive = disabled || loading;
+  const scale = useRef(new Animated.Value(1)).current;
+  const to = (v: number) => Animated.spring(scale, { toValue: v, useNativeDriver: NATIVE_DRIVER, speed: 40, bounciness: 6 }).start();
+  const fg = FG[variant];
+  const height = compact ? 40 : 48;
+
+  const content = (
+    <View style={[styles.inner, { minHeight: height }, iconOnly ? { width: height, paddingHorizontal: 0 } : null]}>
+      {loading ? (
+        <ActivityIndicator color={fg} />
+      ) : icon ? (
+        <Icon name={icon} size={iconOnly ? 20 : 18} color={fg} />
+      ) : null}
+      {iconOnly ? null : <Text style={[styles.label, { color: fg }]}>{label}</Text>}
+    </View>
+  );
+
   return (
-    <Pressable
-      testID={testID}
-      accessibilityRole="button"
-      accessibilityState={{ disabled: !!inactive, busy: !!loading }}
-      onPress={onPress}
-      disabled={inactive}
-      style={({ pressed }) => [
-        styles.base,
-        styles[variant],
-        inactive && styles.inactive,
-        pressed && !inactive && styles.pressed,
-      ]}
-    >
-      {loading ? <ActivityIndicator color={variant === 'secondary' ? colors.blue : '#fff'} /> : null}
-      <Text style={[styles.label, variant === 'secondary' && styles.labelSecondary]}>{label}</Text>
-    </Pressable>
+    <Animated.View style={[{ transform: [{ scale }] }, inactive && styles.inactive]}>
+      <Pressable
+        testID={testID}
+        accessibilityRole="button"
+        accessibilityLabel={label}
+        accessibilityState={{ disabled: !!inactive, busy: !!loading }}
+        onPress={onPress}
+        onPressIn={() => !inactive && to(0.96)}
+        onPressOut={() => to(1)}
+        disabled={inactive}
+        style={[styles.base, variant !== 'primary' && styles[variant], iconOnly && styles.round]}
+      >
+        {variant === 'primary' ? (
+          <LinearGradient
+            colors={[...gradients.sky]}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+            style={[styles.gradient, iconOnly && styles.round]}
+          >
+            {content}
+          </LinearGradient>
+        ) : (
+          content
+        )}
+      </Pressable>
+    </Animated.View>
   );
 }
 
 const styles = StyleSheet.create({
-  base: {
-    minHeight: 48,
-    paddingHorizontal: space.lg + 4,
-    flexShrink: 0,
-    borderRadius: radius.md,
+  base: { borderRadius: radius.pill, overflow: 'hidden', flexShrink: 0 },
+  gradient: { borderRadius: radius.pill },
+  round: { borderRadius: 999 },
+  inner: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     gap: space.sm,
+    paddingHorizontal: space.xl,
   },
-  primary: { backgroundColor: colors.blue },
-  secondary: { backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border },
-  danger: { backgroundColor: colors.red },
+  secondary: { backgroundColor: colors.card, borderWidth: 1, borderColor: '#BAE6FD' },
+  danger: { backgroundColor: colors.card, borderWidth: 1, borderColor: '#F7B9BB' },
+  ghost: { backgroundColor: colors.homeTint },
   inactive: { opacity: 0.45 },
-  pressed: { opacity: 0.8 },
-  label: { color: '#fff', fontSize: font.body, fontWeight: '600', flexShrink: 0 },
-  labelSecondary: { color: colors.blue },
+  label: { fontSize: font.body, fontWeight: '700', flexShrink: 0 },
 });

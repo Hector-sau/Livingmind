@@ -163,6 +163,7 @@ def body(page: Page) -> str:
 
 
 def shot(page: Page, name: str) -> None:
+    page.wait_for_timeout(450)  # let entrance animations settle
     page.screenshot(path=str(SCREENS / f"{name}.png"), full_page=True)
 
 
@@ -231,7 +232,7 @@ def scenario_guest_and_scenes(page: Page, url: str) -> None:
     shot(page, "guest-plan")
     tab(page, "scenes")
     labels = {
-        sid: page.get_by_test_id(f"scene-card-{sid}").inner_text().split("\n")[1]
+        sid: page.get_by_test_id(f"scene-status-{sid}").inner_text().strip()
         for sid in ("scene-rest", "scene-room-temp", "scene-wake")
     }
     assert labels == {"scene-rest": "已实现", "scene-room-temp": "已实现", "scene-wake": "规划中"}, labels

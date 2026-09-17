@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 
 import { Button } from '../../components/Button';
+import { Icon } from '../../components/Icon';
 import type { PlannerInfo, PlannerMode } from '../../services/types';
 import { colors, font, radius, space } from '../../theme/tokens';
 import { ModeToggle } from '../rest/ModeToggle';
@@ -31,12 +32,19 @@ export function Composer({ disabled, sending, mode, planner, apiMode, onModeChan
     <View style={styles.wrap}>
       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chips}>
         {QUICK.map((q) => (
-          <Pressable key={q} style={styles.chip} disabled={disabled} onPress={() => send(q)} accessibilityRole="button">
+          <Pressable
+            key={q}
+            style={({ pressed }) => [styles.chip, pressed && styles.chipPressed]}
+            disabled={disabled}
+            onPress={() => send(q)}
+            accessibilityRole="button"
+          >
+            <Icon name="sparkles-outline" size={13} color={colors.blue} />
             <Text style={styles.chipText}>{q}</Text>
           </Pressable>
         ))}
       </ScrollView>
-      <View style={styles.row}>
+      <View style={styles.bar}>
         <Pressable
           style={styles.mic}
           onPress={onVoice}
@@ -44,13 +52,13 @@ export function Composer({ disabled, sending, mode, planner, apiMode, onModeChan
           accessibilityLabel="语音输入（后续接入）"
           testID="mic-button"
         >
-          <Text style={styles.micText}>🎙</Text>
+          <Icon name="mic-outline" size={20} color={colors.blue} />
         </Pressable>
         <TextInput
           value={text}
           onChangeText={setText}
           placeholder="说说你现在想怎么休息…"
-          placeholderTextColor={colors.muted}
+          placeholderTextColor={colors.faint}
           maxLength={200}
           style={styles.input}
           returnKeyType="send"
@@ -58,7 +66,15 @@ export function Composer({ disabled, sending, mode, planner, apiMode, onModeChan
           accessibilityLabel="需求输入"
           testID="composer-input"
         />
-        <Button label="发送" onPress={() => send(text)} loading={sending} disabled={disabled || !text.trim()} testID="composer-send" />
+        <Button
+          label="发送"
+          icon="arrow-up"
+          iconOnly
+          onPress={() => send(text)}
+          loading={sending}
+          disabled={disabled || !text.trim()}
+          testID="composer-send"
+        />
       </View>
       <ModeToggle value={mode} planner={planner} apiMode={apiMode} disabled={disabled} onChange={onModeChange} />
     </View>
@@ -68,41 +84,53 @@ export function Composer({ disabled, sending, mode, planner, apiMode, onModeChan
 const styles = StyleSheet.create({
   wrap: {
     gap: space.sm,
-    padding: space.md,
-    backgroundColor: colors.card,
+    paddingHorizontal: space.md,
+    paddingTop: space.sm,
+    paddingBottom: space.md,
+    backgroundColor: 'rgba(255,255,255,0.92)',
     borderTopWidth: 1,
     borderTopColor: colors.border,
   },
   chips: { flexDirection: 'row', gap: space.sm },
   chip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
     paddingHorizontal: space.md,
-    paddingVertical: space.xs + 2,
+    paddingVertical: 6,
     borderRadius: radius.pill,
-    backgroundColor: colors.homeTint,
-  },
-  chipText: { fontSize: font.small, color: colors.blue, fontWeight: '600' },
-  row: { flexDirection: 'row', alignItems: 'center', gap: space.sm },
-  mic: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
+    backgroundColor: colors.card,
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: '#CFE8FA',
+  },
+  chipPressed: { backgroundColor: colors.homeTint },
+  chipText: { fontSize: font.small, color: colors.blue, fontWeight: '600' },
+  bar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: space.sm,
+    backgroundColor: colors.card,
+    borderRadius: radius.pill,
+    borderWidth: 1,
+    borderColor: '#CFE8FA',
+    padding: 4,
+    boxShadow: '0px 4px 16px rgba(2, 132, 199, 0.10)',
+  },
+  mic: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: colors.surface,
+    backgroundColor: colors.homeTint,
   },
-  micText: { fontSize: 20 },
   input: {
     flex: 1,
     minWidth: 0,
-    minHeight: 48,
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: radius.pill,
-    paddingHorizontal: space.lg,
+    minHeight: 44,
+    paddingHorizontal: space.sm,
     fontSize: font.body + 1,
     color: colors.ink,
-    backgroundColor: colors.surface,
-  },
+    outlineStyle: 'none',
+  } as object,
 });

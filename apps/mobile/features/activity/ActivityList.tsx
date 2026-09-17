@@ -15,23 +15,30 @@ const TONE: Partial<Record<ActivityRecord['kind'], PillTone>> = {
   plan_fallback: 'amber',
   event_received: 'violet',
   event_ignored: 'muted',
-  service_adjusted: 'green',
+  service_adjusted: 'teal',
 };
 
+/** Raw call records. Only shown in the evidence panel. */
 export function ActivityList({ items }: { items: ActivityRecord[] }) {
   return (
-    <Card title="服务动态">
-      <Text style={styles.hint}>后端或本地模拟实际记录的事件，最新在上。</Text>
+    <Card title="证据面板 · 原始记录" icon="document-text-outline">
+      <Text style={styles.hint}>后端或本地模拟实际写入的记录，最新在上；用于评审与技术讲解。</Text>
       {items.length === 0 ? (
         <Text style={styles.empty}>暂无记录。</Text>
       ) : (
-        items.map((item) => (
+        items.map((item, i) => (
           <View key={item.activityId} style={styles.row}>
-            <Text style={styles.time}>{formatTime(item.timestamp)}</Text>
+            <View style={styles.rail}>
+              <View style={styles.dot} />
+              {i < items.length - 1 ? <View style={styles.line} /> : null}
+            </View>
             <View style={styles.body}>
-              <View style={styles.line}>
+              <View style={styles.head}>
+                <Text style={styles.time}>{formatTime(item.timestamp)}</Text>
                 <Pill label={ACTIVITY_SOURCE_LABEL[item.source]} tone={TONE[item.kind] ?? 'blue'} />
-                <Text style={styles.kind}>{ACTIVITY_KIND_LABEL[item.kind]}</Text>
+                <Text style={styles.kind}>
+                  {ACTIVITY_KIND_LABEL[item.kind]} · {item.kind}
+                </Text>
               </View>
               <Text style={styles.message}>{item.message}</Text>
               {item.action?.reason ? <Text style={styles.reason}>原因：{item.action.reason}</Text> : null}
@@ -46,11 +53,14 @@ export function ActivityList({ items }: { items: ActivityRecord[] }) {
 const styles = StyleSheet.create({
   hint: { fontSize: font.caption, color: colors.muted },
   empty: { fontSize: font.body, color: colors.muted },
-  row: { flexDirection: 'row', gap: space.md, paddingVertical: space.xs },
-  time: { fontSize: font.caption, color: colors.muted, width: 62, paddingTop: 3, fontVariant: ['tabular-nums'] },
-  body: { flex: 1, gap: 2 },
-  line: { flexDirection: 'row', alignItems: 'center', gap: space.sm, flexWrap: 'wrap' },
-  kind: { fontSize: font.caption, color: colors.muted },
+  row: { flexDirection: 'row', gap: space.md },
+  rail: { width: 12, alignItems: 'center' },
+  dot: { width: 10, height: 10, borderRadius: 5, backgroundColor: colors.skyLight, marginTop: 6 },
+  line: { flex: 1, width: 2, backgroundColor: '#E0EEF8', marginTop: 2 },
+  body: { flex: 1, gap: 2, paddingBottom: space.md },
+  head: { flexDirection: 'row', alignItems: 'center', gap: space.sm, flexWrap: 'wrap' },
+  time: { fontSize: font.caption, color: colors.muted, fontVariant: ['tabular-nums'] },
+  kind: { fontSize: font.caption, color: colors.faint },
   message: { fontSize: font.body, color: colors.ink },
   reason: { fontSize: font.caption, color: colors.red },
 });

@@ -138,6 +138,7 @@ export function ChatScreen({ api, flow, messages, dispatch }: Props) {
           loading={state.busy === 'refresh'}
           disabled={busy}
           onRefresh={actions.refresh}
+          vertical
         />
       </ScrollView>
     </View>
@@ -146,10 +147,10 @@ export function ChatScreen({ api, flow, messages, dispatch }: Props) {
 
 const styles = StyleSheet.create({
   wide: { flex: 1, flexDirection: 'row' },
-  chatColumn: { flex: 1, backgroundColor: colors.surface },
+  chatColumn: { flex: 1 },
   stripWrap: { paddingHorizontal: space.md, paddingTop: space.md },
-  messages: { padding: space.lg, gap: space.md },
-  side: { width: 340, flexGrow: 0, borderLeftWidth: 1, borderLeftColor: colors.border, backgroundColor: colors.surface },
+  messages: { padding: space.lg, gap: space.lg, maxWidth: 820, width: '100%', alignSelf: 'center' },
+  side: { width: 340, flexGrow: 0, borderLeftWidth: 1, borderLeftColor: colors.border, backgroundColor: 'rgba(255,255,255,0.55)' },
   sideContent: { padding: space.lg, gap: space.md },
   sideTitle: { fontSize: font.section, fontWeight: '700', color: colors.ink },
 });
