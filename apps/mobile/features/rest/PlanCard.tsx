@@ -16,12 +16,28 @@ interface Props {
   onConfirm: () => void;
 }
 
+const SOURCE_TONE: Record<Plan['source'], PillTone> = {
+  rule: 'violet',
+  model: 'green',
+  rule_fallback: 'amber',
+  frontend_mock: 'amber',
+};
+
 const STATUS_TONE: Record<Plan['status'], PillTone> = {
   proposed: 'blue',
   executed: 'green',
   expired: 'amber',
   invalidated: 'red',
 };
+
+function describeGeneration(plan: Plan): string {
+  const g = plan.generation;
+  const requested = g.modeRequested === 'model' ? '请求模型' : '请求规则';
+  if (plan.source === 'model') return `${requested} · ${g.provider}/${g.model} · ${g.latencyMs} ms`;
+  if (plan.source === 'rule_fallback') return `${requested} · 改用规则 · ${g.latencyMs} ms`;
+  if (plan.source === 'frontend_mock') return `${requested} · 前端本地生成`;
+  return `${requested} · 后端规则 · ${g.latencyMs} ms`;
+}
 
 export function PlanCard({ plan, results, blockReason, loading, disabled, onConfirm }: Props) {
   if (!plan) {
@@ -35,9 +51,13 @@ export function PlanCard({ plan, results, blockReason, loading, disabled, onConf
   return (
     <Card title="休息计划" right={<Pill label={PLAN_STATUS_LABEL[plan.status]} tone={STATUS_TONE[plan.status]} />}>
       <View style={styles.meta}>
-        <Pill label={PLAN_SOURCE_LABEL[plan.source]} tone={plan.source === 'rule' ? 'violet' : 'amber'} />
+        <Pill label={PLAN_SOURCE_LABEL[plan.source]} tone={SOURCE_TONE[plan.source]} />
         <Text style={styles.utterance}>“{plan.utterance}”</Text>
       </View>
+      <Text style={styles.generation}>{describeGeneration(plan)}</Text>
+      {plan.generation.fallbackReason ? (
+        <Text style={styles.fallback}>默认方案 / 规则降级：{plan.generation.fallbackReason}</Text>
+      ) : null}
       <Text style={styles.summary}>{plan.summary}</Text>
       <View style={styles.list}>
         {plan.actions.map((a) => {
@@ -81,6 +101,8 @@ const styles = StyleSheet.create({
   meta: { flexDirection: 'row', alignItems: 'center', gap: space.sm, flexWrap: 'wrap' },
   utterance: { fontSize: font.body, color: colors.ink, fontStyle: 'italic' },
   summary: { fontSize: font.body, color: colors.ink, fontWeight: '600' },
+  generation: { fontSize: font.caption, color: colors.muted },
+  fallback: { fontSize: font.small, color: colors.amber, fontWeight: '600' },
   list: { gap: space.sm },
   action: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: space.sm, flexWrap: 'wrap' },
   actionText: { fontSize: font.body, color: colors.ink },

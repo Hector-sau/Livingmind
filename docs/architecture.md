@@ -7,7 +7,8 @@
 ```text
 App 页面 → services/api（http 实现）→ FastAPI 路由
   → 校验演示身份（account / person / space）
-  → 规则计划 rules/rest_rule.py（不改设备）
+  → 规划 services/planner.py：规则 rules/rest_rule.py，或 Experience Agent agents/experience/（不改设备）
+      模型失败（未配置 / 超时 / 网络 / HTTP / 非法 JSON / 不符结构）→ 规则降级，附原因
   → 用户确认 → 执行器 harness/executor.py（白名单、参数范围、服务是否仍有效）
   → 虚拟设备 adapters/virtual/devices.py（真实维护状态）
   → 回读设备状态 → 写活动记录 → 返回 App
@@ -22,14 +23,16 @@ App 页面 → services/api（http 实现）→ FastAPI 路由
 | `apps/mobile/services/` | `api.ts` 接口定义；`http/` 真实 API；`mock/` 前端模拟 | 第一批实现 |
 | `backend/app/contracts/` | Pydantic 数据契约，是前端类型的唯一来源 | 第一批实现 |
 | `backend/app/api/` | HTTP 路由与统一错误格式 | 第一批实现 |
-| `backend/app/rules/` | 固定休息规则（无模型） | 第一批实现 |
+| `backend/app/rules/` | 固定休息规则 + 规则/模型共用的动作映射 | 第一批实现 |
+| `backend/app/services/planner.py` | 规则/模型切换与降级 | ⑤ 实现 |
+| `backend/app/agents/experience/` | Experience Agent：提示词、输出结构校验、DeepSeek Provider | ⑤ 实现 |
 | `backend/app/harness/` | 统一执行器与检查规则 | 第一批最小版 |
 | `backend/app/services/` | 服务生命周期（active / stopped）、确认幂等、停止失效 | 第一批实现 |
 | `backend/app/adapters/virtual/` | 有状态虚拟灯光、空调、窗帘 | 第一批实现 |
 | `backend/app/repositories/` | 内存存储（重启重置） | 第一批实现 |
 | `backend/app/demo/` | 种子人物、空间、演示账户 | 第一批实现 |
 | `packages/api-client/` | 由 OpenAPI 生成的 TS 类型 | 第一批实现 |
-| `backend/app/agents/` | Experience / 主 Agent / 执行 Agent | **未创建**，第二批 ⑤ 起 |
+| `backend/app/agents/orchestrator/`、`space_execution/` | 主 Agent / 执行 Agent | **未创建**，第二批 ⑧ |
 | `backend/app/memory/`、`energy/` | 人物记忆、能源规则 | **未创建**，第二批 ⑧ |
 | 事件与定时器、SpaceMind / 语音 Adapter | 持续服务与真实接入 | **未创建**，第二批 ⑥⑦ 及以后 |
 
@@ -52,3 +55,10 @@ App 页面 → services/api（http 实现）→ FastAPI 路由
 7. 计划 10 分钟后过期。
 8. 所有设备写入经过执行器：工具白名单 + 参数范围。
 9. 数据存在内存里，后端重启即重置；`POST /api/demo/reset` 可手动重置。
+
+## 模型调用边界（⑤）
+
+- 模型只生成体验目标和三个数值；输出先过 Pydantic 结构与范围校验，再变成普通 `Plan`，确认后走同一个执行器。模型不能直接写设备。
+- 规划在服务锁之外进行，等待模型时不持锁。
+- 提示词只包含人物名、描述、已授权偏好、当前设备状态和这句话；活动记录只保存来源、耗时和降级原因，不保存模型的推理过程。
+- `LIVINGMIND_PLANNER_MODE` 是默认模式；每次请求可以用 `mode` 字段覆盖。规则模式下不会发出任何模型请求。

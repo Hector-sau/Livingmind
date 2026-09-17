@@ -182,7 +182,7 @@ export interface components {
              * Kind
              * @enum {string}
              */
-            kind: "plan_created" | "plan_confirmed" | "plan_confirm_repeated" | "plan_rejected" | "action_executed" | "action_rejected" | "service_stopped" | "demo_reset";
+            kind: "plan_created" | "plan_fallback" | "plan_confirmed" | "plan_confirm_repeated" | "plan_rejected" | "action_executed" | "action_rejected" | "service_stopped" | "demo_reset";
             /** Message */
             message: string;
             /** Personid */
@@ -195,7 +195,7 @@ export interface components {
              * Source
              * @enum {string}
              */
-            source: "user" | "rule_engine" | "executor" | "virtual_device" | "system" | "frontend_mock";
+            source: "user" | "rule_engine" | "experience_agent" | "executor" | "virtual_device" | "system" | "frontend_mock";
             /** Spaceid */
             spaceId: string;
             /**
@@ -223,6 +223,7 @@ export interface components {
             mode: "demo";
             /** Persons */
             persons: components["schemas"]["Person"][];
+            planner: components["schemas"]["PlannerInfo"];
             /** Spaces */
             spaces: components["schemas"]["Space"][];
         };
@@ -248,6 +249,11 @@ export interface components {
         /** CreateRestPlanRequest */
         CreateRestPlanRequest: {
             context: components["schemas"]["RequestContext"];
+            /**
+             * Mode
+             * @description null = server default
+             */
+            mode?: ("rule" | "model") | null;
             /** Utterance */
             utterance: string;
         };
@@ -360,6 +366,7 @@ export interface components {
              * Format: date-time
              */
             expiresAt: string;
+            generation: components["schemas"]["PlanGeneration"];
             /** Notes */
             notes: string[];
             /** Personid */
@@ -375,7 +382,7 @@ export interface components {
              * Source
              * @enum {string}
              */
-            source: "rule" | "frontend_mock";
+            source: "rule" | "model" | "rule_fallback" | "frontend_mock";
             /** Spaceid */
             spaceId: string;
             /**
@@ -389,6 +396,61 @@ export interface components {
             utterance: string;
             /** Version */
             version: number;
+        };
+        /**
+         * PlanGeneration
+         * @description How the plan was produced. Shown in the app so sources are never confused.
+         */
+        PlanGeneration: {
+            /**
+             * Fallbackreason
+             * @description Why the rule engine was used instead of the model
+             */
+            fallbackReason: string | null;
+            /**
+             * Goal
+             * @description Experience goal stated by the model
+             */
+            goal: string | null;
+            /**
+             * Latencyms
+             * @description Time from request to plan (server side)
+             */
+            latencyMs: number;
+            /**
+             * Moderequested
+             * @enum {string}
+             */
+            modeRequested: "rule" | "model";
+            /**
+             * Model
+             * @description Model name actually called; null for rule plans
+             */
+            model: string | null;
+            /**
+             * Provider
+             * @description e.g. deepseek; null for rule plans
+             */
+            provider: string | null;
+        };
+        /** PlannerInfo */
+        PlannerInfo: {
+            /**
+             * Defaultmode
+             * @enum {string}
+             */
+            defaultMode: "rule" | "model";
+            /** Model */
+            model: string | null;
+            /**
+             * Modelconfigured
+             * @description A provider and key are configured server-side (not proof it works)
+             */
+            modelConfigured: boolean;
+            /** Provider */
+            provider: string | null;
+            /** Timeoutms */
+            timeoutMs: number;
         };
         /**
          * RequestContext

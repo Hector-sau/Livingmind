@@ -7,6 +7,7 @@ import type {
   BootstrapResponse,
   DeviceState,
   Plan,
+  PlannerMode,
   RequestContext,
   Service,
 } from '../../services/types';
@@ -24,6 +25,7 @@ export interface RestFlowState {
   data: BootstrapResponse | null;
   personId: string | null;
   utterance: string;
+  mode: PlannerMode;
   plan: Plan | null;
   service: Service | null;
   results: ActionResult[];
@@ -40,6 +42,7 @@ const initial: RestFlowState = {
   data: null,
   personId: null,
   utterance: '我想休息',
+  mode: 'rule',
   plan: null,
   service: null,
   results: [],
@@ -75,6 +78,7 @@ export function useRestFlow(api: LivingMindApi) {
         ...s,
         phase: 'ready',
         data,
+        mode: s.data ? s.mode : data.planner.defaultMode,
         personId:
           keepPerson && s.personId ? s.personId : (data.activeService?.personId ?? data.persons[0]?.personId ?? null),
         plan: null,
@@ -136,7 +140,7 @@ export function useRestFlow(api: LivingMindApi) {
     if (!ctx || !s.utterance.trim()) return;
     patch({ busy: 'plan', error: null, info: null });
     try {
-      const plan = await api.createRestPlan({ context: ctx, utterance: s.utterance.trim() });
+      const plan = await api.createRestPlan({ context: ctx, utterance: s.utterance.trim(), mode: s.mode });
       patch({ plan, results: [], busy: null });
       await loadActivity(ctx.spaceId);
     } catch (e) {
@@ -227,6 +231,7 @@ export function useRestFlow(api: LivingMindApi) {
       load,
       selectPerson,
       setUtterance: (utterance: string) => patch({ utterance }),
+      setMode: (mode: PlannerMode) => patch({ mode }),
       createPlan,
       confirm,
       stop,

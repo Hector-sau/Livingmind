@@ -18,6 +18,7 @@ from app.api.errors import ApiError
 from app.clock import Clock, utc_now
 from app.contracts import (
     ActionResult,
+    PlannerMode,
     ActivityKind,
     ActivityRecord,
     ActivitySource,
@@ -34,14 +35,15 @@ from app.contracts import (
 from app.demo import seed
 from app.harness.executor import Executor
 from app.repositories.memory_store import MemoryStore, PlanRecord
-from app.rules.rest_rule import build_rest_plan
+from app.services.planner import Planner, planner_from_config
 
 
 class RestService:
-    def __init__(self, clock: Clock = utc_now):
+    def __init__(self, clock: Clock = utc_now, planner: Optional[Planner] = None):
         self._clock = clock
         self._lock = threading.RLock()
         self._store = MemoryStore()
+        self._planner = planner or planner_from_config(clock)
         self._devices = {
             s.space_id: VirtualDeviceAdapter(s.space_id, seed.INITIAL_DEVICE_STATE, clock) for s in seed.SPACES
         }
@@ -96,6 +98,7 @@ class RestService:
         space_id = seed.DEFAULT_SPACE_ID
         return BootstrapResponse(
             mode="demo",
+            planner=self._planner.info(),
             account=seed.DEMO_ACCOUNT,
             persons=seed.PERSONS,
             spaces=seed.SPACES,
@@ -116,19 +119,42 @@ class RestService:
         with self._lock:
             return self._devices[space_id].read_state()
 
-    def create_rest_plan(self, ctx: RequestContext, utterance: str) -> Plan:
+    def create_rest_plan(self, ctx: RequestContext, utterance: str, mode: Optional[PlannerMode] = None) -> Plan:
         person = self._check_context(ctx)
+        # Planning may call a model (slow): do it outside the lock. Only bookkeeping is locked.
+        device_state = self._devices[ctx.space_id].read_state()
+        outcome = self._planner.plan(person, ctx.space_id, utterance, device_state, self._store.new_id, mode)
+        plan = outcome.plan
         with self._lock:
-            plan = build_rest_plan(person, ctx.space_id, utterance, self._clock(), self._store.new_id)
             self._store.plans[plan.plan_id] = PlanRecord(plan=plan, epoch=self._store.epoch(ctx.space_id))
-            self._log(
-                ctx.space_id,
-                "plan_created",
-                "rule_engine",
-                f"生成休息计划（{person.name}，规则）",
-                plan_id=plan.plan_id,
-                person_id=person.person_id,
-            )
+            gen = plan.generation
+            if plan.source == "model":
+                self._log(
+                    ctx.space_id,
+                    "plan_created",
+                    "experience_agent",
+                    f"模型生成休息计划（{person.name}，{gen.provider}/{gen.model}，{gen.latency_ms} ms）",
+                    plan_id=plan.plan_id,
+                    person_id=person.person_id,
+                )
+            else:
+                if outcome.fallback_reason:
+                    self._log(
+                        ctx.space_id,
+                        "plan_fallback",
+                        "system",
+                        f"模型不可用，改用规则：{outcome.fallback_reason}（{gen.latency_ms} ms）",
+                        plan_id=plan.plan_id,
+                        person_id=person.person_id,
+                    )
+                self._log(
+                    ctx.space_id,
+                    "plan_created",
+                    "rule_engine",
+                    f"生成休息计划（{person.name}，{'规则降级' if outcome.fallback_reason else '规则'}）",
+                    plan_id=plan.plan_id,
+                    person_id=person.person_id,
+                )
             return plan
 
     def _reject(self, record: PlanRecord, code, message: str) -> ApiError:

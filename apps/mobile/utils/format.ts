@@ -1,4 +1,4 @@
-import type { ActivitySource, PlanSource, PlanStatus } from '../services/types';
+import type { ActivityKind, ActivitySource, PlanSource, PlanStatus } from '../services/types';
 
 export function formatTime(iso: string): string {
   const d = new Date(iso);
@@ -8,6 +8,8 @@ export function formatTime(iso: string): string {
 
 export const PLAN_SOURCE_LABEL: Record<PlanSource, string> = {
   rule: '规则计划（后端）',
+  model: '模型计划',
+  rule_fallback: '规则降级',
   frontend_mock: '前端模拟计划',
 };
 
@@ -21,8 +23,21 @@ export const PLAN_STATUS_LABEL: Record<PlanStatus, string> = {
 export const ACTIVITY_SOURCE_LABEL: Record<ActivitySource, string> = {
   user: '用户',
   rule_engine: '规则引擎',
+  experience_agent: 'Experience Agent',
   executor: '执行器',
   virtual_device: '虚拟设备',
   system: '系统',
   frontend_mock: '前端模拟',
+};
+
+export const ACTIVITY_KIND_LABEL: Record<ActivityKind, string> = {
+  plan_created: '生成计划',
+  plan_fallback: '规则降级',
+  plan_confirmed: '确认执行',
+  plan_confirm_repeated: '重复确认',
+  plan_rejected: '计划被拒绝',
+  action_executed: '设备动作',
+  action_rejected: '动作未执行',
+  service_stopped: '停止服务',
+  demo_reset: '重置演示',
 };

@@ -49,3 +49,13 @@ test('unknown person is rejected', async () => {
     (e: unknown) => e instanceof ApiError && e.code === 'FORBIDDEN_CONTEXT',
   );
 });
+
+test('mock never pretends to call a model: model mode degrades to a labelled fallback', async () => {
+  const api = createMockApi({ latencyMs: 0 });
+  const plan = await api.createRestPlan({ context: ctx('person-lin'), utterance: '我想休息', mode: 'model' });
+  assert.equal(plan.source, 'frontend_mock');
+  assert.equal(plan.generation.modeRequested, 'model');
+  assert.ok(plan.generation.fallbackReason);
+  const activity = await api.getActivity('space-home-bedroom');
+  assert.ok(activity.items.some((i) => i.kind === 'plan_fallback'));
+});

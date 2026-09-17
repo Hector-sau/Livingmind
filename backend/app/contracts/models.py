@@ -16,6 +16,9 @@ __all__ = [
     "DeviceAction",
     "DeviceState",
     "Plan",
+    "PlanGeneration",
+    "PlannerInfo",
+    "PlannerMode",
     "Service",
     "ActionResult",
     "ActivityRecord",
@@ -51,8 +54,9 @@ class Contract(BaseModel):
 
 # Where a device state came from. Never mix these in demos without labelling.
 DataSource = Literal["virtual_device", "frontend_mock"]
-# Who produced a plan. "model" will be added in batch 2 (step 5).
-PlanSource = Literal["rule", "frontend_mock"]
+# Who produced a plan. "rule_fallback" = model mode was requested but the rule engine produced the plan.
+PlanSource = Literal["rule", "model", "rule_fallback", "frontend_mock"]
+PlannerMode = Literal["rule", "model"]
 PlanStatus = Literal["proposed", "executed", "expired", "invalidated"]
 ServiceStatus = Literal["active", "stopped"]
 DeviceType = Literal["light", "ac", "curtain"]
@@ -60,6 +64,7 @@ DeviceCommand = Literal["set_brightness", "set_target_temperature", "set_open_pe
 ActionOutcome = Literal["succeeded", "rejected", "failed", "skipped"]
 ActivityKind = Literal[
     "plan_created",
+    "plan_fallback",
     "plan_confirmed",
     "plan_confirm_repeated",
     "plan_rejected",
@@ -68,7 +73,9 @@ ActivityKind = Literal[
     "service_stopped",
     "demo_reset",
 ]
-ActivitySource = Literal["user", "rule_engine", "executor", "virtual_device", "system", "frontend_mock"]
+ActivitySource = Literal[
+    "user", "rule_engine", "experience_agent", "executor", "virtual_device", "system", "frontend_mock"
+]
 ErrorCode = Literal[
     "VALIDATION_ERROR",
     "NOT_FOUND",
@@ -140,6 +147,17 @@ class DeviceState(Contract):
     updated_at: datetime
 
 
+class PlanGeneration(Contract):
+    """How the plan was produced. Shown in the app so sources are never confused."""
+
+    mode_requested: PlannerMode
+    provider: Optional[str] = Field(description="e.g. deepseek; null for rule plans")
+    model: Optional[str] = Field(description="Model name actually called; null for rule plans")
+    latency_ms: int = Field(description="Time from request to plan (server side)")
+    fallback_reason: Optional[str] = Field(description="Why the rule engine was used instead of the model")
+    goal: Optional[str] = Field(description="Experience goal stated by the model")
+
+
 class Plan(Contract):
     plan_id: str
     version: int
@@ -154,6 +172,7 @@ class Plan(Contract):
     status: PlanStatus
     created_at: datetime
     expires_at: datetime
+    generation: PlanGeneration
 
 
 class Service(Contract):
@@ -196,6 +215,7 @@ class ActivityRecord(Contract):
 class CreateRestPlanRequest(Contract):
     context: RequestContext
     utterance: str = Field(min_length=1, max_length=200)
+    mode: Optional[PlannerMode] = Field(default=None, description="null = server default")
 
 
 class ConfirmPlanRequest(Contract):
@@ -210,8 +230,17 @@ class StopServiceRequest(Contract):
 # ---- responses ----
 
 
+class PlannerInfo(Contract):
+    default_mode: PlannerMode
+    model_configured: bool = Field(description="A provider and key are configured server-side (not proof it works)")
+    provider: Optional[str]
+    model: Optional[str]
+    timeout_ms: int
+
+
 class BootstrapResponse(Contract):
     mode: Literal["demo"]
+    planner: PlannerInfo
     account: DemoAccount
     persons: list[Person]
     spaces: list[Space]

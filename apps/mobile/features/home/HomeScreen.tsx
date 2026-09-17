@@ -88,6 +88,9 @@ export function HomeScreen({ api, backendLabel }: Props) {
         onSubmit={actions.createPlan}
         loading={state.busy === 'plan'}
         disabled={busy}
+        mode={state.mode}
+        planner={data.planner}
+        onModeChange={actions.setMode}
       />
       <PlanCard
         plan={state.plan}

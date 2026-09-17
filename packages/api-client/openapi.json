@@ -94,6 +94,7 @@
           "kind": {
             "enum": [
               "plan_created",
+              "plan_fallback",
               "plan_confirmed",
               "plan_confirm_repeated",
               "plan_rejected",
@@ -146,6 +147,7 @@
             "enum": [
               "user",
               "rule_engine",
+              "experience_agent",
               "executor",
               "virtual_device",
               "system",
@@ -229,6 +231,9 @@
             "title": "Persons",
             "type": "array"
           },
+          "planner": {
+            "$ref": "#/components/schemas/PlannerInfo"
+          },
           "spaces": {
             "items": {
               "$ref": "#/components/schemas/Space"
@@ -239,6 +244,7 @@
         },
         "required": [
           "mode",
+          "planner",
           "account",
           "persons",
           "spaces",
@@ -304,6 +310,22 @@
         "properties": {
           "context": {
             "$ref": "#/components/schemas/RequestContext"
+          },
+          "mode": {
+            "anyOf": [
+              {
+                "enum": [
+                  "rule",
+                  "model"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "null = server default",
+            "title": "Mode"
           },
           "utterance": {
             "maxLength": 200,
@@ -554,6 +576,9 @@
             "title": "Expiresat",
             "type": "string"
           },
+          "generation": {
+            "$ref": "#/components/schemas/PlanGeneration"
+          },
           "notes": {
             "items": {
               "type": "string"
@@ -577,6 +602,8 @@
           "source": {
             "enum": [
               "rule",
+              "model",
+              "rule_fallback",
               "frontend_mock"
             ],
             "title": "Source",
@@ -622,9 +649,138 @@
           "actions",
           "status",
           "createdAt",
-          "expiresAt"
+          "expiresAt",
+          "generation"
         ],
         "title": "Plan",
+        "type": "object"
+      },
+      "PlanGeneration": {
+        "description": "How the plan was produced. Shown in the app so sources are never confused.",
+        "properties": {
+          "fallbackReason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Why the rule engine was used instead of the model",
+            "title": "Fallbackreason"
+          },
+          "goal": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Experience goal stated by the model",
+            "title": "Goal"
+          },
+          "latencyMs": {
+            "description": "Time from request to plan (server side)",
+            "title": "Latencyms",
+            "type": "integer"
+          },
+          "modeRequested": {
+            "enum": [
+              "rule",
+              "model"
+            ],
+            "title": "Moderequested",
+            "type": "string"
+          },
+          "model": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Model name actually called; null for rule plans",
+            "title": "Model"
+          },
+          "provider": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "e.g. deepseek; null for rule plans",
+            "title": "Provider"
+          }
+        },
+        "required": [
+          "modeRequested",
+          "provider",
+          "model",
+          "latencyMs",
+          "fallbackReason",
+          "goal"
+        ],
+        "title": "PlanGeneration",
+        "type": "object"
+      },
+      "PlannerInfo": {
+        "properties": {
+          "defaultMode": {
+            "enum": [
+              "rule",
+              "model"
+            ],
+            "title": "Defaultmode",
+            "type": "string"
+          },
+          "model": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Model"
+          },
+          "modelConfigured": {
+            "description": "A provider and key are configured server-side (not proof it works)",
+            "title": "Modelconfigured",
+            "type": "boolean"
+          },
+          "provider": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Provider"
+          },
+          "timeoutMs": {
+            "title": "Timeoutms",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "defaultMode",
+          "modelConfigured",
+          "provider",
+          "model",
+          "timeoutMs"
+        ],
+        "title": "PlannerInfo",
         "type": "object"
       },
       "RequestContext": {

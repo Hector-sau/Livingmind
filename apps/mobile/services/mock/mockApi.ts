@@ -82,6 +82,8 @@ export function createMockApi(options: MockOptions = {}): LivingMindApi {
 
   const bootstrap = (): BootstrapResponse => ({
     mode: 'demo',
+    // The front-end mock has no model; "model" mode always degrades to a labelled rule fallback.
+    planner: { defaultMode: 'rule', modelConfigured: false, provider: null, model: null, timeoutMs: 0 },
     account: MOCK_ACCOUNT,
     persons: MOCK_PERSONS,
     spaces: MOCK_SPACES,
@@ -121,6 +123,8 @@ export function createMockApi(options: MockOptions = {}): LivingMindApi {
         { actionId: id('a'), device: 'ac', command: 'set_target_temperature', value: pref.acTargetTempC, label: `空调设定 ${pref.acTargetTempC}°C` },
         { actionId: id('a'), device: 'curtain', command: 'set_open_percent', value: pref.curtainOpenPercent, label: pref.curtainOpenPercent === 0 ? '窗帘全部关闭' : `窗帘保留 ${pref.curtainOpenPercent}%` },
       ];
+      const wantsModel = req.mode === 'model';
+      const fallbackReason = wantsModel ? '前端模拟模式没有模型，改用本地规则' : null;
       const plan: Plan = {
         planId: id('plan'),
         version: 1,
@@ -129,7 +133,18 @@ export function createMockApi(options: MockOptions = {}): LivingMindApi {
         scenario: 'rest',
         source: 'frontend_mock',
         summary: `按 ${person.name} 的休息偏好调整灯光、空调和窗帘`,
-        notes: ['前端模拟：计划由本地规则生成，没有调用后端或模型', '当前为固定休息场景，输入文字只做记录，不做语义理解'],
+        notes: [
+          wantsModel ? `前端模拟：${fallbackReason}` : '前端模拟：计划由本地规则生成，没有调用后端或模型',
+          '当前为固定休息场景，输入文字只做记录，不做语义理解',
+        ],
+        generation: {
+          modeRequested: wantsModel ? 'model' : 'rule',
+          provider: null,
+          model: null,
+          latencyMs: 0,
+          fallbackReason,
+          goal: null,
+        },
         utterance: req.utterance,
         actions,
         status: 'proposed',
@@ -137,6 +152,9 @@ export function createMockApi(options: MockOptions = {}): LivingMindApi {
         expiresAt: new Date(created.getTime() + PLAN_TTL_MS).toISOString(),
       };
       plans.set(plan.planId, { plan, epoch });
+      if (fallbackReason) {
+        log({ kind: 'plan_fallback', source: 'frontend_mock', message: fallbackReason, serviceId: null, planId: plan.planId, personId: person.personId, action: null });
+      }
       log({ kind: 'plan_created', source: 'frontend_mock', message: `生成休息计划（${person.name}）`, serviceId: null, planId: plan.planId, personId: person.personId, action: null });
       return delay(plan);
     },

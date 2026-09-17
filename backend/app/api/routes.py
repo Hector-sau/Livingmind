@@ -32,7 +32,7 @@ def get_device_state(space_id: str, account_id: str = Query(alias="accountId"), 
 
 @router.post("/plans/rest", response_model=Plan, operation_id="createRestPlan", tags=["plans"])
 def create_rest_plan(body: CreateRestPlanRequest, svc: RestService = Svc) -> Plan:
-    return svc.create_rest_plan(body.context, body.utterance)
+    return svc.create_rest_plan(body.context, body.utterance, body.mode)
 
 
 @router.post("/plans/{plan_id}/confirm", response_model=ConfirmPlanResponse, operation_id="confirmPlan", tags=["plans"])

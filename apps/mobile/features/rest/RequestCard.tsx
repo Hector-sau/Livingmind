@@ -2,7 +2,9 @@ import { StyleSheet, Text, TextInput } from 'react-native';
 
 import { Button } from '../../components/Button';
 import { Card } from '../../components/Card';
+import type { PlannerInfo, PlannerMode } from '../../services/types';
 import { colors, font, radius, space } from '../../theme/tokens';
+import { ModeToggle } from './ModeToggle';
 
 interface Props {
   value: string;
@@ -10,9 +12,12 @@ interface Props {
   onSubmit: () => void;
   loading: boolean;
   disabled: boolean;
+  mode: PlannerMode;
+  planner: PlannerInfo;
+  onModeChange: (mode: PlannerMode) => void;
 }
 
-export function RequestCard({ value, onChange, onSubmit, loading, disabled }: Props) {
+export function RequestCard({ value, onChange, onSubmit, loading, disabled, mode, planner, onModeChange }: Props) {
   const empty = !value.trim();
   return (
     <Card title="说出需求">
@@ -27,7 +32,12 @@ export function RequestCard({ value, onChange, onSubmit, loading, disabled }: Pr
         onSubmitEditing={() => !empty && !disabled && onSubmit()}
         accessibilityLabel="需求输入"
       />
-      <Text style={styles.note}>当前只支持固定的“休息”场景：输入的文字会被记录，但还没有做语义理解。</Text>
+      <ModeToggle value={mode} planner={planner} disabled={disabled} onChange={onModeChange} />
+      <Text style={styles.note}>
+        {mode === 'rule'
+          ? '规则模式只支持固定的“休息”场景：输入的文字会被记录，但不做语义理解。'
+          : '模型模式会参考这句话调整休息设置；结果仍需你确认后才会执行。'}
+      </Text>
       <Button label="生成休息计划" onPress={onSubmit} loading={loading} disabled={disabled || empty} />
     </Card>
   );
