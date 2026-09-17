@@ -30,6 +30,7 @@ from app.contracts import (
     AssistantReply,
     EnergyMode,
     MemoryView,
+    OfflineEnergySimulation,
     PlannerMode,
     RestPreference,
     Space,
@@ -52,6 +53,7 @@ from app.contracts import (
 )
 from app.demo import seed
 from app.energy import EnergyIntelligence
+from app.energy.simulation import offline_energy_simulation
 from app.harness.executor import Executor
 from app.memory import MemoryService
 from app.repositories.memory_store import MemoryStore, PlanRecord
@@ -181,6 +183,11 @@ class RestService:
         self._check_space(account_id, space_id)
         with self._lock:
             return self._devices[space_id].read_state()
+
+    def offline_energy_simulation(self, account_id: str, space_id: str) -> OfflineEnergySimulation:
+        """Read-only offline evidence; no model is loaded and no current device state is changed."""
+        self._check_space(account_id, space_id)
+        return offline_energy_simulation()
 
     def handle_message(
         self, ctx: RequestContext, text: str, mode: Optional[PlannerMode] = None, force_rest: bool = False

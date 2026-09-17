@@ -254,6 +254,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/spaces/{space_id}/energy/simulation": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Offline Energy Simulation
+         * @description Supplied fixed-day MATD3 evidence. Read-only and never used as a device controller.
+         */
+        get: operations["getOfflineEnergySimulation"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/spaces/{space_id}/events": {
         parameters: {
             query?: never;
@@ -678,6 +698,89 @@ export interface components {
             sharedRules: components["schemas"]["SpaceRule"][];
             /** Updatedat */
             updatedAt: string | null;
+        };
+        /**
+         * OfflineEnergyAsset
+         * @description A read-only asset represented by the offline energy simulation.
+         */
+        OfflineEnergyAsset: {
+            /**
+             * Control
+             * @description Explains whether this is an App control or offline simulation context
+             */
+            control: string;
+            /** Id */
+            id: string;
+            /** Name */
+            name: string;
+            /**
+             * Role
+             * @enum {string}
+             */
+            role: "supply" | "demand" | "storage" | "trading" | "backup";
+        };
+        /**
+         * OfflineEnergyMetric
+         * @description A supplied one-day benchmark metric. It is not a real-time App measurement.
+         */
+        OfflineEnergyMetric: {
+            /**
+             * Key
+             * @enum {string}
+             */
+            key: "daily_cost" | "grid_import" | "peak_import" | "comfort_violation";
+            /** Label */
+            label: string;
+            /** Lowerisbetter */
+            lowerIsBetter: boolean;
+            /** Matd3 */
+            matd3: number;
+            /** Rule */
+            rule: number;
+            /** Unit */
+            unit: string;
+        };
+        /** OfflineEnergyProfilePoint */
+        OfflineEnergyProfilePoint: {
+            /** Baseloadkw */
+            baseLoadKw: number;
+            /** Buypriceusdperkwh */
+            buyPriceUsdPerKwh: number;
+            /** Hour */
+            hour: number;
+            /** Outdoortempf */
+            outdoorTempF: number;
+            /** Pvkw */
+            pvKw: number;
+            /** Windkw */
+            windKw: number;
+        };
+        /**
+         * OfflineEnergySimulation
+         * @description Supplied fixed-day offline evidence; deliberately separate from online energy rules.
+         */
+        OfflineEnergySimulation: {
+            /** Agentcount */
+            agentCount: number;
+            /** Assets */
+            assets: components["schemas"]["OfflineEnergyAsset"][];
+            /** Controller */
+            controller: string;
+            /** Limits */
+            limits: string[];
+            /** Metrics */
+            metrics: components["schemas"]["OfflineEnergyMetric"][];
+            /** Profile */
+            profile: components["schemas"]["OfflineEnergyProfilePoint"][];
+            /** Resolution */
+            resolution: string;
+            /** Scenario */
+            scenario: string;
+            /**
+             * Source
+             * @constant
+             */
+            source: "provided_precomputed_offline_simulation";
         };
         /** Person */
         Person: {
@@ -1964,6 +2067,75 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["Space"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    getOfflineEnergySimulation: {
+        parameters: {
+            query: {
+                accountId: string;
+            };
+            header?: never;
+            path: {
+                space_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OfflineEnergySimulation"];
                 };
             };
             /** @description Forbidden */

@@ -1015,6 +1015,196 @@
         "title": "MemoryView",
         "type": "object"
       },
+      "OfflineEnergyAsset": {
+        "description": "A read-only asset represented by the offline energy simulation.",
+        "properties": {
+          "control": {
+            "description": "Explains whether this is an App control or offline simulation context",
+            "title": "Control",
+            "type": "string"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "role": {
+            "enum": [
+              "supply",
+              "demand",
+              "storage",
+              "trading",
+              "backup"
+            ],
+            "title": "Role",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "role",
+          "control"
+        ],
+        "title": "OfflineEnergyAsset",
+        "type": "object"
+      },
+      "OfflineEnergyMetric": {
+        "description": "A supplied one-day benchmark metric. It is not a real-time App measurement.",
+        "properties": {
+          "key": {
+            "enum": [
+              "daily_cost",
+              "grid_import",
+              "peak_import",
+              "comfort_violation"
+            ],
+            "title": "Key",
+            "type": "string"
+          },
+          "label": {
+            "title": "Label",
+            "type": "string"
+          },
+          "lowerIsBetter": {
+            "title": "Lowerisbetter",
+            "type": "boolean"
+          },
+          "matd3": {
+            "title": "Matd3",
+            "type": "number"
+          },
+          "rule": {
+            "title": "Rule",
+            "type": "number"
+          },
+          "unit": {
+            "title": "Unit",
+            "type": "string"
+          }
+        },
+        "required": [
+          "key",
+          "label",
+          "unit",
+          "rule",
+          "matd3",
+          "lowerIsBetter"
+        ],
+        "title": "OfflineEnergyMetric",
+        "type": "object"
+      },
+      "OfflineEnergyProfilePoint": {
+        "properties": {
+          "baseLoadKw": {
+            "title": "Baseloadkw",
+            "type": "number"
+          },
+          "buyPriceUsdPerKwh": {
+            "title": "Buypriceusdperkwh",
+            "type": "number"
+          },
+          "hour": {
+            "maximum": 23.0,
+            "minimum": 0.0,
+            "title": "Hour",
+            "type": "integer"
+          },
+          "outdoorTempF": {
+            "title": "Outdoortempf",
+            "type": "number"
+          },
+          "pvKw": {
+            "title": "Pvkw",
+            "type": "number"
+          },
+          "windKw": {
+            "title": "Windkw",
+            "type": "number"
+          }
+        },
+        "required": [
+          "hour",
+          "pvKw",
+          "windKw",
+          "baseLoadKw",
+          "buyPriceUsdPerKwh",
+          "outdoorTempF"
+        ],
+        "title": "OfflineEnergyProfilePoint",
+        "type": "object"
+      },
+      "OfflineEnergySimulation": {
+        "description": "Supplied fixed-day offline evidence; deliberately separate from online energy rules.",
+        "properties": {
+          "agentCount": {
+            "minimum": 1.0,
+            "title": "Agentcount",
+            "type": "integer"
+          },
+          "assets": {
+            "items": {
+              "$ref": "#/components/schemas/OfflineEnergyAsset"
+            },
+            "title": "Assets",
+            "type": "array"
+          },
+          "controller": {
+            "title": "Controller",
+            "type": "string"
+          },
+          "limits": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Limits",
+            "type": "array"
+          },
+          "metrics": {
+            "items": {
+              "$ref": "#/components/schemas/OfflineEnergyMetric"
+            },
+            "title": "Metrics",
+            "type": "array"
+          },
+          "profile": {
+            "items": {
+              "$ref": "#/components/schemas/OfflineEnergyProfilePoint"
+            },
+            "title": "Profile",
+            "type": "array"
+          },
+          "resolution": {
+            "title": "Resolution",
+            "type": "string"
+          },
+          "scenario": {
+            "title": "Scenario",
+            "type": "string"
+          },
+          "source": {
+            "const": "provided_precomputed_offline_simulation",
+            "title": "Source",
+            "type": "string"
+          }
+        },
+        "required": [
+          "source",
+          "scenario",
+          "controller",
+          "agentCount",
+          "resolution",
+          "metrics",
+          "assets",
+          "profile",
+          "limits"
+        ],
+        "title": "OfflineEnergySimulation",
+        "type": "object"
+      },
       "Person": {
         "properties": {
           "avatarColor": {
@@ -3054,6 +3244,98 @@
           }
         },
         "summary": "Set Energy Mode",
+        "tags": [
+          "energy"
+        ]
+      }
+    },
+    "/api/spaces/{space_id}/energy/simulation": {
+      "get": {
+        "description": "Supplied fixed-day MATD3 evidence. Read-only and never used as a device controller.",
+        "operationId": "getOfflineEnergySimulation",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "space_id",
+            "required": true,
+            "schema": {
+              "title": "Space Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "accountId",
+            "required": true,
+            "schema": {
+              "title": "Accountid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OfflineEnergySimulation"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          }
+        },
+        "summary": "Get Offline Energy Simulation",
         "tags": [
           "energy"
         ]

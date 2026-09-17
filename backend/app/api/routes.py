@@ -10,6 +10,7 @@ from app.contracts import (
     AssistantMessageRequest,
     AssistantReply,
     MemoryView,
+    OfflineEnergySimulation,
     RequestContext,
     SetEnergyModeRequest,
     Space,
@@ -82,6 +83,19 @@ def update_preference(body: UpdatePreferenceRequest, svc: RestService = Svc) -> 
 @router.put("/spaces/{space_id}/energy-mode", response_model=Space, operation_id="setEnergyMode", tags=["energy"])
 def set_energy_mode(space_id: str, body: SetEnergyModeRequest, svc: RestService = Svc) -> Space:
     return svc.set_energy_mode(space_id, body.context, body.mode)
+
+
+@router.get(
+    "/spaces/{space_id}/energy/simulation",
+    response_model=OfflineEnergySimulation,
+    operation_id="getOfflineEnergySimulation",
+    tags=["energy"],
+)
+def get_offline_energy_simulation(
+    space_id: str, account_id: str = Query(alias="accountId"), svc: RestService = Svc
+) -> OfflineEnergySimulation:
+    """Supplied fixed-day MATD3 evidence. Read-only and never used as a device controller."""
+    return svc.offline_energy_simulation(account_id, space_id)
 
 
 @router.post("/plans/rest", response_model=Plan, operation_id="createRestPlan", tags=["plans"])

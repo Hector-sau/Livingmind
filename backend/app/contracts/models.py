@@ -32,6 +32,10 @@ __all__ = [
     "EnergyAdvice",
     "EnergyMode",
     "PowerTier",
+    "OfflineEnergyMetric",
+    "OfflineEnergyAsset",
+    "OfflineEnergyProfilePoint",
+    "OfflineEnergySimulation",
     "AssistantMessageRequest",
     "AssistantReply",
     "MemoryView",
@@ -120,6 +124,7 @@ AgentName = Literal["orchestrator", "memory", "experience", "energy", "space_exe
 StepSource = Literal["rule", "model", "rule_fallback", "frontend_mock"]
 EnergyMode = Literal["comfort_first", "eco"]
 PowerTier = Literal["low", "medium", "high"]
+EnergyAssetRole = Literal["supply", "demand", "storage", "trading", "backup"]
 EventOutcome = Literal["adjusted", "ignored"]
 ErrorCode = Literal[
     "NOT_EDITABLE",
@@ -263,6 +268,49 @@ class EnergyAdvice(Contract):
     tier_after: PowerTier
     reason: str
     source: Literal["rule", "frontend_mock"]
+
+
+class OfflineEnergyMetric(Contract):
+    """A supplied one-day benchmark metric. It is not a real-time App measurement."""
+
+    key: Literal["daily_cost", "grid_import", "peak_import", "comfort_violation"]
+    label: str
+    unit: str
+    rule: float
+    matd3: float
+    lower_is_better: bool
+
+
+class OfflineEnergyAsset(Contract):
+    """A read-only asset represented by the offline energy simulation."""
+
+    id: str
+    name: str
+    role: EnergyAssetRole
+    control: str = Field(description="Explains whether this is an App control or offline simulation context")
+
+
+class OfflineEnergyProfilePoint(Contract):
+    hour: int = Field(ge=0, le=23)
+    pv_kw: float
+    wind_kw: float
+    base_load_kw: float
+    buy_price_usd_per_kwh: float
+    outdoor_temp_f: float
+
+
+class OfflineEnergySimulation(Contract):
+    """Supplied fixed-day offline evidence; deliberately separate from online energy rules."""
+
+    source: Literal["provided_precomputed_offline_simulation"]
+    scenario: str
+    controller: str
+    agent_count: int = Field(ge=1)
+    resolution: str
+    metrics: list[OfflineEnergyMetric]
+    assets: list[OfflineEnergyAsset]
+    profile: list[OfflineEnergyProfilePoint]
+    limits: list[str]
 
 
 class Capability(Contract):
