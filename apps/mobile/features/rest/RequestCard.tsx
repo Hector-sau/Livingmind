@@ -14,10 +14,11 @@ interface Props {
   disabled: boolean;
   mode: PlannerMode;
   planner: PlannerInfo;
+  apiMode: 'mock' | 'http';
   onModeChange: (mode: PlannerMode) => void;
 }
 
-export function RequestCard({ value, onChange, onSubmit, loading, disabled, mode, planner, onModeChange }: Props) {
+export function RequestCard({ value, onChange, onSubmit, loading, disabled, mode, planner, apiMode, onModeChange }: Props) {
   const empty = !value.trim();
   return (
     <Card title="说出需求">
@@ -32,7 +33,7 @@ export function RequestCard({ value, onChange, onSubmit, loading, disabled, mode
         onSubmitEditing={() => !empty && !disabled && onSubmit()}
         accessibilityLabel="需求输入"
       />
-      <ModeToggle value={mode} planner={planner} disabled={disabled} onChange={onModeChange} />
+      <ModeToggle value={mode} planner={planner} apiMode={apiMode} disabled={disabled} onChange={onModeChange} />
       <Text style={styles.note}>
         {mode === 'rule'
           ? '规则模式只支持固定的“休息”场景：输入的文字会被记录，但不做语义理解。'

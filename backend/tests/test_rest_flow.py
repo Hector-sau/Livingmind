@@ -182,3 +182,24 @@ def test_reset_restores_initial_state(client):
     body = client.post("/api/demo/reset", params={"accountId": "demo-account"}).json()
     assert body["activeService"] is None
     assert body["deviceState"]["lightBrightness"] == 80 and body["deviceState"]["version"] == 0
+    items = client.get(f"/api/spaces/{SPACE}/activity", params={"accountId": "demo-account"}).json()["items"]
+    assert [i["kind"] for i in items] == ["demo_reset"]
+
+
+def test_unexpected_errors_use_unified_format(service, monkeypatch):
+    from fastapi.testclient import TestClient
+
+    from app.main import create_app
+    from app.services.rest_service import get_rest_service
+
+    def boom(*a, **kw):
+        raise RuntimeError("secret internal detail")
+
+    monkeypatch.setattr(service, "bootstrap", boom)
+    app = create_app()
+    app.dependency_overrides[get_rest_service] = lambda: service
+    res = TestClient(app, raise_server_exceptions=False).get("/api/bootstrap", params={"accountId": "demo-account"})
+    assert res.status_code == 500
+    body = res.json()
+    assert body["error"]["code"] == "INTERNAL_ERROR"
+    assert "secret internal detail" not in res.text

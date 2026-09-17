@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import logging
+
 from typing import Any, Optional
 
 from fastapi import FastAPI, Request
@@ -41,6 +43,12 @@ def install_error_handlers(app: FastAPI) -> None:
     async def _api_error(_: Request, exc: ApiError) -> JSONResponse:
         return _response(exc.code, exc.message, exc.details)
 
+    @app.exception_handler(Exception)
+    async def _unexpected(_: Request, exc: Exception) -> JSONResponse:
+        # Log server-side for debugging; the client only gets a generic message (no stack trace).
+        logging.getLogger("livingmind").exception("unhandled error: %s", type(exc).__name__)
+        return _response("INTERNAL_ERROR", "服务器内部错误，请稍后重试")
+
     @app.exception_handler(RequestValidationError)
     async def _validation(_: Request, exc: RequestValidationError) -> JSONResponse:
         errors = [{"loc": list(e.get("loc", [])), "msg": e.get("msg", "")} for e in exc.errors()]
@@ -49,5 +57,5 @@ def install_error_handlers(app: FastAPI) -> None:
 
 # Shared OpenAPI declaration so generated TS clients know the error shape.
 ERROR_RESPONSES: dict[int | str, dict[str, Any]] = {
-    status: {"model": ErrorResponse} for status in (403, 404, 409, 422)
+    status: {"model": ErrorResponse} for status in (403, 404, 409, 422, 500)
 }

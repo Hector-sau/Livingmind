@@ -25,10 +25,11 @@
 | 步骤 3 | 可点击原型：人物 → 需求 → 计划 → 确认 → 设备 → 停止 → 动态；平板/手机响应式；前端 Mock 与后端规则一致 | `e8ffb61`，`apps/mobile/tests/` |
 | 步骤 4 | 固定规则、统一执行器（白名单、范围、每动作前重查）、有状态虚拟设备、服务状态、幂等确认、停止失效、计划过期、活动记录、PR 模板 + CI | `99b1138`，`tests/test_rest_flow.py`（7 项验收） |
 | B | 设备写入移出服务锁；停止可中途抢占慢设备批次（服务层 + HTTP 层测试） | `c639d5d`，`tests/test_concurrency.py` |
-| ⑤ | Experience Agent：DeepSeek Provider、Pydantic 输出校验、规则/模型开关、六类失败降级为规则并标注、App 四种来源标签；真实调用已验证（deepseek-flash，2035 ms，单次） | `469dc9a`、`2ad87da`，`tests/test_experience_agent.py`（14 项） |
+| ⑤ | Experience Agent：DeepSeek Provider、Pydantic 输出校验、规则/模型开关、六类失败降级为规则并标注、App 四种来源标签；真实调用已验证（deepseek-flash，2035 ms，单次） | `469dc9a`、`2ad87da`，`tests/test_experience_agent.py` |
+| R1 评审修正 | 模型偏离上限（后端强制）、兜底异常、App 计划超时联动、过期提示刷新、`demo_reset` 记录、模拟模式措辞、PR 模板 Mock 同步项、`.env` 格式提示、**网页端到端脚本入库** | 见 `git log`，`apps/mobile/e2e/` |
 | 文档 | 本交接文档、README、architecture、acceptance、status、ui-polish；产品界面方向（第 12 节） | `587d7aa`、`8525718`、`c58a29f` |
 
-检查基线：后端 40 项 pytest（Python 3.10/3.11）、前端 12 项测试 + 类型检查、契约一致性、干净副本 CI 模拟、网页版自动点击（平板/手机尺寸；模拟/后端/模型/降级/断网五条路径）。
+检查基线：后端 45 项 pytest（Python 3.10/3.11）、前端 13 项测试 + 类型检查、契约一致性、干净副本 CI 模拟、网页端到端 7/7（`apps/mobile/e2e/run_e2e.py`，模型路径连本地桩）。
 
 ### 0.3 未完成（按第 8 节顺序）
 
@@ -60,6 +61,8 @@ git log --oneline                       # 提交按步骤拆分
 cd backend && python3 -m venv .venv && source .venv/bin/activate && pip install -r requirements-dev.txt && pytest
 cd ../apps/mobile && npm install && npm run typecheck && npm test
 cd ../.. && ./scripts/gen-api.sh && git diff --exit-code -- packages/api-client
+# 可选：网页端到端（需 pip install -r apps/mobile/e2e/requirements.txt && python -m playwright install chromium）
+python apps/mobile/e2e/run_e2e.py
 ```
 
 评审 AI 只读不改；发现问题写成清单交给用户，不直接修改代码或本文件。
@@ -202,10 +205,11 @@ cd ../apps/mobile && npm run typecheck && npm test
 cd ../..
 ./scripts/gen-api.sh
 git diff --exit-code -- packages/api-client
+python apps/mobile/e2e/run_e2e.py   # 改了界面或流程时
 git status --short
 ```
 
-上一轮记录：后端 40 项测试通过，前端 12 项逻辑测试与类型检查通过，干净副本 CI 模拟通过。网页版在 1180×820 和 390×844 下完成 Mock / 后端流程；断开后端时错误状态符合预期。接手 AI 不应只引用该记录，改动后必须重新运行相关检查。
+上一轮记录：后端 45 项测试通过，前端 13 项逻辑测试与类型检查通过，干净副本 CI 模拟通过，网页端到端 7/7。网页版在 1180×820 和 390×844 下完成 Mock / 后端流程；断开后端时错误状态符合预期。接手 AI 不应只引用该记录，改动后必须重新运行相关检查。
 
 ## 7. 尚未验证与已知限制
 
@@ -215,6 +219,9 @@ git status --short
 - 没有真实身份认证、持久化数据库、WebSocket、语音、睡眠传感器或厂商设备。
 - 前端 Mock 和后端内存数据互不共享；切换模式应视为不同演示环境。
 - 停止不会把灯光、温度、窗帘恢复到执行前状态，这是当前明确语义。
+- 计划确认即标 `executed`（已采纳），真实结果看 `results`；同一账户下任何人物都能停止服务（有意设计）。详见 `docs/architecture.md` 关键规则 10–14。
+- 模型计划偏离本人偏好超过上限（灯光/窗帘 ±40、空调 ±3°C）会被后端拒绝并降级为规则。
+- 网页端到端的模型路径连的是本地桩 `apps/mobile/e2e/fake_deepseek.py`，不是 DeepSeek；CI 目前不跑端到端。
 
 ### 并发（B 已修正）
 
@@ -262,6 +269,8 @@ git status --short
 - `Service` 增加 `adjustments` 计数与 `lastAdjustedAt`；契约改动后运行 `./scripts/gen-api.sh`。
 - 停止后注入事件：必须被忽略，且不能产生任何设备动作。
 - 前端只加“注入模拟事件（室温 +3°C）”按钮、事件在服务动态里的显示、服务卡片上的调整次数；不做视觉调整。
+- 事件重规划产生的模型计划同样受偏离上限约束。
+- 在 `apps/mobile/e2e/run_e2e.py` 增加一个事件场景（注入 → 调整 → 停止 → 再注入无动作）。
 - 前端 Mock 同步实现同样的规则，标 `frontend_mock`。
 
 ### 必须补的测试

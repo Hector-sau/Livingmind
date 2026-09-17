@@ -1,6 +1,6 @@
 # 实现状态
 
-更新：2026-09-17 · 第一批（步骤 0–4）完成；B 并发修正完成；⑤ Experience Agent **已完成并验证真实调用**（2026-09-17 在用户 Mac 上运行 `scripts/try_model.py`，deepseek-flash，2035 ms）。⑥ 起未开始。真机验收仍未做。
+更新：2026-09-17 · 第一批（步骤 0–4）完成；B 并发修正完成；⑤ Experience Agent **已完成并验证真实调用**（2026-09-17 在用户 Mac 上运行 `scripts/try_model.py`，deepseek-flash，2035 ms）。评审修正 R1 完成。⑥ 起未开始。真机验收仍未做。
 
 ## 已实现
 
@@ -24,7 +24,12 @@
 | B：设备写入在服务锁外执行；停止可中途抢占慢设备批次 | `backend/app/services/rest_service.py`、`adapters/virtual/devices.py` | `tests/test_concurrency.py`（服务层 + HTTP 线程池各一） |
 | ⑤：Experience Agent（提示词、Pydantic 输出校验、DeepSeek Provider） | `backend/app/agents/experience/` | `tests/test_experience_agent.py`（14 项，用测试替身，不调 DeepSeek） |
 | ⑤：规则/模型切换、降级为规则并标注原因、延迟记录 | `backend/app/services/planner.py`、`rules/rest_rule.py` | 同上；本地 HTTP 桩验证了真实 HTTP 路径与 2 秒超时降级 |
-| ⑤：App 计划来源开关、四种来源标签、降级原因、模型/延迟信息 | `apps/mobile/features/rest/ModeToggle.tsx`、`PlanCard.tsx` | 网页版自动点击（模型 / 降级 / 模拟三条路径） |
+| ⑤：App 计划来源开关、四种来源标签、降级原因、模型/延迟信息 | `apps/mobile/features/rest/ModeToggle.tsx`、`PlanCard.tsx` | 网页端到端 `http-model-paths`、`mock-model-fallback` |
+| R1：模型计划偏离上限（灯光/窗帘 ±40、空调 ±3°C），超出降级 | `backend/app/services/planner.py` | `tests/test_experience_agent.py`（超限 3 例 + 恰好在上限 1 例）；网页端到端 |
+| R1：兜底异常 → `INTERNAL_ERROR`，不泄露细节 | `backend/app/api/errors.py` | `tests/test_rest_flow.py` |
+| R1：App 计划请求超时 = 后端模型超时 + 3 秒 | `apps/mobile/services/http/httpApi.ts` | `tests/httpApi.test.ts` |
+| R1：计划过期提示每 15 秒重新计算；模拟模式措辞修正；重置写入 `demo_reset` | `features/rest/useRestFlow.ts`、`ModeToggle.tsx`、`rest_service.py`、`mockApi.ts` | 前后端测试 |
+| R1：网页端到端脚本入库（7 个场景，一条命令） | `apps/mobile/e2e/` | `python apps/mobile/e2e/run_e2e.py`：7/7 通过 |
 
 ## 步骤 4 的 7 项验证
 
@@ -36,9 +41,9 @@
 | 4 | 重复确认不重复执行 | 自动化测试通过 |
 | 5 | 停止后旧请求不再产生动作 | 自动化测试通过。B 之后：停止能在慢设备写入进行中立即返回，已开始的动作完成、其余跳过（`tests/test_concurrency.py`） |
 | 6 | 非法人物 / 空间 / 账户 / 参数 / 过期 / 版本不符被拒绝 | 自动化测试通过 |
-| 7 | 后端断开时 App 明确反馈 | 前端单元测试 + 浏览器实测（关掉后端后点确认，出现“无法连接后端，显示的状态可能已过期”，设备数值变灰，没有假装成功） |
+| 7 | 后端断开时 App 明确反馈 | 前端单元测试 + 端到端场景 `http-offline`（关掉后端后点确认，出现“无法连接后端，显示的状态可能已过期”，设备数值变灰，没有假装成功） |
 
-浏览器点击测试：用 Expo 导出的网页版，在 1180×820（平板横屏）和 390×844（手机竖屏）两种尺寸下，分别在前端模拟模式和后端模式跑完整流程，无控制台错误。
+浏览器端到端：`apps/mobile/e2e/run_e2e.py`（已入库，可复现）。用 Expo 网页导出，在 1180×820 和 390×844 两种尺寸下跑前端模拟与后端两种模式的完整流程，外加模型计划、超时降级、偏离降级、模拟模式降级、断网反馈，共 7 个场景，最近一次 7/7 通过，无页面错误。模型路径连的是本地桩，不是 DeepSeek。
 
 ## ⑤ 的验证情况
 
@@ -47,7 +52,7 @@
 | 合法模型输出 → 计划，创建阶段不改设备 | 测试通过 |
 | 模型计划确认后经同一执行器并回读 | 测试通过 |
 | 模型超时 → 规则降级并标注 | 测试通过；本地 HTTP 桩 + 2 秒超时实测降级 2.07 秒 |
-| 非法 JSON、越界、未知字段不能绕过校验 | 6 种输入参数化测试通过 |
+| 非法 JSON、越界、未知字段不能绕过校验 | 6 种输入参数化测试通过；另有偏离上限 4 例 |
 | A/B 人物提示词各用自己的偏好 | 测试通过 |
 | 规则模式完全不请求模型 | 测试通过 |
 | 模型失败不影响停止、重复确认、过期 | 测试通过 |

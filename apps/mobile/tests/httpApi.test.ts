@@ -42,3 +42,24 @@ test('backend error body is mapped to ApiError code', async () => {
     (e: unknown) => e instanceof ApiError && e.code === 'PLAN_EXPIRED' && e.status === 409,
   );
 });
+
+test('plan requests wait for the backend model timeout plus a margin', async () => {
+  const planner = { defaultMode: 'model', modelConfigured: true, provider: 'deepseek', model: 'm', timeoutMs: 50 };
+  const json = (body: unknown) => new Response(JSON.stringify(body), { status: 200, headers: { 'Content-Type': 'application/json' } });
+  const api = createHttpApi({
+    baseUrl: 'http://backend.invalid',
+    timeoutMs: 20, // shorter than the simulated model wait below
+    fetchImpl: (url, init) =>
+      new Promise((resolve, reject) => {
+        init?.signal?.addEventListener('abort', () => reject(new Error('aborted')));
+        const u = String(url);
+        if (u.includes('/api/bootstrap')) resolve(json({ planner }));
+        else setTimeout(() => resolve(json({ planId: 'p' })), 60); // "model" takes 60 ms
+      }),
+  });
+  await api.bootstrap();
+  const plan = await api.createRestPlan({ context: { accountId: 'demo-account', personId: 'a', spaceId: 's' }, utterance: 'x' });
+  assert.equal(plan.planId, 'p');
+  // other requests keep the short default
+  await assert.rejects(api.getDeviceState('s'), (e: unknown) => e instanceof ApiError && e.code === 'TIMEOUT');
+});

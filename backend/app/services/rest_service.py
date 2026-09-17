@@ -143,7 +143,7 @@ class RestService:
                         ctx.space_id,
                         "plan_fallback",
                         "system",
-                        f"模型不可用，改用规则：{outcome.fallback_reason}（{gen.latency_ms} ms）",
+                        f"模型计划未采用，改用规则：{outcome.fallback_reason}（{gen.latency_ms} ms）",
                         plan_id=plan.plan_id,
                         person_id=person.person_id,
                     )
@@ -308,6 +308,7 @@ class RestService:
             self._store.clear()
             for adapter in self._devices.values():
                 adapter.reset()
+                self._log(adapter.space_id, "demo_reset", "system", "演示数据已重置（内存数据与虚拟设备回到初始状态）")
             return self._bootstrap()
 
 

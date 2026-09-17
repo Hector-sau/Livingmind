@@ -29,3 +29,6 @@ __pycache__/
 # Generated native folders (Expo prebuild)
 apps/mobile/ios/
 apps/mobile/android/
+
+# e2e outputs
+apps/mobile/e2e/.out/

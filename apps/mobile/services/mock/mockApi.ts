@@ -222,6 +222,7 @@ export function createMockApi(options: MockOptions = {}): LivingMindApi {
 
     async resetDemo() {
       reset();
+      log({ kind: 'demo_reset', source: 'frontend_mock', message: '演示数据已重置（前端模拟）', serviceId: null, planId: null, personId: null, action: null });
       return delay(bootstrap());
     },
   };

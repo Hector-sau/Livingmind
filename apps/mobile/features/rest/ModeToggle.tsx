@@ -6,18 +6,23 @@ import { colors, font, radius, space } from '../../theme/tokens';
 interface Props {
   value: PlannerMode;
   planner: PlannerInfo;
+  apiMode: 'mock' | 'http';
   disabled?: boolean;
   onChange: (mode: PlannerMode) => void;
 }
 
 /** Rule vs model planning. Model mode always exists so the fallback path can be demonstrated honestly. */
-export function ModeToggle({ value, planner, disabled, onChange }: Props) {
+export function ModeToggle({ value, planner, apiMode, disabled, onChange }: Props) {
   const options: { key: PlannerMode; label: string }[] = [
     { key: 'rule', label: '规则' },
     { key: 'model', label: '模型' },
   ];
   const hint =
-    value === 'rule'
+    apiMode === 'mock'
+      ? value === 'rule'
+        ? '规则模式：前端本地规则生成计划（前端模拟）。'
+        : '模型模式：前端模拟模式没有模型，将改用本地规则并标注。'
+      : value === 'rule'
       ? '规则模式：后端固定规则生成计划，不调用模型。'
       : planner.modelConfigured
         ? `模型模式：Experience Agent 调用 ${planner.provider}/${planner.model}；失败时降级为规则并标注。`

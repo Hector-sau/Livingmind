@@ -12,6 +12,7 @@ import type {
 
 export interface HttpOptions {
   baseUrl: string;
+  /** Default timeout for every request. */
   timeoutMs: number;
   fetchImpl?: typeof fetch;
   accountId?: string;
@@ -21,14 +22,22 @@ export function createHttpApi(options: HttpOptions): LivingMindApi {
   const fetchImpl = options.fetchImpl ?? fetch;
   const accountId = options.accountId ?? DEMO_ACCOUNT_ID;
   const q = `accountId=${encodeURIComponent(accountId)}`;
+  // Planning may wait for a model. Once the backend tells us its model timeout, give plan
+  // requests that long plus a margin, so the app never gives up before the backend falls back.
+  const PLAN_MARGIN_MS = 3000;
+  let planTimeoutMs = options.timeoutMs;
+  const learnPlannerTimeout = (res: BootstrapResponse): BootstrapResponse => {
+    planTimeoutMs = Math.max(options.timeoutMs, res.planner.timeoutMs + PLAN_MARGIN_MS);
+    return res;
+  };
 
-  async function request<T>(method: 'GET' | 'POST', path: string, body?: unknown): Promise<T> {
+  async function request<T>(method: 'GET' | 'POST', path: string, body?: unknown, timeoutMs = options.timeoutMs): Promise<T> {
     const controller = new AbortController();
     let timedOut = false;
     const timer = setTimeout(() => {
       timedOut = true;
       controller.abort();
-    }, options.timeoutMs);
+    }, timeoutMs);
     let res: Response;
     try {
       res = await fetchImpl(`${options.baseUrl}${path}`, {
@@ -64,16 +73,16 @@ export function createHttpApi(options: HttpOptions): LivingMindApi {
 
   return {
     mode: 'http',
-    bootstrap: () => request<BootstrapResponse>('GET', `/api/bootstrap?${q}`),
+    bootstrap: () => request<BootstrapResponse>('GET', `/api/bootstrap?${q}`).then(learnPlannerTimeout),
     getDeviceState: (spaceId) =>
       request<DeviceState>('GET', `/api/spaces/${encodeURIComponent(spaceId)}/devices?${q}`),
-    createRestPlan: (req) => request<Plan>('POST', '/api/plans/rest', req),
+    createRestPlan: (req) => request<Plan>('POST', '/api/plans/rest', req, planTimeoutMs),
     confirmPlan: (planId, req) =>
       request<ConfirmPlanResponse>('POST', `/api/plans/${encodeURIComponent(planId)}/confirm`, req),
     stopService: (serviceId, req) =>
       request<StopServiceResponse>('POST', `/api/services/${encodeURIComponent(serviceId)}/stop`, req),
     getActivity: (spaceId, limit = 50) =>
       request<ActivityResponse>('GET', `/api/spaces/${encodeURIComponent(spaceId)}/activity?${q}&limit=${limit}`),
-    resetDemo: () => request<BootstrapResponse>('POST', `/api/demo/reset?${q}`),
+    resetDemo: () => request<BootstrapResponse>('POST', `/api/demo/reset?${q}`).then(learnPlannerTimeout),
   };
 }

@@ -135,6 +135,30 @@ def test_invalid_model_output_falls_back_and_never_reaches_devices(reply):
     assert devices(client) == before
 
 
+@pytest.mark.parametrize(
+    "override, reason_part",
+    [
+        ({"light_brightness": 100}, "灯光"),  # person-lin prefers 15%
+        ({"ac_target_temp_c": 30}, "空调"),  # prefers 25°C
+        ({"curtain_open_percent": 100}, "窗帘"),  # prefers 0%
+    ],
+)
+def test_model_plan_too_far_from_preference_falls_back(override, reason_part):
+    client, _ = make(FakeProvider(reply=json.dumps({**GOOD, **override}, ensure_ascii=False)))
+    p = plan(client)
+    assert p["source"] == "rule_fallback"
+    assert "偏离偏好过大" in p["generation"]["fallbackReason"] and reason_part in p["generation"]["fallbackReason"]
+    assert [a["value"] for a in p["actions"]] == [15, 25.0, 0]
+
+
+def test_model_plan_within_deviation_limit_is_kept():
+    # 25 -> 22 is exactly the 3°C limit; 15 -> 55 is exactly the 40% limit
+    client, _ = make(FakeProvider(reply=json.dumps({**GOOD, "ac_target_temp_c": 22, "light_brightness": 55}, ensure_ascii=False)))
+    p = plan(client)
+    assert p["source"] == "model"
+    assert [a["value"] for a in p["actions"]] == [55, 22.0, 0]
+
+
 def test_code_fenced_json_is_accepted():
     client, _ = make(FakeProvider(reply="```json\n" + json.dumps(GOOD, ensure_ascii=False) + "\n```"))
     assert plan(client)["source"] == "model"

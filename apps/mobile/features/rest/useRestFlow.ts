@@ -213,17 +213,27 @@ export function useRestFlow(api: LivingMindApi) {
     try {
       const data = await api.resetDemo();
       applyBootstrap(data, true);
-      patch({ busy: null, activity: [], info: '演示数据已重置' });
+      patch({ busy: null, info: '演示数据已重置' });
       await loadActivity(data.defaultSpaceId);
     } catch (e) {
       fail(e);
     }
   }, [api, applyBootstrap, fail, loadActivity, patch]);
 
+  // Re-evaluate time-based rules (plan expiry) while a proposed plan is on screen.
+  const [now, setNow] = useState(() => new Date());
+  const waiting = state.plan?.status === 'proposed';
+  useEffect(() => {
+    if (!waiting) return;
+    setNow(new Date());
+    const timer = setInterval(() => setNow(new Date()), 15000);
+    return () => clearInterval(timer);
+  }, [waiting]);
+
   const activeService = state.service?.status === 'active' ? state.service : null;
   const blockReason = useMemo(
-    () => planBlockReason(state.plan, activeService, state.personId),
-    [state.plan, activeService, state.personId],
+    () => planBlockReason(state.plan, activeService, state.personId, now),
+    [state.plan, activeService, state.personId, now],
   );
 
   const actions = useMemo(

@@ -90,6 +90,7 @@ export function HomeScreen({ api, backendLabel }: Props) {
         disabled={busy}
         mode={state.mode}
         planner={data.planner}
+        apiMode={api.mode}
         onModeChange={actions.setMode}
       />
       <PlanCard

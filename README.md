@@ -93,6 +93,7 @@ npx expo start
 cd backend && pytest                      # 后端测试
 cd apps/mobile && npm run typecheck && npm test   # 前端类型检查 + 逻辑测试
 ./scripts/gen-api.sh && git diff --exit-code packages/api-client   # 契约一致性
+python apps/mobile/e2e/run_e2e.py         # 网页端到端（见 apps/mobile/e2e/README.md）
 ```
 
 ## 安全说明
