@@ -1,0 +1,30 @@
+{
+  "source": "provided_precomputed_offline_simulation",
+  "scenario": "Fixed predefined 24-hour household-energy day",
+  "controller": "MATD3 framework, single-agent supplied run",
+  "agentCount": 1,
+  "resolution": "24 hourly steps",
+  "units": {"cost": "USD/day", "gridImport": "kWh/day", "peakImport": "kW", "comfortViolation": "F*h"},
+  "metrics": [
+    {"key": "daily_cost", "label": "日运行成本", "unit": "USD/day", "rule": 1.87, "matd3": -0.02, "lowerIsBetter": true},
+    {"key": "grid_import", "label": "电网购电", "unit": "kWh/day", "rule": 13.61, "matd3": 0.76, "lowerIsBetter": true},
+    {"key": "peak_import", "label": "峰值购电", "unit": "kW", "rule": 1.95, "matd3": 0.37, "lowerIsBetter": true},
+    {"key": "comfort_violation", "label": "舒适违规", "unit": "F*h", "rule": 0, "matd3": 0, "lowerIsBetter": true}
+  ],
+  "assets": [
+    {"id": "pv", "name": "光伏发电", "role": "supply", "control": "只读环境输入"},
+    {"id": "wind", "name": "风力发电", "role": "supply", "control": "只读环境输入"},
+    {"id": "base_load", "name": "家庭基础负荷", "role": "demand", "control": "只读环境输入"},
+    {"id": "hvac", "name": "HVAC 空调", "role": "demand", "control": "研究动作；App 当前只控制虚拟空调"},
+    {"id": "battery", "name": "家庭电池", "role": "storage", "control": "离线仿真动作，非 App 实时控制"},
+    {"id": "grid", "name": "电网购售电", "role": "trading", "control": "由离线能量平衡计算"},
+    {"id": "diesel", "name": "柴油备用发电", "role": "backup", "control": "离线仿真动作，非 App 实时控制"}
+  ],
+  "limits": [
+    "固定预设日；训练和评估使用同一日，结果不外推到其他天气或家庭。",
+    "MATD3 框架在本结果中只有一个智能体，不作为多智能体协作证据。",
+    "温度为华氏度、成本为美元仿真参数，不是国内家庭实测。",
+    "结果为离线仿真，未接入 LivingMind 实时设备或在线能源决策。",
+    "旧成本图的总成本包含柴油机成本，但其可见分项未单列柴油机；本数据只展示已确认的最终 KPI。"
+  ]
+}

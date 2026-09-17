@@ -1,0 +1,17 @@
+{
+  "sourceLabel": "legacy household-energy research module",
+  "sourceGitHead": "9c48876",
+  "sourceSnapshot": "selected files copied from the current local working tree; it contained local modifications and untracked research outputs",
+  "excluded": ["venv", ".idea", "__pycache__", "three_phase_BFS.py", "IEEE_123_3ph.mat", "env_sample.py", "sim_decision.py", "model/BFS"],
+  "selectedFileSha256": {
+    "environment.py": "62e18aa63eacbb37f74fe8a532518e99e0cdc0aef83d3d2d458a4daf4b87ca16",
+    "train.py": "ecb9e2a24311f11c36a2ed074f99596a28dc44536c182aa72e9d1aa1c7b9de45",
+    "matd3.py": "0c0f852293a353c42f7ec5220ba4a4ddd2961ca6e288e8fc009243ba19f6a18f",
+    "networks.py": "050729740ca642d7bf87d1aa4dab16760a58c61c6489ae27a198ee7ff2821f5e",
+    "replay_buffer.py": "1f6bd5cef97af975113ef8a581145e67c5406ae79f3697437d5db560e4f056c1",
+    "plot_environment_overview.py": "d9c7cc99bce31c5d3d25f1b69816896e9bea9cbe7bc917295a07e92b038c754c",
+    "plot_product_demo.py": "8e9cc42fff9f57c308939600cf3ede123771c414aa012310d379cfb3b07306b6",
+    "model/HomeEnergy/MATD3_actor_number_3_epiosde_3000_agent_0.pth": "a5531f6cfaea2314c3c3eabfc03b516f3ca535b64824a3980a6b882cd7bcb97e"
+  }
+}
+
