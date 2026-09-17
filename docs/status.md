@@ -1,6 +1,6 @@
 # 实现状态
 
-更新：2026-09-17 · 第一批（步骤 0–4）完成；B 并发修正完成；⑤ Experience Agent **已完成并验证真实调用**（2026-09-17 在用户 Mac 上运行 `scripts/try_model.py`，deepseek-flash，2035 ms）。评审修正 R1 完成；⑥ 一次事件调整完成；⑥b 对话外壳完成；C 视觉整理完成；⑧ 补齐模块完成（1+2 Agent 编排已实现）。⑨ 演示打磨完成；⑦ 整晚服务完成（模拟时钟）。D 未开始。真机验收仍未做。
+更新：2026-09-17 · 第一批（步骤 0–4）完成；B 并发修正完成；⑤ Experience Agent **已完成并验证真实调用**（2026-09-17 在用户 Mac 上运行 `scripts/try_model.py`，deepseek-flash，2035 ms）。评审修正 R1 完成；⑥ 一次事件调整完成；⑥b 对话外壳完成；C 视觉整理完成；⑧ 补齐模块完成（1+2 Agent 编排已实现）。⑨ 演示打磨完成；⑦ 整晚服务完成（模拟时钟）。D 演示打包的云端部分完成（网页版录屏、主张证据表、开发版构建配置）；平板构建与真机录屏待有设备后做。真机验收仍未做。
 
 ## 已实现
 
@@ -49,6 +49,9 @@
 | ⑦：整晚安排（5 步：23:00 关灯、01:00 空调 +1°C、06:30 / 06:45 / 07:00 三步唤醒），Space Execution Agent 规则生成、Harness 预检、随休息计划确认 | `backend/app/rules/night_rule.py`、`agents/space_execution/agent.py` | `tests/test_night_service.py` |
 | ⑦：模拟时钟推进 `POST /api/services/{id}/clock/advance`；锁内认领保证每步只执行一次；单服务单推进；停止取消剩余步骤；最后一步后服务 `completed` | `backend/app/services/rest_service.py::advance_clock` | 同上（10 项，含并发推进、推进中停止）；前端 Mock 同步 `tests/night.test.ts` |
 | ⑦：App 运行条“快进 / 自动播放整晚”、计划卡整晚安排、空间页整晚时间线、对话系统消息；场景“起床渐进唤醒”改为已实现；场景时间线按触发来源归类动作 | `apps/mobile/features/night/`、`features/chat/ServiceStrip.tsx`、`features/scenes/timeline.ts` | 端到端 `http-night`、`mock-night`、`http-night-stop-phone`；`tests/conversation.test.ts` |
+| D：三段网页版演示录屏（字幕标注网页版 / 虚拟设备 / 规则模式） | `apps/mobile/e2e/record_demo.py` | 已生成 `01-user-trigger`、`02-event-adjust`、`03-night-stop`（mp4，不入库；已放到用户 Mac 的 `Livingmind/演示打包/`） |
+| D：汇报主张与证据对照表（23 条，逐条写明原型实际情况、证据、来源类型） | `scripts/build_evidence.py` → `docs/evidence.md`、PDF | 路径逐一核对存在；PDF 4 页 |
+| D：平板安装说明与开发版配置（`eas.json`、`expo-dev-client`、包名 `com.livingmind.demo`、iOS 本地网络设置） | `docs/device-build.md`、`apps/mobile/eas.json`、`app.json` | **未实际构建**；网页端到端 19/19 在加入依赖后重跑通过 |
 | 真实模型端到端脚本（后端：5 句话 → 计划 → 确认 → 回读 → 停止，延迟统计；浏览器：`--real-model`） | `backend/scripts/e2e_real_model.py`（含 `--eval`）、`apps/mobile/e2e/run_e2e.py --real-model` | 已用本地桩空跑通过；真实模型运行为**可选项**（开发环境无法访问 api.deepseek.com，需在用户 Mac 终端运行） |
 
 ## 步骤 4 的 7 项验证
@@ -101,7 +104,7 @@
 
 ## 未开始
 
-D 演示打包 · A 真机验收（有 iPad 时） · 旧 HTML 前端清单（用户尚未提供旧文件）
+A 真机验收（有 iPad 时） · D 的设备部分（EAS 开发版构建、平板录屏） · P07 能源仿真证据补登（需团队提供仿真代码与输出） · 旧 HTML 前端清单（用户尚未提供旧文件）
 
 ## 下一步接口
 

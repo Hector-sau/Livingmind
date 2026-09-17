@@ -50,3 +50,12 @@ python e2e/run_e2e.py --real-model
 截图前会等待约 0.45 秒让入场动画完成。场景状态标签通过 `scene-status-*` 读取。
 
 使用端口 8190、8191（静态页面）、8110（后端）、8195（模型桩），不会占用日常开发的 8000 / 8081。
+
+## 演示录屏
+
+```bash
+python e2e/record_demo.py            # 构建后端版网页 + 启动后端 + 录三段
+python e2e/record_demo.py --skip-build
+```
+
+输出 `e2e/.out/videos/01-user-trigger.mp4`、`02-event-adjust.mp4`、`03-night-stop.mp4`（平板尺寸，规则模式，需要 ffmpeg，没有时保留 webm）。每一帧顶部都有字幕说明是网页版、虚拟设备与模拟来源，不是真机录屏。

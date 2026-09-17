@@ -93,6 +93,7 @@ npx expo start
 - **后端模式**：设置 `EXPO_PUBLIC_API_BASE_URL=http://<Mac 的局域网 IP>:8000`。平板上不能用 `localhost`（那是平板自己）。查 Mac IP：`ipconfig getifaddr en0`。
 - 改了 `.env` 后要用 `npx expo start --clear` 重启，否则旧配置会被缓存。
 - 在 iPad 上用 Expo Go 扫码预览；在 Mac 上按 `Shift + i` 选 iPad 模拟器（需要 Xcode）；按 `w` 用浏览器粗看布局。
+- 装到平板（Expo Go 登录要求、开发版 EAS 构建、真机验收清单）见 [`docs/device-build.md`](docs/device-build.md)。**尚未在真机上跑过。**
 
 ### 3. 重新生成接口类型
 
@@ -110,6 +111,15 @@ cd apps/mobile && npm run typecheck && npm test   # 前端类型检查 + 逻辑�
 ./scripts/gen-api.sh && git diff --exit-code packages/api-client   # 契约一致性
 python apps/mobile/e2e/run_e2e.py         # 网页端到端（见 apps/mobile/e2e/README.md）
 ```
+
+## 演示打包（D）
+
+```bash
+cd apps/mobile && python e2e/record_demo.py      # 三段网页版录屏 → e2e/.out/videos/*.mp4
+python scripts/build_evidence.py --pdf           # 主张证据表 → docs/evidence.md + dist/demo-pack/*.pdf
+```
+
+录屏每一帧都带“网页版录屏 · 后端虚拟设备 · 规则模式”字幕；证据表逐条对照汇报 PDF，写明原型实际情况、证据位置和来源类型（见 [`docs/evidence.md`](docs/evidence.md)）。
 
 ## 安全说明
 

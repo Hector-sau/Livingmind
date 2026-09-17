@@ -8,7 +8,14 @@
     "userInterfaceStyle": "light",
     "ios": {
       "supportsTablet": true,
-      "requireFullScreen": false
+      "requireFullScreen": false,
+      "bundleIdentifier": "com.livingmind.demo",
+      "infoPlist": {
+        "NSAppTransportSecurity": {
+          "NSAllowsLocalNetworking": true
+        },
+        "NSLocalNetworkUsageDescription": "连接同一局域网里的 LivingMind 演示后端"
+      }
     },
     "android": {
       "adaptiveIcon": {
@@ -17,7 +24,8 @@
         "backgroundImage": "./assets/android-icon-background.png",
         "monochromeImage": "./assets/android-icon-monochrome.png"
       },
-      "predictiveBackGestureEnabled": false
+      "predictiveBackGestureEnabled": false,
+      "package": "com.livingmind.demo"
     },
     "web": {
       "favicon": "./assets/favicon.png"

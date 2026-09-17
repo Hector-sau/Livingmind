@@ -4,7 +4,7 @@
 仓库位置：`/Users/macbookair/Desktop/Business/项目材料整理/Livingmind/livingmind-app/`  
 当前分支：`main`  
 第一批实现基线提交：`99b1138 feat: step 4 rule-based backend loop, executor, virtual devices, CI`  
-当前基线：B + ⑤（真实调用已验证）+ R1 + ⑥ + ⑥b + C + ⑧ 补齐模块（1+2 Agent 编排已实现）+ ⑨ 演示打磨 + ⑦ 整晚服务（模拟时钟）— 见 `git log`
+当前基线：B + ⑤（真实调用已验证）+ R1 + ⑥ + ⑥b + C + ⑧ 补齐模块（1+2 Agent 编排已实现）+ ⑨ 演示打磨 + ⑦ 整晚服务（模拟时钟）+ D 演示打包（云端部分）— 见 `git log`
 
 ## 0. 项目背景与现状速览（给评审或新接手的 AI）
 
@@ -34,6 +34,7 @@
 | ⑥ | 模拟室温事件 → 一次自动调整：事件接口、冷却 30 秒、上限 3 次、单服务单调整、停止后忽略、规则调整（±1°C，偏好 ±3°C 内）、模型调整跟随服务模式并受偏离上限约束；App 注入按钮与调整次数；Mock 同步 | `backend/tests/test_events.py`（10 项）；端到端 `mock-event`、`http-event` |
 | ⑨ | 一键“准备演示”（重置 → 林悦 · 舒适优先 · 设备 80/26/100 · 清空对话 · 关证据面板 · 回对话页）；“场景”页“1+2 Agent 如何协作”说明卡（有计划时展示真实协作过程）；信息提示 3 秒淡出；空态大图标；README 演示启动命令；`docs/demo-script.md` 3 分钟讲稿 | `apps/mobile/tests/notices.test.ts`；端到端 `http-prepare-demo` |
 | ⑦ | 整晚服务：休息计划附带 5 步整晚安排（Space Execution Agent 规则生成、Harness 预检、随计划确认）；模拟时钟推进接口 `POST /api/services/{id}/clock/advance`；每步最多执行一次（锁内认领 + 单服务单推进）；停止取消剩余步骤；最后一步后服务 `completed`；App 运行条“快进 / 自动播放整晚”、计划卡整晚安排、空间页整晚时间线、场景“起床渐进唤醒”改为已实现 | `backend/tests/test_night_service.py`（10 项）、`apps/mobile/tests/night.test.ts`；端到端 `http-night`、`mock-night`、`http-night-stop-phone` |
+| D（云端） | 三段网页版录屏脚本（每帧字幕标注来源）；主张证据表生成脚本（23 条，Markdown + PDF）；`eas.json` 开发版配置、`expo-dev-client`、包名、iOS 本地网络设置；平板安装与真机验收清单 | `apps/mobile/e2e/record_demo.py`、`scripts/build_evidence.py`、`docs/evidence.md`、`docs/device-build.md` |
 | 文档 | 本交接文档、README、architecture、acceptance、status、ui-polish；产品界面方向（第 12 节） | `587d7aa`、`8525718`、`c58a29f` |
 
 检查基线：后端 106 项 pytest、前端 29 项测试 + 类型检查、契约一致性、干净副本 CI 模拟、网页端到端 19/19（`apps/mobile/e2e/run_e2e.py`，模型路径连本地桩）。
@@ -48,7 +49,8 @@
 | ⑦ 整晚服务 | **已完成** | 模拟时钟，由按钮或自动播放推进；不是真实定时器 |
 | ⑧ 主 Agent / 执行 Agent / 记忆 / 能源规则 | **已完成** | 如何如实描述见 0.4 |
 | ⑨ 演示打磨 | **已完成** | 旧 HTML 清单未做（用户未提供旧页面） |
-| D 演示打包 | 未开始 | **下一步**：Development Build、录屏、PDF 证据表 |
+| D 演示打包 | **云端部分已完成** | 网页版录屏 3 段、主张证据表（`docs/evidence.md`）、开发版配置与安装说明（`docs/device-build.md`）；EAS 构建与平板录屏待设备 |
+| P07 能源仿真证据 | 仓库外 | 汇报第 7 页的规则 vs MATD3 结果不在本仓库，需团队补仿真代码与输出 |
 | GitHub 远程与 CI 实跑 | 未做 | 未经用户授权不建远程 |
 
 ### 0.4 评审时最该核对的五个点
@@ -290,22 +292,26 @@ git status --short
 | ⑦ 整晚服务 | 模拟时钟、夜间阶段、渐进唤醒；一个 `serviceId` 贯穿整晚 | 定时任务不重复执行；停止取消剩余任务 | **已完成**（模拟时钟；见 `docs/architecture.md` 规则 25–30） |
 | ⑧ 补齐模块 | 主 Agent、Space Execution Agent、人物记忆、能源规则及所需 Harness 能力 | 每个模块一条真实工作路径、明确输入输出、调用证据 | **已完成**；如实描述见 0.4 |
 | ⑨ 补齐入口细节 | 演示脚本化与稳定性（一键演示数据、固定演示时段）、空态插画与提示淡出、“场景”页展示 1+2 Agent 场景卡；旧 HTML 清单只作参考 | 一页完成、一页验收；场景状态标签与真实实现一致 | **已完成**；旧 HTML 清单待用户提供旧页面 |
-| D 演示打包 | Development Build 装到平板；录屏三段（用户触发、事件调整、手动停止）；PDF 主张对证据表 | 每条主张有对应证据；模拟与真实来源分开标注 | 复赛前一周完成 |
+| D 演示打包 | Development Build 装到平板；录屏三段（用户触发、事件调整、手动停止）；PDF 主张对证据表 | 每条主张有对应证据；模拟与真实来源分开标注 | **云端部分已完成**：`e2e/record_demo.py`、`scripts/build_evidence.py`、`docs/device-build.md`；平板构建待设备 |
 
 两条底线：**功能底线 = A + B + ⑥（含第一批规则链路）；AI 演示底线 = 再加 ⑤。** 产品形态底线 = 再加 ⑥b + C（已达成）。**“1+2 Agent 已实现”底线 = ⑧（已达成）。**
 
 不能因为建立了目录或类名，就宣称相应 Agent 已经实现。功能声明必须对应真实调用轨迹和测试。
 
-## 9. 下一位 AI 的当前任务：D 演示打包（有 iPad 时先做 A）
+## 9. 下一位 AI 的当前任务：A 真机验收 + D 的设备部分（需要用户的平板）
 
-前置：⑦、⑧、⑨ 已完成，功能开发告一段落。开始前先和用户确认本轮做 **D 演示打包**；用户有 iPad 或安卓平板时优先插入 **A 真机验收**。不再新增后端能力。
+前置：⑦、⑧、⑨ 与 D 的云端部分已完成。**不再新增后端能力。** 开始前先问用户手上有哪种平板、是否有 Expo 账号 / Apple 开发者账号。
 
-### D 的最小范围
+### 有平板时
 
-- Development Build 装到平板（无平板时先做网页录屏，并在材料里如实标注“网页版”）。
-- 按 `docs/demo-script.md` 录三段：用户触发（休息计划 → 确认）、事件调整（模拟室温）、整晚服务（自动播放到 07:00）与手动停止。
-- PDF 主张对证据表：每条主张对应代码位置、测试或录屏；模拟与真实来源分开标注（虚拟设备、模拟事件、模拟时钟、模型桩都要写明）。
-- 不推送、不部署到公网。
+- 按 `docs/device-build.md` 先用 Expo Go 跑通，再做 EAS 开发版（Android 出 APK；iPad 需登记设备）。
+- 逐项完成 `docs/device-build.md` 的真机验收清单，结果写进 `docs/status.md`（通过、问题、截图位置）。
+- 按 `docs/demo-script.md` 在平板上录屏（屏幕录制），替换或补充网页版录屏；在 `scripts/build_evidence.py` 里把“平板 App”一行改为实际状态并重新生成。
+
+### 没有平板时可做
+
+- 团队提供 P07 能源仿真的代码与输出后，在 `scripts/build_evidence.py` 里补登证据（不要改成“已实现”，写“仿真，另一个项目”）。
+- 用户提供旧 HTML 前端后，只列清单，不迁移代码。
 
 ### 停止条件
 
@@ -334,7 +340,7 @@ git status --short
 
 可直接给下一位 AI 的指令：
 
-> 请先阅读仓库根目录 `AGENT-HANDOFF.md`，然后依次阅读 `README.md`、`docs/status.md`、`docs/acceptance.md`、`docs/architecture.md`。保留现有实现和提交历史，重新运行基线检查。和用户确认本轮做 D（演示打包）（有 iPad 时优先 A 真机验收）；只执行选定的一步，达到验收条件后更新状态文档、提交一次聚焦 commit 并停止。描述能力时遵守 0.4 的如实口径；不要去掉来源标注，不要推送或部署。
+> 请先阅读仓库根目录 `AGENT-HANDOFF.md`，然后依次阅读 `README.md`、`docs/status.md`、`docs/acceptance.md`、`docs/architecture.md`。保留现有实现和提交历史，重新运行基线检查。先问用户手上有哪种平板和账号，再做 A 真机验收与 D 的设备部分；没有平板时只做第 9 节列出的补登工作；只执行选定的一步，达到验收条件后更新状态文档、提交一次聚焦 commit 并停止。描述能力时遵守 0.4 的如实口径；不要去掉来源标注，不要推送或部署。
 
 ## 12. 产品界面方向（用户已确认，2026-09-17）
 
