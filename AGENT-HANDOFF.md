@@ -6,6 +6,64 @@
 第一批实现基线提交：`99b1138 feat: step 4 rule-based backend loop, executor, virtual devices, CI`  
 当前基线：B 并发修正 + ⑤ Experience Agent（已验证真实 DeepSeek 调用，2035 ms）— 见 `git log`
 
+## 0. 项目背景与现状速览（给评审或新接手的 AI）
+
+### 0.1 背景
+
+- **项目**：LivingMind，参加 SpaceMind AI Agent 创新应用大赛，已进入复赛，需要约 8 分钟汇报 + 可演示原型。对外品牌统一用 LivingMind；历史代码名 KidMind 只在解释旧原型时出现。
+- **定位**：家庭住宅（Home Living）为核心场景，酒店（Smart Stay）为延展；两者共享 Energy Intelligence。叙事核心：“一次表达，持续服务；体验是约束，能源是优化”。
+- **目标架构**（汇报口径）：主 Agent + 两个专业 Agent（Experience、Space Execution）+ 共享 Memory + Harness；SpaceMind 为“拟对接能力”，具体接口待官方文档与联调确认。
+- **团队约束**：学生团队，出发点是“演示有原型支持、简历有技术可讲”。深度标准：**演示可见、面试可答、代码可指**，够用即停。
+- **相关材料**（只读参考，不是执行授权）：`../汇报演示/LivingMind_presentationV1.pdf`（10 页）、`../架构评审/LivingMind-架构评审与迁移步骤-v0.2.md`（架构定稿）、`/Users/macbookair/Documents/Project/KidMind-PPT/AGENT-HANDOFF.md`（汇报材料交接）。
+
+### 0.2 已完成（有代码、有测试、有提交）
+
+| 项 | 内容 | 证据 |
+|---|---|---|
+| 步骤 0–1 | 仓库骨架、文档基线、Expo SDK 57 App、FastAPI 健康检查、平板配置、可配置后端地址 | `c4e8d9b`、`19599db` |
+| 步骤 2 | Pydantic 契约 → OpenAPI → TS 类型自动生成；统一错误格式；两个种子人物偏好不同 | `386bc2e`，`tests/test_contracts.py`、`test_seed.py` |
+| 步骤 3 | 可点击原型：人物 → 需求 → 计划 → 确认 → 设备 → 停止 → 动态；平板/手机响应式；前端 Mock 与后端规则一致 | `e8ffb61`，`apps/mobile/tests/` |
+| 步骤 4 | 固定规则、统一执行器（白名单、范围、每动作前重查）、有状态虚拟设备、服务状态、幂等确认、停止失效、计划过期、活动记录、PR 模板 + CI | `99b1138`，`tests/test_rest_flow.py`（7 项验收） |
+| B | 设备写入移出服务锁；停止可中途抢占慢设备批次（服务层 + HTTP 层测试） | `c639d5d`，`tests/test_concurrency.py` |
+| ⑤ | Experience Agent：DeepSeek Provider、Pydantic 输出校验、规则/模型开关、六类失败降级为规则并标注、App 四种来源标签；真实调用已验证（deepseek-flash，2035 ms，单次） | `469dc9a`、`2ad87da`，`tests/test_experience_agent.py`（14 项） |
+| 文档 | 本交接文档、README、architecture、acceptance、status、ui-polish；产品界面方向（第 12 节） | `587d7aa`、`8525718`、`c58a29f` |
+
+检查基线：后端 40 项 pytest（Python 3.10/3.11）、前端 12 项测试 + 类型检查、契约一致性、干净副本 CI 模拟、网页版自动点击（平板/手机尺寸；模拟/后端/模型/降级/断网五条路径）。
+
+### 0.3 未完成（按第 8 节顺序）
+
+| 项 | 状态 | 说明 |
+|---|---|---|
+| A 真机验收 | 未做 | 用户暂无 iPad；所有界面验证来自网页版，不能替代真机 |
+| ⑥ 一次事件调整 | 未开始 | 当前任务，要求见第 9 节 |
+| ⑥b 对话外壳 | 未开始 | 主页改为对话流，“我的”页（PIN、访客、证据面板） |
+| C 视觉整理 | 未开始 | 按 `docs/ui-polish.md` |
+| ⑦ 整晚服务 | 未开始 | 可选 |
+| ⑧ 主 Agent / 执行 Agent / 记忆 / 能源规则 | 未开始 | 目前只有 Experience Agent 一个真实模块；**“1+2 Agent 编排”尚未实现** |
+| ⑨ 补齐四个入口 | 未开始 | 空间、场景页 |
+| D 演示打包 | 未开始 | Development Build、录屏、PDF 证据表 |
+| GitHub 远程与 CI 实跑 | 未做 | 未经用户授权不建远程 |
+
+### 0.4 评审时最该核对的五个点
+
+1. **声明与实现是否一致**：`docs/status.md` 每一行是否能在代码和测试里找到对应；PDF 第 6 页“1+2 Agent”目前只有 Experience Agent 是真实调用。
+2. **来源标注是否可能被混淆**：前端模拟 / 规则 / 模型 / 规则降级 / 虚拟设备在界面和活动记录里是否始终可区分。
+3. **安全边界**：所有设备写入是否都经过 `harness/executor.py`；模型输出是否先过 Pydantic 再进执行器；密钥是否只在后端 `.env`。
+4. **并发语义**：停止后是否确实不再有新动作；已开始的单个动作不撤销是否可接受。
+5. **范围控制**：后续步骤是否仍遵守“一次一步、达到即停”，没有空目录或类名冒充能力。
+
+### 0.5 评审 AI 的复现命令
+
+```bash
+cd livingmind-app
+git log --oneline                       # 提交按步骤拆分
+cd backend && python3 -m venv .venv && source .venv/bin/activate && pip install -r requirements-dev.txt && pytest
+cd ../apps/mobile && npm install && npm run typecheck && npm test
+cd ../.. && ./scripts/gen-api.sh && git diff --exit-code -- packages/api-client
+```
+
+评审 AI 只读不改；发现问题写成清单交给用户，不直接修改代码或本文件。
+
 ## 1. 接手结论
 
 第一批步骤 0–4、B 并发修正、⑤ Experience Agent（含一次真实 DeepSeek 调用验证）已完成。用户目前没有 iPad，真机验收（A）推迟到有设备时；在此之前继续做后端与接口联动，前端视觉统一留到 C。不要重搭架构，不要复制旧项目覆盖当前仓库，也不要同时开始多个步骤。
@@ -29,7 +87,8 @@ Expo App（计划来源开关：规则 / 模型）
 
 ## 2. 接手后的必读顺序
 
-1. 本文件：当前状态、边界和下一任务。
+0. 第 0 节：背景、已完成/未完成、评审要点（评审 AI 读到这里即可开始）。
+1. 本文件其余部分：边界和下一任务。
 2. `README.md`：启动方法和三条架构边界。
 3. `docs/status.md`：已实现、证据、未实现内容。
 4. `docs/acceptance.md`：每阶段达到什么程度就停止。
