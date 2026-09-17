@@ -317,7 +317,7 @@ export interface components {
              * Code
              * @enum {string}
              */
-            code: "VALIDATION_ERROR" | "NOT_FOUND" | "FORBIDDEN_CONTEXT" | "PLAN_EXPIRED" | "PLAN_INVALIDATED" | "PLAN_VERSION_MISMATCH" | "SERVICE_ALREADY_ACTIVE" | "SERVICE_NOT_ACTIVE" | "NOT_IMPLEMENTED" | "INTERNAL_ERROR";
+            code: "VALIDATION_ERROR" | "NOT_FOUND" | "FORBIDDEN_CONTEXT" | "PLAN_EXPIRED" | "PLAN_INVALIDATED" | "PLAN_VERSION_MISMATCH" | "SERVICE_ALREADY_ACTIVE" | "SERVICE_NOT_ACTIVE" | "INTERNAL_ERROR";
             /** Details */
             details: {
                 [key: string]: unknown;
@@ -526,15 +526,6 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description Not Implemented */
-            501: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
         };
     };
     resetDemo: {
@@ -586,15 +577,6 @@ export interface operations {
             };
             /** @description Unprocessable Entity */
             422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Not Implemented */
-            501: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -655,15 +637,6 @@ export interface operations {
             };
             /** @description Unprocessable Entity */
             422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Not Implemented */
-            501: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -733,15 +706,6 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description Not Implemented */
-            501: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
         };
     };
     stopService: {
@@ -797,15 +761,6 @@ export interface operations {
             };
             /** @description Unprocessable Entity */
             422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Not Implemented */
-            501: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -874,15 +829,6 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description Not Implemented */
-            501: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
         };
     };
     getDeviceState: {
@@ -936,15 +882,6 @@ export interface operations {
             };
             /** @description Unprocessable Entity */
             422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Not Implemented */
-            501: {
                 headers: {
                     [name: string]: unknown;
                 };

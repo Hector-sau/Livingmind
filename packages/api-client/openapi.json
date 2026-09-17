@@ -448,7 +448,6 @@
               "PLAN_VERSION_MISMATCH",
               "SERVICE_ALREADY_ACTIVE",
               "SERVICE_NOT_ACTIVE",
-              "NOT_IMPLEMENTED",
               "INTERNAL_ERROR"
             ],
             "title": "Code",
@@ -863,16 +862,6 @@
               }
             },
             "description": "Unprocessable Entity"
-          },
-          "501": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            },
-            "description": "Not Implemented"
           }
         },
         "summary": "Get Bootstrap",
@@ -945,16 +934,6 @@
               }
             },
             "description": "Unprocessable Entity"
-          },
-          "501": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            },
-            "description": "Not Implemented"
           }
         },
         "summary": "Reset Demo",
@@ -1026,16 +1005,6 @@
               }
             },
             "description": "Unprocessable Entity"
-          },
-          "501": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            },
-            "description": "Not Implemented"
           }
         },
         "summary": "Create Rest Plan",
@@ -1118,16 +1087,6 @@
               }
             },
             "description": "Unprocessable Entity"
-          },
-          "501": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            },
-            "description": "Not Implemented"
           }
         },
         "summary": "Confirm Plan",
@@ -1210,16 +1169,6 @@
               }
             },
             "description": "Unprocessable Entity"
-          },
-          "501": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            },
-            "description": "Not Implemented"
           }
         },
         "summary": "Stop Service",
@@ -1313,16 +1262,6 @@
               }
             },
             "description": "Unprocessable Entity"
-          },
-          "501": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            },
-            "description": "Not Implemented"
           }
         },
         "summary": "Get Activity",
@@ -1404,16 +1343,6 @@
               }
             },
             "description": "Unprocessable Entity"
-          },
-          "501": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            },
-            "description": "Not Implemented"
           }
         },
         "summary": "Get Device State",

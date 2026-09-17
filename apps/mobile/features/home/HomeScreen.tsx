@@ -131,17 +131,21 @@ export function HomeScreen({ api, backendLabel }: Props) {
   return (
     <View style={styles.root}>
       {header}
+      {state.error || state.info ? (
+        <View style={styles.notices}>
+          {state.error ? (
+            <Notice
+              tone={state.error.connectivity ? 'warning' : 'error'}
+              message={state.error.message}
+              actionLabel={state.error.connectivity ? '重新读取' : undefined}
+              onAction={state.error.connectivity ? actions.refresh : undefined}
+              onDismiss={actions.dismissError}
+            />
+          ) : null}
+          {state.info ? <Notice tone="info" message={state.info} onDismiss={actions.dismissInfo} /> : null}
+        </View>
+      ) : null}
       <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
-        {state.error ? (
-          <Notice
-            tone={state.error.connectivity ? 'warning' : 'error'}
-            message={state.error.message}
-            actionLabel={state.error.connectivity ? '重新读取' : undefined}
-            onAction={state.error.connectivity ? actions.refresh : undefined}
-            onDismiss={actions.dismissError}
-          />
-        ) : null}
-        {state.info ? <Notice tone="info" message={state.info} onDismiss={actions.dismissInfo} /> : null}
         <View style={split ? styles.split : styles.stack}>
           <View style={split ? styles.leftPane : undefined}>{left}</View>
           <View style={split ? styles.rightPane : undefined}>{right}</View>
@@ -177,6 +181,7 @@ const styles = StyleSheet.create({
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: space.md },
   pad: { padding: space.xl, alignItems: 'stretch' },
   muted: { fontSize: font.small, color: colors.muted },
+  notices: { paddingHorizontal: space.lg, paddingTop: space.md, gap: space.sm },
   scroll: { padding: space.lg, gap: space.md, paddingBottom: space.xxl },
   split: { flexDirection: 'row', gap: space.lg, alignItems: 'flex-start' },
   stack: { gap: space.md },

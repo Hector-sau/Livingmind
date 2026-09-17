@@ -19,7 +19,6 @@ STATUS_BY_CODE: dict[str, int] = {
     "PLAN_VERSION_MISMATCH": 409,
     "SERVICE_ALREADY_ACTIVE": 409,
     "SERVICE_NOT_ACTIVE": 409,
-    "NOT_IMPLEMENTED": 501,
     "INTERNAL_ERROR": 500,
 }
 
@@ -50,5 +49,5 @@ def install_error_handlers(app: FastAPI) -> None:
 
 # Shared OpenAPI declaration so generated TS clients know the error shape.
 ERROR_RESPONSES: dict[int | str, dict[str, Any]] = {
-    status: {"model": ErrorResponse} for status in (403, 404, 409, 422, 501)
+    status: {"model": ErrorResponse} for status in (403, 404, 409, 422)
 }

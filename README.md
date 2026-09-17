@@ -32,6 +32,10 @@ docs/                 架构、验收、状态
 .github/              PR 模板与 CI
 ```
 
+## 演示流程
+
+选人物 → 输入“我想休息” → 生成计划（设备不变）→ 确认执行（设备改变并回读）→ 查看服务动态 → 停止服务（设备保持当前状态）。右侧“重置演示数据”可回到初始状态。
+
 ## 快速启动
 
 环境：Node.js 20+，Python 3.10+。
@@ -46,6 +50,8 @@ pip install -r requirements-dev.txt
 uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 ```
 
+`--host 0.0.0.0` 让同一局域网的平板能访问；只在可信网络这样做。需要改 CORS（仅浏览器预览用）时：`cp .env.example .env` 后加 `--env-file .env`。
+
 打开 http://localhost:8000/health 应返回 `{"status":"ok"}`；接口文档在 http://localhost:8000/docs 。
 
 ### 2. App
@@ -59,6 +65,7 @@ npx expo start
 
 - **模拟模式**：`.env` 里不设置 `EXPO_PUBLIC_API_BASE_URL`，App 使用前端模拟接口，界面顶部显示“前端模拟模式”。
 - **后端模式**：设置 `EXPO_PUBLIC_API_BASE_URL=http://<Mac 的局域网 IP>:8000`。平板上不能用 `localhost`（那是平板自己）。查 Mac IP：`ipconfig getifaddr en0`。
+- 改了 `.env` 后要用 `npx expo start --clear` 重启，否则旧配置会被缓存。
 - 在 iPad 上用 Expo Go 扫码预览；在 Mac 上按 `Shift + i` 选 iPad 模拟器（需要 Xcode）；按 `w` 用浏览器粗看布局。
 
 ### 3. 重新生成接口类型
@@ -73,7 +80,7 @@ npx expo start
 
 ```bash
 cd backend && pytest                      # 后端测试
-cd apps/mobile && npx tsc --noEmit        # 前端类型检查
+cd apps/mobile && npm run typecheck && npm test   # 前端类型检查 + 逻辑测试
 ./scripts/gen-api.sh && git diff --exit-code packages/api-client   # 契约一致性
 ```
 
