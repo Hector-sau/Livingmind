@@ -1,7 +1,11 @@
 """Rest-service lifecycle: plan -> confirm -> execute -> active -> stop.
 
-All state changes happen under one lock, so a stop and a confirm cannot interleave.
-Front-end mock (apps/mobile/services/mock/mockApi.ts) mirrors these rules.
+Locking model:
+- Bookkeeping (plans, services, epochs, activity) changes only under ``self._lock``.
+- Device writes run OUTSIDE that lock, so a stop request is never blocked by a slow device.
+- Before every device action the executor's guard re-checks, under the lock, that the
+  service is still active and the space epoch is unchanged; a stop bumps the epoch.
+Front-end mock (apps/mobile/services/mock/mockApi.ts) mirrors the visible rules.
 """
 
 from __future__ import annotations
@@ -144,7 +148,7 @@ class RestService:
             if plan.version != plan_version:
                 raise self._reject(record, "PLAN_VERSION_MISMATCH", "计划版本已变化，请刷新")
 
-            # Idempotent: an executed plan is never executed again.
+            # Idempotent: an executed (or currently executing) plan is never executed again.
             if plan.status == "executed":
                 service = self._store.services[record.service_id]  # type: ignore[index]
                 self._log(
@@ -159,7 +163,7 @@ class RestService:
                 return ConfirmPlanResponse(
                     plan=plan,
                     service=service,
-                    results=record.results,
+                    results=list(record.results),
                     device_state=self._devices[plan.space_id].read_state(),
                     repeated=True,
                 )
@@ -187,6 +191,7 @@ class RestService:
             self._store.services[service.service_id] = service
             plan.status = "executed"
             record.service_id = service.service_id
+            record.results = []
             self._log(
                 plan.space_id,
                 "plan_confirmed",
@@ -197,37 +202,46 @@ class RestService:
                 person_id=plan.person_id,
             )
             epoch_at_start = self._store.epoch(plan.space_id)
-            record.results = self._execute(service, plan.actions, epoch_at_start)
+            actions = list(plan.actions)
+
+        # Lock released: device writes may be slow, and a stop must be able to land meanwhile.
+        self._execute(service, actions, epoch_at_start, record)
+
+        with self._lock:
             return ConfirmPlanResponse(
                 plan=plan,
                 service=service,
-                results=record.results,
+                results=list(record.results),
                 device_state=self._devices[plan.space_id].read_state(),
                 repeated=False,
             )
 
-    def _execute(self, service: Service, actions: list[DeviceAction], epoch_at_start: int) -> list[ActionResult]:
+    def _execute(self, service: Service, actions: list[DeviceAction], epoch_at_start: int, record: PlanRecord) -> None:
         def guard() -> Optional[str]:
-            if service.status != "active":
-                return "服务已停止"
-            if self._store.epoch(service.space_id) != epoch_at_start:
-                return "计划版本已失效"
-            return None
+            # Re-check under the lock right before each external write.
+            with self._lock:
+                if service.status != "active":
+                    return "服务已停止"
+                if self._store.epoch(service.space_id) != epoch_at_start:
+                    return "计划版本已失效"
+                return None
 
         def on_result(action: DeviceAction, result: ActionResult) -> None:
             ok = result.outcome == "succeeded"
-            self._log(
-                service.space_id,
-                "action_executed" if ok else "action_rejected",
-                "virtual_device" if ok else "executor",
-                f"{action.label}（回读 {result.observed_value:g}）" if ok else f"{action.label}：{result.reason}",
-                service_id=service.service_id,
-                plan_id=service.plan_id,
-                person_id=service.person_id,
-                action=result,
-            )
+            with self._lock:
+                record.results.append(result)
+                self._log(
+                    service.space_id,
+                    "action_executed" if ok else "action_rejected",
+                    "virtual_device" if ok else "executor",
+                    f"{action.label}（回读 {result.observed_value:g}）" if ok else f"{action.label}：{result.reason}",
+                    service_id=service.service_id,
+                    plan_id=service.plan_id,
+                    person_id=service.person_id,
+                    action=result,
+                )
 
-        return Executor(self._devices[service.space_id]).run(actions, guard, on_result)
+        Executor(self._devices[service.space_id]).run(actions, guard, on_result)
 
     def stop_service(self, service_id: str, ctx: RequestContext) -> StopServiceResponse:
         self._check_context(ctx)
