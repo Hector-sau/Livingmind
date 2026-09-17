@@ -29,9 +29,9 @@ def validate_action(action: DeviceAction) -> Optional[str]:
         return f"工具不在白名单：{action.device}.{action.command}"
     low, high, integer_only = rule
     if not (low <= action.value <= high):
-        return f"参数超出范围：{action.value}（允许 {low}–{high}）"
+        return f"参数超出范围：{action.value:g}（允许 {low:g}–{high:g}）"
     if integer_only and float(action.value) != int(action.value):
-        return f"参数必须是整数：{action.value}"
+        return f"参数必须是整数：{action.value:g}"
     return None
 
 
