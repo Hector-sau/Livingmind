@@ -101,6 +101,13 @@ def build_rest_plan(
         else f"规则降级：请求了模型，但改用固定规则生成（{fallback_reason}）",
         "当前为固定休息场景，输入文字只做记录，不做语义理解",
     ]
+    if person.is_guest:
+        notes.insert(0, "访客模式：使用空间默认设置，没有读取任何个人偏好")
+    summary = (
+        "按空间默认设置调整灯光、空调和窗帘（访客）"
+        if person.is_guest
+        else f"按 {person.name} 的休息偏好调整灯光、空调和窗帘"
+    )
     return build_plan(
         person=person,
         space_id=space_id,
@@ -109,7 +116,7 @@ def build_rest_plan(
         new_id=new_id,
         settings=person.rest_preference,
         source="rule_fallback" if is_fallback else "rule",
-        summary=f"按 {person.name} 的休息偏好调整灯光、空调和窗帘",
+        summary=summary,
         notes=notes,
         generation=PlanGeneration(
             mode_requested="model" if is_fallback else "rule",

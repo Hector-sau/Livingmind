@@ -38,6 +38,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/persons/{person_id}/unlock": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Unlock Person
+         * @description Demo PIN check before switching person. Not authentication.
+         */
+        post: operations["unlockPerson"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/plans/rest": {
         parameters: {
             query?: never;
@@ -66,6 +86,23 @@ export interface paths {
         put?: never;
         /** Confirm Plan */
         post: operations["confirmPlan"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/scenes": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Scenes */
+        get: operations["getScenes"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -343,7 +380,7 @@ export interface components {
              * Code
              * @enum {string}
              */
-            code: "VALIDATION_ERROR" | "NOT_FOUND" | "FORBIDDEN_CONTEXT" | "PLAN_EXPIRED" | "PLAN_INVALIDATED" | "PLAN_VERSION_MISMATCH" | "SERVICE_ALREADY_ACTIVE" | "SERVICE_NOT_ACTIVE" | "INTERNAL_ERROR";
+            code: "VALIDATION_ERROR" | "NOT_FOUND" | "FORBIDDEN_CONTEXT" | "PLAN_EXPIRED" | "PLAN_INVALIDATED" | "PLAN_VERSION_MISMATCH" | "SERVICE_ALREADY_ACTIVE" | "SERVICE_NOT_ACTIVE" | "PIN_INVALID" | "INTERNAL_ERROR";
             /** Details */
             details: {
                 [key: string]: unknown;
@@ -404,8 +441,23 @@ export interface components {
         };
         /** Person */
         Person: {
+            /**
+             * Avatarcolor
+             * @description Display color for the avatar
+             */
+            avatarColor: string;
             /** Description */
             description: string;
+            /**
+             * Haspin
+             * @description A demo PIN guards switching to this person (the PIN itself is never sent)
+             */
+            hasPin: boolean;
+            /**
+             * Isguest
+             * @description Guest / shared-space context: space defaults, no personal profile
+             */
+            isGuest: boolean;
             /** Name */
             name: string;
             /** Personid */
@@ -542,6 +594,35 @@ export interface components {
              */
             lightBrightness: number;
         };
+        /**
+         * Scene
+         * @description Proactive-service scene shown in the app. Status must match the real implementation.
+         */
+        Scene: {
+            /** Description */
+            description: string;
+            /** Sceneid */
+            sceneId: string;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "implemented" | "planned";
+            /** Title */
+            title: string;
+            /** Trigger */
+            trigger: string;
+            /**
+             * Verification
+             * @description How the status was verified, shown to users
+             */
+            verification: string;
+        };
+        /** ScenesResponse */
+        ScenesResponse: {
+            /** Items */
+            items: components["schemas"]["Scene"][];
+        };
         /** Service */
         Service: {
             /**
@@ -582,6 +663,7 @@ export interface components {
         };
         /** Space */
         Space: {
+            defaultRestPreference: components["schemas"]["RestPreference"];
             /** Name */
             name: string;
             /** Spaceid */
@@ -595,6 +677,25 @@ export interface components {
         StopServiceResponse: {
             deviceState: components["schemas"]["DeviceState"];
             service: components["schemas"]["Service"];
+        };
+        /**
+         * UnlockPersonRequest
+         * @description Demo PIN check before switching person on a shared tablet. NOT authentication.
+         */
+        UnlockPersonRequest: {
+            /** Accountid */
+            accountId: string;
+            /** Pin */
+            pin?: string | null;
+        };
+        /** UnlockPersonResponse */
+        UnlockPersonResponse: {
+            /** Note */
+            note: string;
+            /** Personid */
+            personId: string;
+            /** Unlocked */
+            unlocked: boolean;
         };
     };
     responses: never;
@@ -739,6 +840,77 @@ export interface operations {
             };
         };
     };
+    unlockPerson: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                person_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UnlockPersonRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UnlockPersonResponse"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
     createRestPlan: {
         parameters: {
             query?: never;
@@ -830,6 +1002,73 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ConfirmPlanResponse"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    getScenes: {
+        parameters: {
+            query: {
+                accountId: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ScenesResponse"];
                 };
             };
             /** @description Forbidden */

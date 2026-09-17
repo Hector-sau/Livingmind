@@ -24,7 +24,11 @@ App 页面 → services/api（http 实现）→ FastAPI 路由
 
 | 位置 | 职责 | 状态 |
 |---|---|---|
-| `apps/mobile/features/` | 按业务划分的页面内容：home（人物）、rest（需求/计划/确认/停止）、devices、activity | 第一批实现 |
+| `apps/mobile/features/shell/` | 四个入口的外壳：平板左侧导航栏、手机底部标签栏；全局提示条；对话记录按人物保存在内存 | ⑥b 实现 |
+| `apps/mobile/features/chat/` | 对话主页：消息流（用户气泡、计划卡、结果卡、系统消息）、服务状态条、输入区（快捷语、语音占位、规则/模型开关）；`conversation.ts` 为纯函数 | ⑥b 实现 |
+| `apps/mobile/features/me/` | 我的：本人偏好（只显示当前人物）、演示 PIN 切换、访客模式、证据面板开关、重置演示 | ⑥b 实现 |
+| `apps/mobile/features/space/`、`scenes/` | 空间（设备、服务、节能占位、证据）与场景库（状态标签、人话时间线 `timeline.ts`） | ⑥b 实现 |
+| `apps/mobile/features/rest/`、`devices/`、`activity/` | 业务状态 `useRestFlow`（动作返回结果）、计划卡、服务卡、设备卡、原始活动列表（只在证据面板出现） | 第一批起 |
 | `apps/mobile/components/`、`theme/` | 基础组件与设计 token（颜色取自演示设计规范） | 第一批实现 |
 | `apps/mobile/services/` | `api.ts` 接口定义；`http/` 真实 API；`mock/` 前端模拟 | 第一批实现 |
 | `backend/app/contracts/` | Pydantic 数据契约，是前端类型的唯一来源 | 第一批实现 |
@@ -78,3 +82,16 @@ App 页面 → services/api（http 实现）→ FastAPI 路由
 - 规划在服务锁之外进行，等待模型时不持锁。
 - 提示词只包含人物名、描述、已授权偏好、当前设备状态和这句话；活动记录只保存来源、耗时和降级原因，不保存模型的推理过程。
 - `LIVINGMIND_PLANNER_MODE` 是默认模式；每次请求可以用 `mode` 字段覆盖。规则模式下不会发出任何模型请求。
+
+## 前端结构（⑥b）
+
+- 导航用组件内状态切换四个入口，没有引入 Expo Router；以后需要深链接时再换。
+- 所有入口共用一个 `useRestFlow`；对话内容只在前端内存，按人物分开保存，刷新即清空。
+- 计划卡只有“最新且与当前计划一致”的那一张可以确认，其余是历史。
+- 原始活动记录只在“我的 → 证据面板”和空间页（证据面板打开时）出现；对话和场景里用人话。
+
+## 身份（⑥b 补充）
+
+- `POST /api/persons/{personId}/unlock` 校验演示 PIN，只用于共享平板防误切换；不签发令牌，后续请求不据此授权；PIN 不会出现在任何接口返回里。
+- 访客 `person-guest` 使用空间默认设置，没有 PIN；计划摘要与说明都写明“访客”。
+- `GET /api/scenes` 返回场景库，状态与实现一致，由测试守护。

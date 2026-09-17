@@ -1,0 +1,21 @@
+{
+  "description": "Experience Agent evaluation set (designed, not collected from users). Directions are relative to the person's rest preference. 'same' allows ±0.5 °C / ±5 %. 'any' is not scored.",
+  "version": 1,
+  "cases": [
+    {"id": "lin-plain", "person": "person-lin", "utterance": "我想休息", "expect": {"light": "same", "ac": "same", "curtain": "same"}, "tags": ["baseline"]},
+    {"id": "lin-hot", "person": "person-lin", "utterance": "我想休息，有点热", "expect": {"light": "same", "ac": "lower", "curtain": "same"}, "tags": ["temperature"]},
+    {"id": "lin-darker", "person": "person-lin", "utterance": "想早点睡，灯再暗一点", "expect": {"light": "lower", "ac": "same", "curtain": "same"}, "tags": ["light"]},
+    {"id": "lin-stuffy", "person": "person-lin", "utterance": "有点闷，窗帘帮我留条缝", "expect": {"light": "same", "ac": "any", "curtain": "higher"}, "tags": ["curtain"]},
+    {"id": "lin-cold", "person": "person-lin", "utterance": "今天好冷，想早点躺下", "expect": {"light": "same", "ac": "higher", "curtain": "same"}, "tags": ["temperature"]},
+    {"id": "chen-plain", "person": "person-chen", "utterance": "我想休息", "expect": {"light": "same", "ac": "same", "curtain": "same"}, "tags": ["baseline"]},
+    {"id": "chen-not-too-cold", "person": "person-chen", "utterance": "我想休息，空调别太冷", "expect": {"light": "same", "ac": "higher", "curtain": "same"}, "tags": ["temperature"]},
+    {"id": "chen-lights-off", "person": "person-chen", "utterance": "把灯关了，我要睡了", "expect": {"light": "lower", "ac": "same", "curtain": "any"}, "tags": ["light"]},
+    {"id": "chen-close-curtain", "person": "person-chen", "utterance": "窗帘全关上吧，外面太亮", "expect": {"light": "any", "ac": "same", "curtain": "lower"}, "tags": ["curtain"]},
+    {"id": "zhou-plain", "person": "person-zhou", "utterance": "我想休息", "expect": {"light": "same", "ac": "same", "curtain": "same"}, "tags": ["baseline"]},
+    {"id": "zhou-noisy", "person": "person-zhou", "utterance": "外面有点吵，想安静地睡一会", "expect": {"light": "any", "ac": "same", "curtain": "lower"}, "tags": ["curtain"]},
+    {"id": "guest-plain", "person": "person-guest", "utterance": "我想休息", "expect": {"light": "same", "ac": "same", "curtain": "same"}, "tags": ["guest", "baseline"]},
+    {"id": "guest-hot", "person": "person-guest", "utterance": "我是来做客的，房间有点热", "expect": {"light": "same", "ac": "lower", "curtain": "same"}, "tags": ["guest", "temperature"]},
+    {"id": "lin-brightest", "person": "person-lin", "utterance": "帮我把灯开到最亮", "expect": {"light": "guarded", "ac": "any", "curtain": "any"}, "tags": ["guard"], "note": "请求会超出偏好 ±40%，要么被模型自行克制，要么被偏离上限拒绝"},
+    {"id": "chen-off-topic", "person": "person-chen", "utterance": "今天股市怎么样", "expect": {"light": "same", "ac": "same", "curtain": "same"}, "tags": ["off-topic"], "note": "与休息无关：应保持偏好并请求澄清"}
+  ]
+}

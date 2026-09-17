@@ -14,6 +14,9 @@ interface Props {
   loading: boolean;
   disabled: boolean;
   onConfirm: () => void;
+  /** False for history cards in the chat: no confirm button. */
+  actionable?: boolean;
+  title?: string;
 }
 
 const SOURCE_TONE: Record<Plan['source'], PillTone> = {
@@ -39,17 +42,17 @@ function describeGeneration(plan: Plan): string {
   return `${requested} · 后端规则 · ${g.latencyMs} ms`;
 }
 
-export function PlanCard({ plan, results, blockReason, loading, disabled, onConfirm }: Props) {
+export function PlanCard({ plan, results, blockReason, loading, disabled, onConfirm, actionable = true, title = '休息计划' }: Props) {
   if (!plan) {
     return (
-      <Card title="休息计划">
+      <Card title={title}>
         <Text style={styles.empty}>还没有计划。选择人物并说出需求后，这里会显示将要执行的设备动作。</Text>
       </Card>
     );
   }
   const resultById = new Map(results.map((r) => [r.actionId, r]));
   return (
-    <Card title="休息计划" right={<Pill label={PLAN_STATUS_LABEL[plan.status]} tone={STATUS_TONE[plan.status]} />}>
+    <Card title={title} right={<Pill label={PLAN_STATUS_LABEL[plan.status]} tone={STATUS_TONE[plan.status]} />}>
       <View style={styles.meta}>
         <Pill label={PLAN_SOURCE_LABEL[plan.source]} tone={SOURCE_TONE[plan.source]} />
         <Text style={styles.utterance}>“{plan.utterance}”</Text>
@@ -80,7 +83,8 @@ export function PlanCard({ plan, results, blockReason, loading, disabled, onConf
           {n}
         </Text>
       ))}
-      {plan.status === 'proposed' ? (
+      {plan.status === 'proposed' && !actionable ? <Text style={styles.note}>这是较早的计划，已被新的计划替代。</Text> : null}
+      {plan.status === 'proposed' && actionable ? (
         <>
           {blockReason ? <Text style={styles.block}>无法执行：{blockReason}</Text> : null}
           <Button

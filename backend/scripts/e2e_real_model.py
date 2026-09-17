@@ -8,6 +8,7 @@ Run on a machine that has the key (never commit it):
     set -a && source .env && set +a
     .venv/bin/python scripts/e2e_real_model.py            # 5 requests
     .venv/bin/python scripts/e2e_real_model.py --rounds 2 # 10 requests
+    .venv/bin/python scripts/e2e_real_model.py --eval     # score the designed evaluation set (evals/experience_cases.json)
 
 Prints per-request latency (server side, submit -> plan returned) and a summary.
 Never prints the API key. Exit code 0 = invariants held and at least one model plan was produced.
@@ -52,6 +53,7 @@ def ctx(person: str) -> dict:
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--rounds", type=int, default=1)
+    parser.add_argument("--eval", action="store_true", help="score evals/experience_cases.json instead")
     args = parser.parse_args()
 
     provider = provider_from_config()
@@ -61,6 +63,8 @@ def main() -> int:
     print(f"provider={provider.name} model={provider.model} timeout={config.MODEL_TIMEOUT_S:g}s base_url={config.DEEPSEEK_BASE_URL}")
 
     service = RestService(planner=Planner("model", provider, config.MODEL_TIMEOUT_S, utc_now))
+    if args.eval:
+        return run_eval(service)
     app = create_app()
     app.dependency_overrides[get_rest_service] = lambda: service
     client = TestClient(app)
@@ -127,6 +131,31 @@ def main() -> int:
         return 1
     print("OK：不变量全部成立")
     return 0
+
+
+def run_eval(service: RestService) -> int:
+    from app.agents.experience.evaluation import load_cases, score_case
+    from app.contracts import RequestContext
+    from app.demo import seed
+
+    persons = {p.person_id: p for p in seed.PERSONS}
+    counts = {"pass": 0, "fail": 0, "fallback": 0}
+    lat = []
+    print()
+    for case in load_cases():
+        rc = RequestContext(account_id="demo-account", person_id=case["person"], space_id=SPACE)
+        t0 = time.monotonic()
+        plan = service.create_rest_plan(rc, case["utterance"], "model")
+        lat.append(int((time.monotonic() - t0) * 1000))
+        score = score_case(case, persons[case["person"]].rest_preference, plan)
+        counts[score.verdict] += 1
+        print(f"{score.verdict:<9}{case['id']:<22}{lat[-1]:>6} ms  「{case['utterance']}」 {'; '.join(score.details)}")
+    total = sum(counts.values())
+    print()
+    print(f"通过 {counts['pass']}/{total}，方向错误 {counts['fail']}，降级 {counts['fallback']}；"
+          f"耗时中位 {int(statistics.median(lat))} ms，最大 {max(lat)} ms")
+    print("说明：评测集是设计的用例，不是用户数据；方向以本人偏好为基线。")
+    return 0 if counts["fail"] == 0 else 1
 
 
 if __name__ == "__main__":

@@ -10,6 +10,10 @@
 - 图标用 Expo 自带的 `@expo/vector-icons`。动效允许引入 `react-native-reanimated`（Expo SDK 57 自带支持），用于对话流入场、卡片展开、数值滚动；全部尊重系统“减弱动态效果”设置。
 - 视觉参考（只看布局与动效思路，不搬代码）：GitHub 上 Home-App-Expo（Expo 智能家居示例）、react-native-reanimated 官方示例、GitHub 话题 smart-home（TypeScript）。
 
+## 0. ⑥b 之后的现状
+
+页面结构已经是四个入口：`features/shell/AppShell.tsx`（导航与头部）、`chat/`（对话流、计划卡、结果卡、服务状态条、输入区）、`space/`、`scenes/`、`me/`。当前视觉是可用的基础样式：导航图标用的是 emoji 占位，Logo 是一个蓝色方块占位，没有动效。C 步骤就在这些文件上美化，不再改结构。
+
 ## 1. 视觉基础（先做，影响全局）
 
 | 项目 | 现状 | 改成 |

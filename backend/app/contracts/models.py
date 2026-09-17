@@ -22,6 +22,11 @@ __all__ = [
     "Service",
     "ActionResult",
     "InjectEventRequest",
+    "UnlockPersonRequest",
+    "UnlockPersonResponse",
+    "Scene",
+    "SceneStatus",
+    "ScenesResponse",
     "EventResult",
     "EventType",
     "EventOutcome",
@@ -94,6 +99,7 @@ ErrorCode = Literal[
     "PLAN_VERSION_MISMATCH",
     "SERVICE_ALREADY_ACTIVE",
     "SERVICE_NOT_ACTIVE",
+    "PIN_INVALID",
     "INTERNAL_ERROR",
 ]
 
@@ -112,11 +118,29 @@ class Person(Contract):
     name: str
     description: str
     rest_preference: RestPreference
+    is_guest: bool = Field(description="Guest / shared-space context: space defaults, no personal profile")
+    has_pin: bool = Field(description="A demo PIN guards switching to this person (the PIN itself is never sent)")
+    avatar_color: str = Field(description="Display color for the avatar")
 
 
 class Space(Contract):
     space_id: str
     name: str
+    default_rest_preference: RestPreference
+
+
+SceneStatus = Literal["implemented", "planned"]
+
+
+class Scene(Contract):
+    """Proactive-service scene shown in the app. Status must match the real implementation."""
+
+    scene_id: str
+    title: str
+    description: str
+    status: SceneStatus
+    verification: str = Field(description="How the status was verified, shown to users")
+    trigger: str
 
 
 class DemoAccount(Contract):
@@ -239,6 +263,19 @@ class StopServiceRequest(Contract):
     context: RequestContext
 
 
+class UnlockPersonRequest(Contract):
+    """Demo PIN check before switching person on a shared tablet. NOT authentication."""
+
+    account_id: str
+    pin: Optional[str] = Field(default=None, max_length=8)
+
+
+class UnlockPersonResponse(Contract):
+    person_id: str
+    unlocked: bool
+    note: str
+
+
 class InjectEventRequest(Contract):
     """Simulated environment event (demo only; there is no real sensor)."""
 
@@ -291,6 +328,10 @@ class EventResult(Contract):
     plan: Optional[Plan] = Field(description="The adjustment plan that was executed")
     results: list[ActionResult]
     device_state: DeviceState
+
+
+class ScenesResponse(Contract):
+    items: list[Scene]
 
 
 class ActivityResponse(Contract):

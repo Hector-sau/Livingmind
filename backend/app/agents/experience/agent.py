@@ -43,9 +43,13 @@ class ExperienceError(Exception):
 
 def build_user_prompt(person: Person, device_state: DeviceState, utterance: str) -> str:
     pref = person.rest_preference
+    who = (
+        "人物：访客（没有个人账号，不要推测任何个人习惯）\n空间默认设置"
+        if person.is_guest
+        else f"人物：{person.name}（{person.description}）\n已授权的休息偏好"
+    )
     return (
-        f"人物：{person.name}（{person.description}）\n"
-        f"已授权的休息偏好：灯光 {pref.light_brightness}%，空调 {pref.ac_target_temp_c:g}°C，"
+        f"{who}：灯光 {pref.light_brightness}%，空调 {pref.ac_target_temp_c:g}°C，"
         f"窗帘开度 {pref.curtain_open_percent}%\n"
         f"当前设备状态：灯光 {device_state.light_brightness}%，空调 {device_state.ac_target_temp_c:g}°C，"
         f"窗帘开度 {device_state.curtain_open_percent}%\n"

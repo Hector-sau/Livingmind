@@ -9,7 +9,9 @@ import type {
   EventResult,
   InjectEventRequest,
   Plan,
+  ScenesResponse,
   StopServiceRequest,
+  UnlockPersonResponse,
   StopServiceResponse,
 } from './types';
 
@@ -17,6 +19,9 @@ import type {
 export interface LivingMindApi {
   readonly mode: 'mock' | 'http';
   bootstrap(): Promise<BootstrapResponse>;
+  /** Demo PIN check before switching person. NOT authentication. */
+  unlockPerson(personId: string, pin: string | null): Promise<UnlockPersonResponse>;
+  getScenes(): Promise<ScenesResponse>;
   getDeviceState(spaceId: string): Promise<DeviceState>;
   createRestPlan(req: CreateRestPlanRequest): Promise<Plan>;
   confirmPlan(planId: string, req: ConfirmPlanRequest): Promise<ConfirmPlanResponse>;

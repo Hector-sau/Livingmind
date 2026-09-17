@@ -15,7 +15,7 @@
 
 | 当前做 | 暂不做（后续批次） |
 |---|---|
-| 人物选择、休息计划、确认、设备状态、停止、服务动态 | 多 Agent 协作 |
+| 对话主页、四个入口、人物切换（演示 PIN）、访客模式、证据面板、场景库 | 多 Agent 协作 |
 | Experience Agent 一次模型调用（DeepSeek，规则/模型可切换，失败降级为规则并标注） | 整晚定时服务 |
 | 模拟室温事件触发一次自动调整（冷却、次数上限、停止后忽略） | 真实传感器 |
 | 固定规则计划 + 有状态虚拟设备 + 统一执行器 | 整晚定时服务、事件触发调整 |
@@ -65,7 +65,8 @@ uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 ```bash
 cd backend && set -a && source .env && set +a
 .venv/bin/python scripts/try_model.py "我想休息，有点热"   # 只测 Agent 一次调用
-.venv/bin/python scripts/e2e_real_model.py                 # 后端端到端：5 句话 → 计划 → 确认 → 回读 → 停止，含延迟统计
+.venv/bin/python scripts/e2e_real_model.py                 # 可选：后端端到端，5 句话，含延迟统计
+.venv/bin/python scripts/e2e_real_model.py --eval          # 可选：用设计的评测集给真实模型打分
 ```
 
 浏览器端到端也可以用真实模型：`cd apps/mobile && python e2e/run_e2e.py --real-model`。

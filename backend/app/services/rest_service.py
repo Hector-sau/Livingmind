@@ -33,7 +33,9 @@ from app.contracts import (
     Person,
     Plan,
     RequestContext,
+    Scene,
     Service,
+    UnlockPersonResponse,
     StopServiceResponse,
 )
 from app.demo import seed
@@ -125,6 +127,25 @@ class RestService:
         self._check_account(account_id)
         with self._lock:
             return self._bootstrap()
+
+    def unlock_person(self, account_id: str, person_id: str, pin: Optional[str]) -> UnlockPersonResponse:
+        """Demo PIN check for switching person on a shared tablet. Not authentication:
+        no token is issued and later requests are not authorised by it."""
+        self._check_account(account_id)
+        if person_id not in seed.MEMBERSHIPS[account_id]["persons"]:
+            raise ApiError("NOT_FOUND", "人物不存在", {"personId": person_id})
+        expected = seed.PERSON_PINS.get(person_id)
+        if expected is not None and pin != expected:
+            raise ApiError("PIN_INVALID", "PIN 不正确", {"personId": person_id})
+        return UnlockPersonResponse(
+            person_id=person_id,
+            unlocked=True,
+            note="演示用 PIN，仅防止共享平板上误切换，不是登录认证",
+        )
+
+    def scenes(self, account_id: str) -> list[Scene]:
+        self._check_account(account_id)
+        return list(seed.SCENES)
 
     def device_state(self, account_id: str, space_id: str) -> DeviceState:
         self._check_space(account_id, space_id)

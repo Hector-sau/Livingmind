@@ -13,7 +13,10 @@ from app.contracts import (
     EventResult,
     InjectEventRequest,
     Plan,
+    ScenesResponse,
     StopServiceRequest,
+    UnlockPersonRequest,
+    UnlockPersonResponse,
     StopServiceResponse,
 )
 from app.services.rest_service import RestService, get_rest_service
@@ -25,6 +28,19 @@ Svc = Depends(get_rest_service)
 @router.get("/bootstrap", response_model=BootstrapResponse, operation_id="getBootstrap", tags=["demo"])
 def get_bootstrap(account_id: str = Query(alias="accountId"), svc: RestService = Svc) -> BootstrapResponse:
     return svc.bootstrap(account_id)
+
+
+@router.post(
+    "/persons/{person_id}/unlock", response_model=UnlockPersonResponse, operation_id="unlockPerson", tags=["demo"]
+)
+def unlock_person(person_id: str, body: UnlockPersonRequest, svc: RestService = Svc) -> UnlockPersonResponse:
+    """Demo PIN check before switching person. Not authentication."""
+    return svc.unlock_person(body.account_id, person_id, body.pin)
+
+
+@router.get("/scenes", response_model=ScenesResponse, operation_id="getScenes", tags=["demo"])
+def get_scenes(account_id: str = Query(alias="accountId"), svc: RestService = Svc) -> ScenesResponse:
+    return ScenesResponse(items=svc.scenes(account_id))
 
 
 @router.get("/spaces/{space_id}/devices", response_model=DeviceState, operation_id="getDeviceState", tags=["devices"])

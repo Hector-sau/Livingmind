@@ -10,10 +10,14 @@ def test_contracts_use_camel_case_on_the_wire():
         name="A",
         description="",
         rest_preference=RestPreference(light_brightness=20, ac_target_temp_c=24, curtain_open_percent=0),
+        is_guest=False,
+        has_pin=True,
+        avatar_color="#000000",
     )
     dumped = p.model_dump(by_alias=True)
     assert "personId" in dumped and "restPreference" in dumped
     assert "acTargetTempC" in dumped["restPreference"]
+    assert "pin" not in dumped and "hasPin" in dumped
 
 
 def test_openapi_exposes_core_schemas():

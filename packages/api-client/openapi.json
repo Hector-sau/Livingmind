@@ -474,6 +474,7 @@
               "PLAN_VERSION_MISMATCH",
               "SERVICE_ALREADY_ACTIVE",
               "SERVICE_NOT_ACTIVE",
+              "PIN_INVALID",
               "INTERNAL_ERROR"
             ],
             "title": "Code",
@@ -638,9 +639,24 @@
       },
       "Person": {
         "properties": {
+          "avatarColor": {
+            "description": "Display color for the avatar",
+            "title": "Avatarcolor",
+            "type": "string"
+          },
           "description": {
             "title": "Description",
             "type": "string"
+          },
+          "hasPin": {
+            "description": "A demo PIN guards switching to this person (the PIN itself is never sent)",
+            "title": "Haspin",
+            "type": "boolean"
+          },
+          "isGuest": {
+            "description": "Guest / shared-space context: space defaults, no personal profile",
+            "title": "Isguest",
+            "type": "boolean"
           },
           "name": {
             "title": "Name",
@@ -658,7 +674,10 @@
           "personId",
           "name",
           "description",
-          "restPreference"
+          "restPreference",
+          "isGuest",
+          "hasPin",
+          "avatarColor"
         ],
         "title": "Person",
         "type": "object"
@@ -948,6 +967,66 @@
         "title": "RestPreference",
         "type": "object"
       },
+      "Scene": {
+        "description": "Proactive-service scene shown in the app. Status must match the real implementation.",
+        "properties": {
+          "description": {
+            "title": "Description",
+            "type": "string"
+          },
+          "sceneId": {
+            "title": "Sceneid",
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "implemented",
+              "planned"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
+          "title": {
+            "title": "Title",
+            "type": "string"
+          },
+          "trigger": {
+            "title": "Trigger",
+            "type": "string"
+          },
+          "verification": {
+            "description": "How the status was verified, shown to users",
+            "title": "Verification",
+            "type": "string"
+          }
+        },
+        "required": [
+          "sceneId",
+          "title",
+          "description",
+          "status",
+          "verification",
+          "trigger"
+        ],
+        "title": "Scene",
+        "type": "object"
+      },
+      "ScenesResponse": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/Scene"
+            },
+            "title": "Items",
+            "type": "array"
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "title": "ScenesResponse",
+        "type": "object"
+      },
       "Service": {
         "properties": {
           "adjustments": {
@@ -1040,6 +1119,9 @@
       },
       "Space": {
         "properties": {
+          "defaultRestPreference": {
+            "$ref": "#/components/schemas/RestPreference"
+          },
           "name": {
             "title": "Name",
             "type": "string"
@@ -1051,7 +1133,8 @@
         },
         "required": [
           "spaceId",
-          "name"
+          "name",
+          "defaultRestPreference"
         ],
         "title": "Space",
         "type": "object"
@@ -1082,6 +1165,55 @@
           "deviceState"
         ],
         "title": "StopServiceResponse",
+        "type": "object"
+      },
+      "UnlockPersonRequest": {
+        "description": "Demo PIN check before switching person on a shared tablet. NOT authentication.",
+        "properties": {
+          "accountId": {
+            "title": "Accountid",
+            "type": "string"
+          },
+          "pin": {
+            "anyOf": [
+              {
+                "maxLength": 8,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pin"
+          }
+        },
+        "required": [
+          "accountId"
+        ],
+        "title": "UnlockPersonRequest",
+        "type": "object"
+      },
+      "UnlockPersonResponse": {
+        "properties": {
+          "note": {
+            "title": "Note",
+            "type": "string"
+          },
+          "personId": {
+            "title": "Personid",
+            "type": "string"
+          },
+          "unlocked": {
+            "title": "Unlocked",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "personId",
+          "unlocked",
+          "note"
+        ],
+        "title": "UnlockPersonResponse",
         "type": "object"
       }
     }
@@ -1251,6 +1383,99 @@
           }
         },
         "summary": "Reset Demo",
+        "tags": [
+          "demo"
+        ]
+      }
+    },
+    "/api/persons/{person_id}/unlock": {
+      "post": {
+        "description": "Demo PIN check before switching person. Not authentication.",
+        "operationId": "unlockPerson",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "person_id",
+            "required": true,
+            "schema": {
+              "title": "Person Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UnlockPersonRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UnlockPersonResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          }
+        },
+        "summary": "Unlock Person",
         "tags": [
           "demo"
         ]
@@ -1426,6 +1651,88 @@
         "summary": "Confirm Plan",
         "tags": [
           "plans"
+        ]
+      }
+    },
+    "/api/scenes": {
+      "get": {
+        "operationId": "getScenes",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "accountId",
+            "required": true,
+            "schema": {
+              "title": "Accountid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ScenesResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          }
+        },
+        "summary": "Get Scenes",
+        "tags": [
+          "demo"
         ]
       }
     },

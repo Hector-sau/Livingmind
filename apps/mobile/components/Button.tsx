@@ -38,7 +38,8 @@ export function Button({ label, onPress, variant = 'primary', disabled, loading,
 const styles = StyleSheet.create({
   base: {
     minHeight: 48,
-    paddingHorizontal: space.xl,
+    paddingHorizontal: space.lg + 4,
+    flexShrink: 0,
     borderRadius: radius.md,
     flexDirection: 'row',
     alignItems: 'center',
@@ -50,6 +51,6 @@ const styles = StyleSheet.create({
   danger: { backgroundColor: colors.red },
   inactive: { opacity: 0.45 },
   pressed: { opacity: 0.8 },
-  label: { color: '#fff', fontSize: font.body, fontWeight: '600' },
+  label: { color: '#fff', fontSize: font.body, fontWeight: '600', flexShrink: 0 },
   labelSecondary: { color: colors.blue },
 });

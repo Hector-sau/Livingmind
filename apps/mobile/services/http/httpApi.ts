@@ -8,7 +8,9 @@ import type {
   ErrorResponse,
   EventResult,
   Plan,
+  ScenesResponse,
   StopServiceResponse,
+  UnlockPersonResponse,
 } from '../types';
 
 export interface HttpOptions {
@@ -75,6 +77,9 @@ export function createHttpApi(options: HttpOptions): LivingMindApi {
   return {
     mode: 'http',
     bootstrap: () => request<BootstrapResponse>('GET', `/api/bootstrap?${q}`).then(learnPlannerTimeout),
+    unlockPerson: (personId, pin) =>
+      request<UnlockPersonResponse>('POST', `/api/persons/${encodeURIComponent(personId)}/unlock`, { accountId, pin }),
+    getScenes: () => request<ScenesResponse>('GET', `/api/scenes?${q}`),
     getDeviceState: (spaceId) =>
       request<DeviceState>('GET', `/api/spaces/${encodeURIComponent(spaceId)}/devices?${q}`),
     createRestPlan: (req) => request<Plan>('POST', '/api/plans/rest', req, planTimeoutMs),

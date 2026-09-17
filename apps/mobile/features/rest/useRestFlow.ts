@@ -5,26 +5,33 @@ import type {
   ActionResult,
   ActivityRecord,
   BootstrapResponse,
+  ConfirmPlanResponse,
   DeviceState,
+  EventResult,
   Plan,
   PlannerMode,
   RequestContext,
+  Scene,
   Service,
+  StopServiceResponse,
 } from '../../services/types';
 import { planBlockReason } from './planGate';
 
-export type Busy = null | 'plan' | 'confirm' | 'stop' | 'refresh' | 'reset' | 'event';
+export type Busy = null | 'plan' | 'confirm' | 'stop' | 'refresh' | 'reset' | 'event' | 'unlock';
 
 export interface FlowError {
   message: string;
   connectivity: boolean;
+  code: string | null;
 }
+
+export type Outcome<T> = { ok: true; value: T } | { ok: false; error: FlowError };
 
 export interface RestFlowState {
   phase: 'loading' | 'error' | 'ready';
   data: BootstrapResponse | null;
+  scenes: Scene[];
   personId: string | null;
-  utterance: string;
   mode: PlannerMode;
   plan: Plan | null;
   service: Service | null;
@@ -40,8 +47,8 @@ export interface RestFlowState {
 const initial: RestFlowState = {
   phase: 'loading',
   data: null,
+  scenes: [],
   personId: null,
-  utterance: '我想休息',
   mode: 'rule',
   plan: null,
   service: null,
@@ -55,9 +62,11 @@ const initial: RestFlowState = {
 };
 
 function toFlowError(e: unknown): FlowError {
-  if (e instanceof ApiError) return { message: e.message, connectivity: e.isConnectivity };
-  return { message: '发生未知错误', connectivity: false };
+  if (e instanceof ApiError) return { message: e.message, connectivity: e.isConnectivity, code: e.code };
+  return { message: '发生未知错误', connectivity: false, code: null };
 }
+
+const NO_CONTEXT: Outcome<never> = { ok: false, error: { message: '还没有选择人物', connectivity: false, code: null } };
 
 export function useRestFlow(api: LivingMindApi) {
   const [state, setState] = useState<RestFlowState>(initial);
@@ -108,6 +117,8 @@ export function useRestFlow(api: LivingMindApi) {
     try {
       const data = await api.bootstrap();
       applyBootstrap(data, false);
+      const scenes = await api.getScenes().catch(() => ({ items: [] as Scene[] }));
+      patch({ scenes: scenes.items });
       await loadActivity(data.defaultSpaceId);
     } catch (e) {
       patch({ phase: 'error', error: toFlowError(e) });
@@ -118,10 +129,11 @@ export function useRestFlow(api: LivingMindApi) {
     void load();
   }, [load]);
 
-  const fail = useCallback((e: unknown) => {
+  const fail = useCallback(<T,>(e: unknown): Outcome<T> => {
     const err = toFlowError(e);
     // Connectivity problems mean the shown device state may no longer be true.
     setState((s) => ({ ...s, busy: null, error: err, deviceStale: s.deviceStale || err.connectivity }));
+    return { ok: false, error: err };
   }, []);
 
   const selectPerson = useCallback(
@@ -134,24 +146,44 @@ export function useRestFlow(api: LivingMindApi) {
     [patch],
   );
 
-  const createPlan = useCallback(async () => {
-    const ctx = context();
-    const s = stateRef.current;
-    if (!ctx || !s.utterance.trim()) return;
-    patch({ busy: 'plan', error: null, info: null });
-    try {
-      const plan = await api.createRestPlan({ context: ctx, utterance: s.utterance.trim(), mode: s.mode });
-      patch({ plan, results: [], busy: null });
-      await loadActivity(ctx.spaceId);
-    } catch (e) {
-      fail(e);
-    }
-  }, [api, context, fail, loadActivity, patch]);
+  /** Demo PIN check, then switch. Not authentication. Errors stay local to the PIN dialog. */
+  const unlockPerson = useCallback(
+    async (personId: string, pin: string | null): Promise<Outcome<true>> => {
+      patch({ busy: 'unlock' });
+      try {
+        await api.unlockPerson(personId, pin);
+        patch({ busy: null });
+        selectPerson(personId);
+        return { ok: true, value: true };
+      } catch (e) {
+        patch({ busy: null });
+        return { ok: false, error: toFlowError(e) };
+      }
+    },
+    [api, patch, selectPerson],
+  );
 
-  const confirm = useCallback(async () => {
+  const createPlan = useCallback(
+    async (utterance: string): Promise<Outcome<Plan>> => {
+      const ctx = context();
+      if (!ctx || !utterance.trim()) return NO_CONTEXT;
+      patch({ busy: 'plan', error: null, info: null });
+      try {
+        const plan = await api.createRestPlan({ context: ctx, utterance: utterance.trim(), mode: stateRef.current.mode });
+        patch({ plan, results: [], busy: null });
+        await loadActivity(ctx.spaceId);
+        return { ok: true, value: plan };
+      } catch (e) {
+        return fail(e);
+      }
+    },
+    [api, context, fail, loadActivity, patch],
+  );
+
+  const confirm = useCallback(async (): Promise<Outcome<ConfirmPlanResponse>> => {
     const ctx = context();
     const plan = stateRef.current.plan;
-    if (!ctx || !plan) return;
+    if (!ctx || !plan) return NO_CONTEXT;
     patch({ busy: 'confirm', error: null, info: null });
     try {
       const res = await api.confirmPlan(plan.planId, { context: ctx, planVersion: plan.version });
@@ -165,35 +197,54 @@ export function useRestFlow(api: LivingMindApi) {
         info: res.repeated ? '该计划已经执行过，本次没有重复执行' : null,
       });
       await loadActivity(ctx.spaceId);
+      return { ok: true, value: res };
     } catch (e) {
       if (e instanceof ApiError && (e.code === 'PLAN_EXPIRED' || e.code === 'PLAN_INVALIDATED')) {
         const status = e.code === 'PLAN_EXPIRED' ? 'expired' : 'invalidated';
         setState((s) => ({ ...s, plan: s.plan ? { ...s.plan, status } : null }));
       }
-      fail(e);
+      const out = fail<ConfirmPlanResponse>(e);
       await loadActivity(ctx.spaceId);
+      return out;
     }
   }, [api, context, fail, loadActivity, patch]);
 
-  const stop = useCallback(async () => {
+  const stop = useCallback(async (): Promise<Outcome<StopServiceResponse>> => {
     const ctx = context();
     const service = stateRef.current.service;
-    if (!ctx || !service) return;
+    if (!ctx || !service) return NO_CONTEXT;
     patch({ busy: 'stop', error: null, info: null });
     try {
       const res = await api.stopService(service.serviceId, { context: ctx });
-      patch({
-        service: res.service,
-        deviceState: res.deviceState,
-        deviceStale: false,
-        busy: null,
-        info: '服务已停止，设备保持当前状态',
-      });
+      patch({ service: res.service, deviceState: res.deviceState, deviceStale: false, busy: null });
       await loadActivity(ctx.spaceId);
+      return { ok: true, value: res };
     } catch (e) {
-      fail(e);
+      return fail(e);
     }
   }, [api, context, fail, loadActivity, patch]);
+
+  const injectEvent = useCallback(
+    async (roomTempC: number): Promise<Outcome<EventResult>> => {
+      const ctx = context();
+      if (!ctx) return NO_CONTEXT;
+      patch({ busy: 'event', error: null, info: null });
+      try {
+        const res = await api.injectEvent(ctx.spaceId, { context: ctx, type: 'room_temperature_changed', roomTempC });
+        patch({
+          service: res.service ?? stateRef.current.service,
+          deviceState: res.deviceState,
+          deviceStale: false,
+          busy: null,
+        });
+        await loadActivity(ctx.spaceId);
+        return { ok: true, value: res };
+      } catch (e) {
+        return fail(e);
+      }
+    },
+    [api, context, fail, loadActivity, patch],
+  );
 
   const refresh = useCallback(async () => {
     const sid = stateRef.current.data?.defaultSpaceId;
@@ -208,40 +259,16 @@ export function useRestFlow(api: LivingMindApi) {
     }
   }, [api, fail, loadActivity, patch]);
 
-  const injectEvent = useCallback(
-    async (roomTempC: number) => {
-      const ctx = context();
-      if (!ctx) return;
-      patch({ busy: 'event', error: null, info: null });
-      try {
-        const res = await api.injectEvent(ctx.spaceId, { context: ctx, type: 'room_temperature_changed', roomTempC });
-        patch({
-          service: res.service ?? stateRef.current.service,
-          deviceState: res.deviceState,
-          deviceStale: false,
-          busy: null,
-          info:
-            res.outcome === 'adjusted'
-              ? `模拟事件：室温 ${roomTempC}°C → 已自动调整：${res.plan?.summary ?? ''}`
-              : `模拟事件：室温 ${roomTempC}°C → 未调整：${res.reason ?? ''}`,
-        });
-        await loadActivity(ctx.spaceId);
-      } catch (e) {
-        fail(e);
-      }
-    },
-    [api, context, fail, loadActivity, patch],
-  );
-
-  const resetDemo = useCallback(async () => {
+  const resetDemo = useCallback(async (): Promise<Outcome<true>> => {
     patch({ busy: 'reset', error: null, info: null });
     try {
       const data = await api.resetDemo();
       applyBootstrap(data, true);
       patch({ busy: null, info: '演示数据已重置' });
       await loadActivity(data.defaultSpaceId);
+      return { ok: true, value: true };
     } catch (e) {
-      fail(e);
+      return fail(e);
     }
   }, [api, applyBootstrap, fail, loadActivity, patch]);
 
@@ -260,12 +287,13 @@ export function useRestFlow(api: LivingMindApi) {
     () => planBlockReason(state.plan, activeService, state.personId, now),
     [state.plan, activeService, state.personId, now],
   );
+  const person = state.data?.persons.find((p) => p.personId === state.personId) ?? null;
 
   const actions = useMemo(
     () => ({
       load,
       selectPerson,
-      setUtterance: (utterance: string) => patch({ utterance }),
+      unlockPerson,
       setMode: (mode: PlannerMode) => patch({ mode }),
       createPlan,
       confirm,
@@ -276,10 +304,10 @@ export function useRestFlow(api: LivingMindApi) {
       dismissError: () => patch({ error: null }),
       dismissInfo: () => patch({ info: null }),
     }),
-    [load, selectPerson, patch, createPlan, confirm, stop, refresh, injectEvent, resetDemo],
+    [load, selectPerson, unlockPerson, patch, createPlan, confirm, stop, refresh, injectEvent, resetDemo],
   );
 
-  return { state, activeService, blockReason, actions };
+  return { state, person, activeService, blockReason, actions };
 }
 
 export type RestFlow = ReturnType<typeof useRestFlow>;

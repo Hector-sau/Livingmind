@@ -116,16 +116,46 @@ def reset_backend() -> None:
 
 def open_app(page: Page, url: str) -> None:
     page.goto(url)
-    page.get_by_role("button", name="生成休息计划").wait_for(timeout=20000)
+    page.get_by_test_id("composer-input").wait_for(timeout=20000)
 
 
-def generate(page: Page, utterance: str | None = None, mode: str | None = None) -> None:
-    if mode:
-        page.get_by_test_id(f"mode-{mode}").click()
-    if utterance is not None:
-        page.get_by_label("需求输入").fill(utterance)
-    page.get_by_role("button", name="生成休息计划").click()
-    page.get_by_text("休息计划").first.wait_for()
+def tab(page: Page, name: str) -> None:
+    page.get_by_test_id(f"tab-{name}").click()
+    page.wait_for_timeout(150)
+
+
+def set_mode(page: Page, mode: str) -> None:
+    page.get_by_test_id(f"mode-{mode}").click()
+
+
+def send(page: Page, text: str) -> None:
+    """Send a chat message and wait for the assistant's plan card (or a system message)."""
+    before = page.get_by_text("我的建议").count() + page.get_by_test_id("system-message").count()
+    page.get_by_test_id("composer-input").fill(text)
+    page.get_by_test_id("composer-send").click()
+    page.wait_for_function(
+        "n => document.body.innerText.split('我的建议').length - 1 + "
+        "document.querySelectorAll('[data-testid=system-message]').length > n",
+        arg=before,
+        timeout=20000,
+    )
+
+
+def wait_person(page: Page, name: str) -> None:
+    page.wait_for_function(
+        "name => (document.querySelector('[data-testid=current-person]') || {}).innerText?.includes(name)",
+        arg=name,
+        timeout=10000,
+    )
+
+
+def switch_person(page: Page, person_id: str, pin: str | None, name: str) -> None:
+    tab(page, "me")
+    page.get_by_test_id(f"person-option-{person_id}").click()
+    if pin is not None:
+        page.get_by_test_id("pin-input").fill(pin)
+        page.get_by_test_id("pin-submit").click()
+    wait_person(page, name)
 
 
 def body(page: Page) -> str:
@@ -136,28 +166,88 @@ def shot(page: Page, name: str) -> None:
     page.screenshot(path=str(SCREENS / f"{name}.png"), full_page=True)
 
 
+def last_system(page: Page) -> str:
+    return page.get_by_test_id("system-message").last.inner_text()
+
+
 # ---------- scenarios ----------
 
 
 def scenario_full_flow(page: Page, url: str, label: str, viewport: str) -> None:
-    """Pick person -> plan (devices unchanged) -> confirm -> running -> stop."""
+    """PIN switch -> chat -> plan (devices unchanged) -> confirm -> result -> stop."""
     open_app(page, url)
-    page.get_by_text("陈川", exact=True).click()
-    generate(page, "我想休息", "rule")
+    switch_person(page, "person-chen", "1357", "陈川")
+    tab(page, "chat")
+    set_mode(page, "rule")
+    send(page, "我想休息")
     page.get_by_test_id("confirm-plan").wait_for()
-    text = body(page)
-    assert "空调设定 22°C" in text, "陈川's plan should use 22°C"
-    assert "80%" in text, "devices must not change before confirmation"
+    assert "空调设定 22°C" in body(page), "陈川's plan should use 22°C"
+    tab(page, "space")
+    assert "80%" in body(page), "devices must not change before confirmation"
+    tab(page, "chat")
     shot(page, f"{label}-{viewport}-plan")
     page.get_by_test_id("confirm-plan").click()
-    page.get_by_text("运行中", exact=True).wait_for()
-    page.wait_for_timeout(500)
-    text = body(page)
-    assert "22°C" in text and "10%" in text
+    page.get_by_test_id("result-card").wait_for()
+    page.get_by_test_id("service-strip").first.wait_for()
+    text = page.get_by_test_id("result-card").inner_text()
+    assert "22°C" in text and "10%" in text, text
     shot(page, f"{label}-{viewport}-running")
-    page.get_by_test_id("stop-service").click()
-    page.get_by_text("已停止", exact=True).wait_for()
+    page.get_by_test_id("stop-service").first.click()
+    page.get_by_text("休息服务已停止", exact=False).wait_for()
+    assert page.get_by_test_id("service-strip").count() == 0
     shot(page, f"{label}-{viewport}-stopped")
+
+
+def scenario_pin_and_evidence(page: Page, url: str) -> None:
+    """Wrong PIN is refused; evidence panel is hidden until switched on."""
+    open_app(page, url)
+    tab(page, "me")
+    assert page.get_by_test_id("evidence-panel").count() == 0
+    page.get_by_test_id("person-option-person-zhou").click()
+    page.get_by_test_id("pin-input").fill("0000")
+    page.get_by_test_id("pin-submit").click()
+    page.get_by_test_id("pin-error").wait_for()
+    assert "PIN 不正确" in page.get_by_test_id("pin-error").inner_text()
+    assert "林悦" in page.get_by_test_id("current-person").inner_text()
+    page.get_by_test_id("pin-input").fill("8024")
+    page.get_by_test_id("pin-submit").click()
+    wait_person(page, "周禾")
+    assert "26.5°C" in body(page), "only 周禾's own preferences are shown"
+    assert "25°C" not in page.get_by_text("我的休息偏好", exact=False).locator("..").inner_text()
+    page.get_by_test_id("evidence-switch").click()
+    page.get_by_test_id("evidence-panel").wait_for()
+    shot(page, "me-evidence")
+
+
+def scenario_guest_and_scenes(page: Page, url: str) -> None:
+    open_app(page, url)
+    switch_person(page, "person-guest", None, "访客")
+    tab(page, "chat")
+    assert "访客模式" in body(page)
+    set_mode(page, "rule")
+    send(page, "我想休息")
+    page.get_by_test_id("confirm-plan").wait_for()
+    assert "访客" in body(page) and "没有读取任何个人偏好" in body(page)
+    shot(page, "guest-plan")
+    tab(page, "scenes")
+    labels = {
+        sid: page.get_by_test_id(f"scene-card-{sid}").inner_text().split("\n")[1]
+        for sid in ("scene-rest", "scene-room-temp", "scene-wake")
+    }
+    assert labels == {"scene-rest": "已实现", "scene-room-temp": "已实现", "scene-wake": "规划中"}, labels
+    page.get_by_test_id("scene-card-scene-wake").click()
+    page.get_by_text("尚未实现，暂无执行记录", exact=False).wait_for()
+    shot(page, "scenes")
+
+
+def scenario_mock_model(page: Page) -> None:
+    """Mock mode never pretends to call a model."""
+    open_app(page, f"http://localhost:{MOCK_PORT}/")
+    set_mode(page, "model")
+    send(page, "我想休息，有点热")
+    page.get_by_test_id("confirm-plan").wait_for()
+    assert "前端模拟模式没有模型" in body(page)
+    shot(page, "mock-model-fallback")
 
 
 def post_event(page: Page, temp: float) -> dict:
@@ -174,93 +264,88 @@ def post_event(page: Page, temp: float) -> dict:
 
 
 def scenario_event(page: Page, url: str, label: str, backend_api: bool) -> None:
-    """Rest -> simulated room-temperature event -> one automatic adjustment -> stop -> later events do nothing."""
+    """Rest -> simulated room-temperature event -> one automatic adjustment -> cooldown -> stop -> nothing."""
     open_app(page, url)
-    generate(page, "我想休息", "rule")  # 林悦: AC 25
+    set_mode(page, "rule")
+    send(page, "我想休息")  # 林悦: AC 25
     page.get_by_test_id("confirm-plan").click()
-    page.get_by_text("运行中", exact=True).wait_for()
-    page.get_by_test_id("inject-event").click()
+    page.get_by_test_id("service-strip").first.wait_for()
+    page.get_by_test_id("inject-event").first.click()
     page.get_by_text("已自动调整", exact=False).wait_for(timeout=10000)
-    page.wait_for_timeout(300)
-    text = body(page)
-    assert "24°C" in text and "自动调整 1 次" in text, text[:600]
-    assert "模拟事件" in text
+    msg = last_system(page)
+    assert "空调调整到 24°C" in msg and "模拟事件" in msg, msg
+    assert "自动调整 1 次" in body(page)
     shot(page, f"{label}-event-adjusted")
-    page.get_by_test_id("inject-event").click()
+    page.get_by_test_id("inject-event").first.click()
     page.get_by_text("未调整：冷却中", exact=False).wait_for(timeout=10000)
-    page.get_by_test_id("stop-service").click()
-    page.get_by_text("已停止", exact=True).wait_for()
+    page.get_by_test_id("stop-service").first.click()
+    page.get_by_text("休息服务已停止", exact=False).wait_for()
     if backend_api:
         before = page.request.get(f"{API}/api/spaces/space-home-bedroom/devices?accountId=demo-account").json()
         result = post_event(page, 32)
         after = page.request.get(f"{API}/api/spaces/space-home-bedroom/devices?accountId=demo-account").json()
         assert result["outcome"] == "ignored" and after["version"] == before["version"]
-    shot(page, f"{label}-event-stopped")
-
-
-def scenario_mock_model(page: Page) -> None:
-    """Mock mode never pretends to call a model."""
-    open_app(page, f"http://localhost:{MOCK_PORT}/")
-    generate(page, "我想休息，有点热", "model")
-    page.get_by_test_id("confirm-plan").wait_for()
-    text = body(page)
-    assert "前端模拟模式没有模型" in text
-    shot(page, "mock-model-fallback")
+    tab(page, "scenes")
+    page.get_by_test_id("scene-card-scene-room-temp").click()
+    page.get_by_text("自动调整：", exact=False).first.wait_for()
+    shot(page, f"{label}-event-timeline")
 
 
 def scenario_model_paths(page: Page) -> None:
     """Model plan, timeout fallback, and deviation-limit fallback against the backend (stubbed model)."""
     open_app(page, f"http://localhost:{HTTP_PORT}/")
-    generate(page, "我想休息，有点热", "model")
+    set_mode(page, "model")
+    send(page, "我想休息，有点热")
     page.get_by_test_id("confirm-plan").wait_for()
     text = body(page)
     assert "模型计划" in text and "deepseek/" in text and "24°C" in text, text[:400]
     shot(page, "http-model-plan")
 
-    generate(page, "慢一点")
-    page.get_by_text("默认方案 / 规则降级", exact=False).wait_for(timeout=15000)
-    assert "模型响应超过" in body(page)
+    send(page, "慢一点")
+    page.get_by_text("默认方案 / 规则降级：模型响应超过", exact=False).wait_for(timeout=15000)
     shot(page, "http-timeout-fallback")
 
-    generate(page, "我想休息，要很亮")
+    send(page, "我想休息，要很亮")
     page.get_by_text("默认方案 / 规则降级：模型建议偏离偏好过大", exact=False).wait_for(timeout=10000)
     shot(page, "http-deviation-fallback")
 
     page.get_by_test_id("confirm-plan").click()
-    page.get_by_text("运行中", exact=True).wait_for()
-    page.wait_for_timeout(500)
-    assert "25°C" in body(page), "fallback must use 林悦's own preference"
+    page.get_by_test_id("result-card").wait_for()
+    assert "25°C" in page.get_by_test_id("result-card").last.inner_text(), "fallback must use 林悦's own preference"
 
 
 def scenario_real_model(page: Page) -> None:
     """Real provider: a model plan (or a clearly labelled fallback) appears, then confirm and stop."""
     open_app(page, f"http://localhost:{HTTP_PORT}/")
+    set_mode(page, "model")
     started = time.monotonic()
-    generate(page, "我想休息，有点热", "model")
-    page.get_by_test_id("confirm-plan").wait_for(timeout=30000)
+    send(page, "我想休息，有点热")
     elapsed = int((time.monotonic() - started) * 1000)
+    page.get_by_test_id("confirm-plan").wait_for(timeout=30000)
     text = body(page)
     assert ("模型计划" in text) or ("默认方案 / 规则降级" in text), "plan source must be labelled"
     print(f"  real-model: submit -> plan shown in {elapsed} ms ({'model' if '请求模型 · deepseek/' in text else 'fallback'})")
     shot(page, "real-model-plan")
     page.get_by_test_id("confirm-plan").click()
-    page.get_by_text("运行中", exact=True).wait_for()
-    page.get_by_test_id("stop-service").click()
-    page.get_by_text("已停止", exact=True).wait_for()
+    page.get_by_test_id("result-card").wait_for()
+    page.get_by_test_id("stop-service").first.click()
+    page.get_by_text("休息服务已停止", exact=False).wait_for()
     shot(page, "real-model-stopped")
 
 
 def scenario_offline(page: Page, backend: subprocess.Popen) -> None:
     """Backend goes away: the app reports it and never fakes success."""
     open_app(page, f"http://localhost:{HTTP_PORT}/")
-    generate(page, "我想休息", "rule")
+    set_mode(page, "rule")
+    send(page, "我想休息")
     page.get_by_test_id("confirm-plan").wait_for()
     backend.terminate()
     backend.wait(timeout=10)
     page.get_by_test_id("confirm-plan").click()
-    page.get_by_text("无法连接后端", exact=False).wait_for(timeout=15000)
-    text = body(page)
-    assert "可能已过期" in text and "80%" in text and "运行中" not in text
+    page.get_by_text("无法连接后端", exact=False).first.wait_for(timeout=15000)
+    assert "可能已过期" in body(page)
+    assert page.get_by_test_id("result-card").count() == 0
+    assert page.get_by_test_id("service-strip").count() == 0
     shot(page, "http-offline")
 
 
@@ -322,6 +407,19 @@ def main() -> int:
                 scenario_event(page, f"http://localhost:{HTTP_PORT}/", "http", True)
 
             run("http-event", http_event)
+
+            def http_pin(page):
+                reset_backend()
+                scenario_pin_and_evidence(page, f"http://localhost:{HTTP_PORT}/")
+
+            run("http-pin-evidence", http_pin)
+            run("mock-pin-evidence", lambda page: scenario_pin_and_evidence(page, f"http://localhost:{MOCK_PORT}/"))
+
+            def http_guest(page):
+                reset_backend()
+                scenario_guest_and_scenes(page, f"http://localhost:{HTTP_PORT}/")
+
+            run("http-guest-scenes", http_guest)
 
             if args.real_model:
                 def real_model(page):

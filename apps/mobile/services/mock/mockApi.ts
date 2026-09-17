@@ -18,7 +18,7 @@ import type {
   StopServiceRequest,
   StopServiceResponse,
 } from '../types';
-import { MOCK_ACCOUNT, MOCK_INITIAL_DEVICES, MOCK_PERSONS, MOCK_SPACES } from './seed';
+import { MOCK_ACCOUNT, MOCK_INITIAL_DEVICES, MOCK_PERSONS, MOCK_PINS, MOCK_SCENES, MOCK_SPACES } from './seed';
 
 const PLAN_TTL_MS = 10 * 60 * 1000;
 // Mirrors backend config defaults and backend/app/rules/rest_rule.py adjustment_rule.
@@ -119,6 +119,17 @@ export function createMockApi(options: MockOptions = {}): LivingMindApi {
       return delay(bootstrap());
     },
 
+    async unlockPerson(personId: string, pin: string | null) {
+      if (!MOCK_PERSONS.some((p) => p.personId === personId)) throw new ApiError('NOT_FOUND', '人物不存在', 404);
+      const expected = MOCK_PINS[personId];
+      if (expected !== undefined && pin !== expected) throw new ApiError('PIN_INVALID', 'PIN 不正确', 403);
+      return delay({ personId, unlocked: true, note: '演示用 PIN，仅防止共享平板上误切换，不是登录认证' });
+    },
+
+    async getScenes() {
+      return delay({ items: MOCK_SCENES });
+    },
+
     async getDeviceState() {
       return delay(devices);
     },
@@ -142,8 +153,9 @@ export function createMockApi(options: MockOptions = {}): LivingMindApi {
         spaceId: req.context.spaceId,
         scenario: 'rest',
         source: 'frontend_mock',
-        summary: `按 ${person.name} 的休息偏好调整灯光、空调和窗帘`,
+        summary: person.isGuest ? '按空间默认设置调整灯光、空调和窗帘（访客）' : `按 ${person.name} 的休息偏好调整灯光、空调和窗帘`,
         notes: [
+          ...(person.isGuest ? ['访客模式：使用空间默认设置，没有读取任何个人偏好'] : []),
           wantsModel ? `前端模拟：${fallbackReason}` : '前端模拟：计划由本地规则生成，没有调用后端或模型',
           '当前为固定休息场景，输入文字只做记录，不做语义理解',
         ],

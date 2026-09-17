@@ -1,27 +1,85 @@
-// Front-end mock seed. Mirrors backend/app/demo/seed.py so both modes tell the same story.
-import type { DemoAccount, Person, Space } from '../types';
+// Front-end mock seed. Mirrors backend/app/demo/seed.py (see docs/test-data.md).
+import type { DemoAccount, Person, RestPreference, Scene, Space } from '../types';
 
 export const MOCK_ACCOUNT: DemoAccount = {
   accountId: 'demo-account',
-  displayName: '演示账户',
+  displayName: '演示家庭',
   isDemo: true,
 };
+
+const SPACE_DEFAULT: RestPreference = { lightBrightness: 30, acTargetTempC: 25, curtainOpenPercent: 0 };
+
+export const GUEST_PERSON_ID = 'person-guest';
 
 export const MOCK_PERSONS: Person[] = [
   {
     personId: 'person-lin',
     name: '林悦',
-    description: '喜欢暗一点、偏暖的休息环境',
+    description: '设计师，夜里怕亮，喜欢暗一点、偏暖的休息环境',
     restPreference: { lightBrightness: 15, acTargetTempC: 25, curtainOpenPercent: 0 },
+    isGuest: false,
+    hasPin: true,
+    avatarColor: '#4469F0',
   },
   {
     personId: 'person-chen',
     name: '陈川',
-    description: '怕热，习惯留一点窗帘缝',
+    description: '工程师，怕热，习惯留一点窗帘缝透气',
     restPreference: { lightBrightness: 30, acTargetTempC: 22, curtainOpenPercent: 10 },
+    isGuest: false,
+    hasPin: true,
+    avatarColor: '#24A67A',
+  },
+  {
+    personId: 'person-zhou',
+    name: '周禾',
+    description: '早睡早起，喜欢保留一点自然光，室温偏暖',
+    restPreference: { lightBrightness: 20, acTargetTempC: 26.5, curtainOpenPercent: 25 },
+    isGuest: false,
+    hasPin: true,
+    avatarColor: '#B7791F',
+  },
+  {
+    personId: GUEST_PERSON_ID,
+    name: '访客',
+    description: '未选择个人账号：使用空间默认设置，不读取任何个人偏好',
+    restPreference: SPACE_DEFAULT,
+    isGuest: true,
+    hasPin: false,
+    avatarColor: '#66738A',
   },
 ];
 
-export const MOCK_SPACES: Space[] = [{ spaceId: 'space-home-bedroom', name: '家 · 主卧' }];
+// Demo-only PINs (mirror of the backend). Not authentication.
+export const MOCK_PINS: Record<string, string> = { 'person-lin': '2468', 'person-chen': '1357', 'person-zhou': '8024' };
+
+export const MOCK_SPACES: Space[] = [{ spaceId: 'space-home-bedroom', name: '家 · 主卧', defaultRestPreference: SPACE_DEFAULT }];
 
 export const MOCK_INITIAL_DEVICES = { lightBrightness: 80, acTargetTempC: 26, curtainOpenPercent: 100 };
+
+export const MOCK_SCENES: Scene[] = [
+  {
+    sceneId: 'scene-rest',
+    title: '我想休息',
+    description: '一句话生成休息计划，确认后调整灯光、空调和窗帘',
+    status: 'implemented',
+    verification: '后端与前端测试、网页端到端验证；真机未验证',
+    trigger: '用户表达',
+  },
+  {
+    sceneId: 'scene-room-temp',
+    title: '室温变化后自动调整',
+    description: '休息服务运行中，室温偏离设定时自动调整空调，有冷却时间和次数上限',
+    status: 'implemented',
+    verification: '后端与前端测试、网页端到端验证（模拟事件，无真实传感器）；真机未验证',
+    trigger: '环境事件（模拟）',
+  },
+  {
+    sceneId: 'scene-wake',
+    title: '起床渐进唤醒',
+    description: '按起床时间逐步打开窗帘、调亮灯光',
+    status: 'planned',
+    verification: '尚未实现（计划在步骤 ⑦）',
+    trigger: '定时（规划中）',
+  },
+];
