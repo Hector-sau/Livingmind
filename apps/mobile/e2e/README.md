@@ -15,6 +15,14 @@ python -m playwright install chromium         # 一次
 python e2e/run_e2e.py                         # 构建两份网页版 + 启动服务 + 跑全部场景
 ```
 
+用真实 DeepSeek 跑（读取 `backend/.env`，脚本本身不读取、不打印密钥）：
+
+```bash
+python e2e/run_e2e.py --real-model
+```
+
+这时会跳过依赖本地桩的场景（超时、偏离上限），改跑 `http-real-model`：真实模型出计划 → 确认 → 停止，并打印“提交到显示计划”的耗时。
+
 需要先按 README 建好 `backend/.venv`。也可以用 `BACKEND_PYTHON=/path/to/python` 指定后端解释器。
 截图输出到 `e2e/.out/screens/`（已被 Git 忽略）。
 
@@ -26,6 +34,7 @@ python e2e/run_e2e.py                         # 构建两份网页版 + 启动�
 | http-flow-tablet / phone | 同上，连接真实后端 |
 | mock-model-fallback | 前端模拟下选模型模式，显示“前端模拟模式没有模型” |
 | http-model-paths | 模型计划（桩）、超时降级、偏离上限降级，并确认降级计划用的是本人偏好 |
+| http-real-model（仅 `--real-model`） | 真实 DeepSeek：计划出现且来源有标注 → 确认 → 停止；打印端到端耗时 |
 | http-offline | 关掉后端后点确认，显示“无法连接后端 / 可能已过期”，不假装成功 |
 
 使用端口 8190、8191（静态页面）、8110（后端）、8195（模型桩），不会占用日常开发的 8000 / 8081。

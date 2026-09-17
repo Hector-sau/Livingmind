@@ -59,11 +59,15 @@ uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 
 **启用模型模式（DeepSeek）**：`cp .env.example .env`，填写 `DEEPSEEK_API_KEY`，然后启动时加 `--env-file .env`。密钥只放在后端 `.env`（已被 Git 忽略），绝不写进 App。不填密钥时模型模式会降级为规则计划并标注原因。
 
-验证一次真实模型调用并记录延迟：
+验证真实模型（需要 `.env` 里的密钥，只能在你自己的电脑上跑）：
 
 ```bash
-cd backend && set -a && source .env && set +a && .venv/bin/python scripts/try_model.py "我想休息，有点热"
+cd backend && set -a && source .env && set +a
+.venv/bin/python scripts/try_model.py "我想休息，有点热"   # 只测 Agent 一次调用
+.venv/bin/python scripts/e2e_real_model.py                 # 后端端到端：5 句话 → 计划 → 确认 → 回读 → 停止，含延迟统计
 ```
+
+浏览器端到端也可以用真实模型：`cd apps/mobile && python e2e/run_e2e.py --real-model`。
 
 ### 2. App
 

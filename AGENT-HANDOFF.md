@@ -63,6 +63,8 @@ cd ../apps/mobile && npm install && npm run typecheck && npm test
 cd ../.. && ./scripts/gen-api.sh && git diff --exit-code -- packages/api-client
 # 可选：网页端到端（需 pip install -r apps/mobile/e2e/requirements.txt && python -m playwright install chromium）
 python apps/mobile/e2e/run_e2e.py
+# 仅在有密钥的机器上：真实模型端到端
+cd backend && set -a && source .env && set +a && .venv/bin/python scripts/e2e_real_model.py
 ```
 
 评审 AI 只读不改；发现问题写成清单交给用户，不直接修改代码或本文件。
@@ -229,7 +231,7 @@ git status --short
 
 ### ⑤ 的验证范围
 
-`tests/test_experience_agent.py` 全部使用测试替身。真实调用已由用户在 Mac 上用 `backend/scripts/try_model.py` 验证一次（deepseek-flash，2035 ms，输出合法）。这是单次样本：8 秒目标在 Agent 层满足，但 App 内“提交到显示计划”的端到端计时尚未做，也没有多次调用的延迟分布。密钥只在用户本机 `backend/.env`，仓库和对话中都不应出现。
+`tests/test_experience_agent.py` 全部使用测试替身。真实调用已由用户在 Mac 上用 `backend/scripts/try_model.py` 验证一次（deepseek-flash，2035 ms，输出合法）。这是单次样本：8 秒目标在 Agent 层满足。多次统计与端到端计时的脚本已入库（`backend/scripts/e2e_real_model.py`、`apps/mobile/e2e/run_e2e.py --real-model`），已用本地桩空跑通过，**真实结果待用户在 Mac 上运行后填入 `docs/status.md`**。注意：开发用的云端环境和 Mac 上的沙箱都无法访问 `api.deepseek.com`，真实模型只能在用户 Mac 的终端里跑。密钥只在用户本机 `backend/.env`，仓库和对话中都不应出现。
 
 ## 8. 后续执行顺序
 

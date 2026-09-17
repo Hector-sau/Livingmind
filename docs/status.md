@@ -30,6 +30,7 @@
 | R1：App 计划请求超时 = 后端模型超时 + 3 秒 | `apps/mobile/services/http/httpApi.ts` | `tests/httpApi.test.ts` |
 | R1：计划过期提示每 15 秒重新计算；模拟模式措辞修正；重置写入 `demo_reset` | `features/rest/useRestFlow.ts`、`ModeToggle.tsx`、`rest_service.py`、`mockApi.ts` | 前后端测试 |
 | R1：网页端到端脚本入库（7 个场景，一条命令） | `apps/mobile/e2e/` | `python apps/mobile/e2e/run_e2e.py`：7/7 通过 |
+| 真实模型端到端脚本（后端：5 句话 → 计划 → 确认 → 回读 → 停止，延迟统计；浏览器：`--real-model`） | `backend/scripts/e2e_real_model.py`、`apps/mobile/e2e/run_e2e.py` | 已用本地桩空跑通过；**真实 DeepSeek 结果待用户在 Mac 上运行**（开发环境与 Mac 内的沙箱都无法访问 api.deepseek.com） |
 
 ## 步骤 4 的 7 项验证
 
@@ -57,7 +58,7 @@
 | 规则模式完全不请求模型 | 测试通过 |
 | 模型失败不影响停止、重复确认、过期 | 测试通过 |
 | 日志与错误不含 API key | 测试通过 |
-| **真实 DeepSeek 调用与 8 秒目标** | **已验证**（用户 Mac，2026-09-17）：`deepseek-flash`，Agent 一次调用 **2035 ms**，输出通过结构校验（灯光 15%、空调 24°C、窗帘 0%，理由引用了“有点热”并相对基线下调 1°C）。单次样本，未做多次统计；提交到显示计划的端到端延迟未在 App 内计时 |
+| **真实 DeepSeek 调用与 8 秒目标** | **Agent 层已验证**（用户 Mac，2026-09-17）：`deepseek-flash`，Agent 一次调用 **2035 ms**，输出通过结构校验（灯光 15%、空调 24°C、窗帘 0%，理由引用了“有点热”并相对基线下调 1°C）。单次样本。多次统计与“提交到显示计划”的端到端计时，用 `scripts/e2e_real_model.py` 和 `run_e2e.py --real-model` 在 Mac 上测，结果待填 |
 
 本地 HTTP 桩只用于验证请求格式（`/chat/completions`、Bearer 头、`response_format: json_object`）、响应解析和超时路径，**不代表已连通 DeepSeek**。
 

@@ -7,8 +7,9 @@ path here talks to a local stub (fake_deepseek.py).
 
 Usage (from apps/mobile, after `npm install` and creating backend/.venv):
     pip install -r e2e/requirements.txt && python -m playwright install chromium
-    python e2e/run_e2e.py            # builds web exports, starts servers, runs all scenarios
+    python e2e/run_e2e.py                 # builds web exports, starts servers, runs all scenarios (stub model)
     python e2e/run_e2e.py --skip-build
+    python e2e/run_e2e.py --real-model    # uses backend/.env (real DeepSeek key); stub-only scenarios are skipped
 Screenshots go to e2e/.out/screens/.
 """
 
@@ -56,26 +57,41 @@ def build(out_dir: Path, api_url: str | None) -> None:
     subprocess.run(cmd, cwd=MOBILE, env=env, check=True, stdout=subprocess.DEVNULL)
 
 
+class QuietHandler(SimpleHTTPRequestHandler):
+    def log_message(self, *args):
+        pass
+
+
 def static_server(directory: Path, port: int) -> ThreadingHTTPServer:
-    handler = functools.partial(SimpleHTTPRequestHandler, directory=str(directory))
-    handler.log_message = lambda *a: None  # type: ignore[assignment]
+    handler = functools.partial(QuietHandler, directory=str(directory))
     server = ThreadingHTTPServer(("127.0.0.1", port), handler)
     threading.Thread(target=server.serve_forever, daemon=True).start()
     return server
 
 
-def start_backend() -> subprocess.Popen:
+def start_backend(real_model: bool) -> subprocess.Popen:
     python = os.environ.get("BACKEND_PYTHON", str(BACKEND / ".venv" / "bin" / "python"))
-    env = {
-        **os.environ,
-        "LIVINGMIND_CORS_ORIGINS": f"http://localhost:{HTTP_PORT},http://127.0.0.1:{HTTP_PORT}",
-        "LIVINGMIND_PLANNER_MODE": "rule",
-        "DEEPSEEK_API_KEY": "e2e-stub-key",
-        "DEEPSEEK_BASE_URL": f"http://127.0.0.1:{STUB_PORT}",
-        "LIVINGMIND_MODEL_TIMEOUT_S": str(MODEL_TIMEOUT_S),
-    }
+    cors = f"http://localhost:{HTTP_PORT},http://127.0.0.1:{HTTP_PORT}"
+    cmd = [python, "-m", "uvicorn", "app.main:app", "--port", str(API_PORT)]
+    if real_model:
+        env_file = BACKEND / ".env"
+        if not env_file.exists():
+            raise RuntimeError("--real-model needs backend/.env with DEEPSEEK_API_KEY")
+        # Key comes from backend/.env via uvicorn; it is never read or printed here.
+        cmd += ["--env-file", str(env_file)]
+        env = {k: v for k, v in os.environ.items() if not k.startswith(("DEEPSEEK_", "LIVINGMIND_"))}
+        env["LIVINGMIND_CORS_ORIGINS"] = cors  # process env wins over --env-file for this one
+    else:
+        env = {
+            **os.environ,
+            "LIVINGMIND_CORS_ORIGINS": cors,
+            "LIVINGMIND_PLANNER_MODE": "rule",
+            "DEEPSEEK_API_KEY": "e2e-stub-key",
+            "DEEPSEEK_BASE_URL": f"http://127.0.0.1:{STUB_PORT}",
+            "LIVINGMIND_MODEL_TIMEOUT_S": str(MODEL_TIMEOUT_S),
+        }
     proc = subprocess.Popen(
-        [python, "-m", "uvicorn", "app.main:app", "--port", str(API_PORT)],
+        cmd,
         cwd=BACKEND,
         env=env,
         stdout=subprocess.DEVNULL,
@@ -178,6 +194,24 @@ def scenario_model_paths(page: Page) -> None:
     assert "25°C" in body(page), "fallback must use 林悦's own preference"
 
 
+def scenario_real_model(page: Page) -> None:
+    """Real provider: a model plan (or a clearly labelled fallback) appears, then confirm and stop."""
+    open_app(page, f"http://localhost:{HTTP_PORT}/")
+    started = time.monotonic()
+    generate(page, "我想休息，有点热", "model")
+    page.get_by_test_id("confirm-plan").wait_for(timeout=30000)
+    elapsed = int((time.monotonic() - started) * 1000)
+    text = body(page)
+    assert ("模型计划" in text) or ("默认方案 / 规则降级" in text), "plan source must be labelled"
+    print(f"  real-model: submit -> plan shown in {elapsed} ms ({'model' if '请求模型 · deepseek/' in text else 'fallback'})")
+    shot(page, "real-model-plan")
+    page.get_by_test_id("confirm-plan").click()
+    page.get_by_text("运行中", exact=True).wait_for()
+    page.get_by_test_id("stop-service").click()
+    page.get_by_text("已停止", exact=True).wait_for()
+    shot(page, "real-model-stopped")
+
+
 def scenario_offline(page: Page, backend: subprocess.Popen) -> None:
     """Backend goes away: the app reports it and never fakes success."""
     open_app(page, f"http://localhost:{HTTP_PORT}/")
@@ -198,6 +232,7 @@ def scenario_offline(page: Page, backend: subprocess.Popen) -> None:
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--skip-build", action="store_true")
+    parser.add_argument("--real-model", action="store_true", help="use backend/.env (real DeepSeek) instead of the stub")
     args = parser.parse_args()
 
     SCREENS.mkdir(parents=True, exist_ok=True)
@@ -209,7 +244,7 @@ def main() -> int:
     servers = [static_server(mock_dir, MOCK_PORT), static_server(http_dir, HTTP_PORT)]
     stub = fake_deepseek.serve(STUB_PORT)
     threading.Thread(target=stub.serve_forever, daemon=True).start()
-    backend = start_backend()
+    backend = start_backend(args.real_model)
 
     results: list[tuple[str, str]] = []
     errors: list[str] = []
@@ -243,11 +278,18 @@ def main() -> int:
                 run(f"http-flow-{vp}", http_flow)
             run("mock-model-fallback", scenario_mock_model)
 
-            def model_paths(page):
-                reset_backend()
-                scenario_model_paths(page)
+            if args.real_model:
+                def real_model(page):
+                    reset_backend()
+                    scenario_real_model(page)
 
-            run("http-model-paths", model_paths)
+                run("http-real-model", real_model)
+            else:
+                def model_paths(page):
+                    reset_backend()
+                    scenario_model_paths(page)
+
+                run("http-model-paths", model_paths)
 
             def offline(page):
                 reset_backend()
