@@ -3,7 +3,7 @@
 平板优先、手机兼容的 LivingMind 原型：一个 Expo 原生 App + 一个模块化 FastAPI 后端。
 
 当前范围（第一批）：**最小骨架 → 可点击原型 → 无模型后端闭环**，场景只有 Home Living 的“我想休息”。
-实际完成情况以 [docs/status.md](docs/status.md) 为准；验收标准见 [docs/acceptance.md](docs/acceptance.md)。
+接手或协作前先读 [AGENT-HANDOFF.md](AGENT-HANDOFF.md)（统一交接文档，在仓库根目录持续维护）。实际完成情况以 [docs/status.md](docs/status.md) 为准；验收标准见 [docs/acceptance.md](docs/acceptance.md)。
 
 ## 三条架构边界
 
