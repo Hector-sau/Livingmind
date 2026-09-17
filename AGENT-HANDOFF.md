@@ -37,7 +37,7 @@
 | D（云端） | 三段网页版录屏脚本（每帧字幕标注来源）；主张证据表生成脚本（23 条，Markdown + PDF）；`eas.json` 开发版配置、`expo-dev-client`、包名、iOS 本地网络设置；平板安装与真机验收清单 | `apps/mobile/e2e/record_demo.py`、`scripts/build_evidence.py`、`docs/evidence.md`、`docs/device-build.md` |
 | 文档 | 本交接文档、README、architecture、acceptance、status、ui-polish；产品界面方向（第 12 节） | `587d7aa`、`8525718`、`c58a29f` |
 
-检查基线：后端 106 项 pytest、前端 29 项测试 + 类型检查、契约一致性、干净副本 CI 模拟、网页端到端 19/19（`apps/mobile/e2e/run_e2e.py`，模型路径连本地桩）。
+检查基线：后端 108 项 pytest、前端 30 项测试 + 类型检查、契约一致性、干净副本 CI 模拟、网页端到端 19/19（`apps/mobile/e2e/run_e2e.py`，模型路径连本地桩）。本机默认 Python 3.9 不满足项目的 Python 3.10+ 前提；以 Python 3.12 跑干净副本已通过。
 
 ### 0.3 未完成（按第 8 节顺序）
 
