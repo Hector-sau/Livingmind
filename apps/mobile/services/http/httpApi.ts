@@ -2,6 +2,9 @@
 import { ApiError, DEMO_ACCOUNT_ID, type LivingMindApi } from '../api';
 import type {
   ActivityResponse,
+  AssistantReply,
+  MemoryView,
+  Space,
   BootstrapResponse,
   ConfirmPlanResponse,
   DeviceState,
@@ -34,7 +37,7 @@ export function createHttpApi(options: HttpOptions): LivingMindApi {
     return res;
   };
 
-  async function request<T>(method: 'GET' | 'POST', path: string, body?: unknown, timeoutMs = options.timeoutMs): Promise<T> {
+  async function request<T>(method: 'GET' | 'POST' | 'PUT', path: string, body?: unknown, timeoutMs = options.timeoutMs): Promise<T> {
     const controller = new AbortController();
     let timedOut = false;
     const timer = setTimeout(() => {
@@ -82,7 +85,16 @@ export function createHttpApi(options: HttpOptions): LivingMindApi {
     getScenes: () => request<ScenesResponse>('GET', `/api/scenes?${q}`),
     getDeviceState: (spaceId) =>
       request<DeviceState>('GET', `/api/spaces/${encodeURIComponent(spaceId)}/devices?${q}`),
+    sendMessage: (req) => request<AssistantReply>('POST', '/api/assistant/messages', req, planTimeoutMs),
     createRestPlan: (req) => request<Plan>('POST', '/api/plans/rest', req, planTimeoutMs),
+    getMemory: (ctx) =>
+      request<MemoryView>(
+        'GET',
+        `/api/memory?accountId=${encodeURIComponent(ctx.accountId)}&personId=${encodeURIComponent(ctx.personId)}&spaceId=${encodeURIComponent(ctx.spaceId)}`,
+      ),
+    updatePreference: (ctx, preference) => request<MemoryView>('PUT', '/api/memory/preference', { context: ctx, preference }),
+    setEnergyMode: (ctx, mode) =>
+      request<Space>('PUT', `/api/spaces/${encodeURIComponent(ctx.spaceId)}/energy-mode`, { context: ctx, mode }),
     confirmPlan: (planId, req) =>
       request<ConfirmPlanResponse>('POST', `/api/plans/${encodeURIComponent(planId)}/confirm`, req),
     stopService: (serviceId, req) =>

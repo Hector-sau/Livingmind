@@ -1,8 +1,9 @@
 // Conversation state for the chat home. Pure and in-memory: nothing is persisted.
-import type { ActionResult, DeviceState, Plan } from '../../services/types';
+import type { ActionResult, AgentStep, DeviceState, Plan } from '../../services/types';
 
 export type Message =
   | { kind: 'user'; id: string; text: string; at: string }
+  | { kind: 'assistant'; id: string; text: string; trace: AgentStep[]; at: string }
   | { kind: 'plan'; id: string; plan: Plan; at: string }
   | { kind: 'result'; id: string; plan: Plan; results: ActionResult[]; deviceState: DeviceState; repeated: boolean; at: string }
   | { kind: 'system'; id: string; text: string; tone: 'info' | 'success' | 'warning' | 'error'; at: string };

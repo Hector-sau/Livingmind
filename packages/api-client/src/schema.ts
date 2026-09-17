@@ -4,6 +4,26 @@
  */
 
 export interface paths {
+    "/api/assistant/messages": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Send Message
+         * @description Main Agent entry: routes the message and returns a plan (to confirm) or a short answer.
+         */
+        post: operations["sendMessage"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/bootstrap": {
         parameters: {
             query?: never;
@@ -32,6 +52,43 @@ export interface paths {
         put?: never;
         /** Reset Demo */
         post: operations["resetDemo"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/memory": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Memory
+         * @description Only the acting person's own preference plus shared space rules.
+         */
+        get: operations["getMemory"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/memory/preference": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Update Preference */
+        put: operations["updatePreference"];
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -160,6 +217,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/spaces/{space_id}/energy-mode": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Set Energy Mode */
+        put: operations["setEnergyMode"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/spaces/{space_id}/events": {
         parameters: {
             query?: never;
@@ -239,7 +313,7 @@ export interface components {
              * Kind
              * @enum {string}
              */
-            kind: "plan_created" | "plan_fallback" | "event_received" | "event_ignored" | "service_adjusted" | "plan_confirmed" | "plan_confirm_repeated" | "plan_rejected" | "action_executed" | "action_rejected" | "service_stopped" | "demo_reset";
+            kind: "plan_created" | "plan_fallback" | "event_received" | "event_ignored" | "service_adjusted" | "plan_confirmed" | "plan_confirm_repeated" | "plan_rejected" | "action_executed" | "action_rejected" | "service_stopped" | "memory_updated" | "energy_mode_changed" | "demo_reset";
             /** Message */
             message: string;
             /** Personid */
@@ -265,6 +339,56 @@ export interface components {
         ActivityResponse: {
             /** Items */
             items: components["schemas"]["ActivityRecord"][];
+        };
+        /**
+         * AgentStep
+         * @description One step of the 1+2 agent collaboration, kept with the plan as call evidence.
+         */
+        AgentStep: {
+            /**
+             * Agent
+             * @enum {string}
+             */
+            agent: "orchestrator" | "memory" | "experience" | "energy" | "space_execution" | "harness";
+            /** Detail */
+            detail: string;
+            /** Latencyms */
+            latencyMs: number;
+            /** Ok */
+            ok: boolean;
+            /**
+             * Source
+             * @enum {string}
+             */
+            source: "rule" | "model" | "rule_fallback" | "frontend_mock";
+            /** Title */
+            title: string;
+        };
+        /** AssistantMessageRequest */
+        AssistantMessageRequest: {
+            context: components["schemas"]["RequestContext"];
+            /** Mode */
+            mode?: ("rule" | "model") | null;
+            /** Text */
+            text: string;
+        };
+        /** AssistantReply */
+        AssistantReply: {
+            /**
+             * Intent
+             * @enum {string}
+             */
+            intent: "rest" | "device_command" | "status" | "other";
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "plan" | "answer";
+            plan: components["schemas"]["Plan"] | null;
+            /** Text */
+            text: string;
+            /** Trace */
+            trace: components["schemas"]["AgentStep"][];
         };
         /** BootstrapResponse */
         BootstrapResponse: {
@@ -301,7 +425,8 @@ export interface components {
             repeated: boolean;
             /** Results */
             results: components["schemas"]["ActionResult"][];
-            service: components["schemas"]["Service"];
+            /** @description Null for direct device commands (no rest service) */
+            service: components["schemas"]["Service"] | null;
         };
         /** CreateRestPlanRequest */
         CreateRestPlanRequest: {
@@ -374,13 +499,65 @@ export interface components {
              */
             version: number;
         };
+        /**
+         * EnergyAdvice
+         * @description Rule-based energy advice. Loads are rough rule estimates, not measurements.
+         */
+        EnergyAdvice: {
+            /**
+             * Applied
+             * @description True only in eco mode when the recommendation changed the set point
+             */
+            applied: boolean;
+            /** Comfortmaxc */
+            comfortMaxC: number;
+            /** Comfortminc */
+            comfortMinC: number;
+            /** Loadkwafter */
+            loadKwAfter: number;
+            /** Loadkwbefore */
+            loadKwBefore: number;
+            /**
+             * Mode
+             * @enum {string}
+             */
+            mode: "comfort_first" | "eco";
+            /** Outdoortempc */
+            outdoorTempC: number;
+            /** Reason */
+            reason: string;
+            /** Recommendedacc */
+            recommendedAcC: number;
+            /** Requestedacc */
+            requestedAcC: number;
+            /**
+             * Source
+             * @enum {string}
+             */
+            source: "rule" | "frontend_mock";
+            /**
+             * Tariff
+             * @enum {string}
+             */
+            tariff: "peak" | "offpeak";
+            /**
+             * Tierafter
+             * @enum {string}
+             */
+            tierAfter: "low" | "medium" | "high";
+            /**
+             * Tierbefore
+             * @enum {string}
+             */
+            tierBefore: "low" | "medium" | "high";
+        };
         /** ErrorBody */
         ErrorBody: {
             /**
              * Code
              * @enum {string}
              */
-            code: "VALIDATION_ERROR" | "NOT_FOUND" | "FORBIDDEN_CONTEXT" | "PLAN_EXPIRED" | "PLAN_INVALIDATED" | "PLAN_VERSION_MISMATCH" | "SERVICE_ALREADY_ACTIVE" | "SERVICE_NOT_ACTIVE" | "PIN_INVALID" | "INTERNAL_ERROR";
+            code: "NOT_EDITABLE" | "VALIDATION_ERROR" | "NOT_FOUND" | "FORBIDDEN_CONTEXT" | "PLAN_EXPIRED" | "PLAN_INVALIDATED" | "PLAN_VERSION_MISMATCH" | "SERVICE_ALREADY_ACTIVE" | "SERVICE_NOT_ACTIVE" | "PIN_INVALID" | "INTERNAL_ERROR";
             /** Details */
             details: {
                 [key: string]: unknown;
@@ -439,6 +616,23 @@ export interface components {
              */
             type: "room_temperature_changed";
         };
+        /**
+         * MemoryView
+         * @description What the requesting person may see: only their own preference plus shared space rules.
+         */
+        MemoryView: {
+            /** Editable */
+            editable: boolean;
+            /** Isguest */
+            isGuest: boolean;
+            /** Personid */
+            personId: string;
+            preference: components["schemas"]["RestPreference"];
+            /** Sharedrules */
+            sharedRules: components["schemas"]["SpaceRule"][];
+            /** Updatedat */
+            updatedAt: string | null;
+        };
         /** Person */
         Person: {
             /**
@@ -462,7 +656,8 @@ export interface components {
             name: string;
             /** Personid */
             personId: string;
-            restPreference: components["schemas"]["RestPreference"];
+            /** @description Omitted in shared listings; read your own via the memory endpoint */
+            restPreference?: components["schemas"]["RestPreference"] | null;
         };
         /** Plan */
         Plan: {
@@ -473,6 +668,7 @@ export interface components {
              * Format: date-time
              */
             createdAt: string;
+            energy?: components["schemas"]["EnergyAdvice"] | null;
             /**
              * Expiresat
              * Format: date-time
@@ -489,7 +685,7 @@ export interface components {
              * Scenario
              * @enum {string}
              */
-            scenario: "rest" | "rest_adjustment";
+            scenario: "rest" | "rest_adjustment" | "device_command";
             /**
              * Source
              * @enum {string}
@@ -504,6 +700,8 @@ export interface components {
             status: "proposed" | "executed" | "expired" | "invalidated";
             /** Summary */
             summary: string;
+            /** Trace */
+            trace?: components["schemas"]["AgentStep"][];
             /** Utterance */
             utterance: string;
             /** Version */
@@ -661,13 +859,43 @@ export interface components {
             /** Stoppedat */
             stoppedAt: string | null;
         };
+        /** SetEnergyModeRequest */
+        SetEnergyModeRequest: {
+            context: components["schemas"]["RequestContext"];
+            /**
+             * Mode
+             * @enum {string}
+             */
+            mode: "comfort_first" | "eco";
+        };
         /** Space */
         Space: {
             defaultRestPreference: components["schemas"]["RestPreference"];
+            /**
+             * Energymode
+             * @description comfort_first: advise only; eco: apply advice inside the comfort band
+             * @enum {string}
+             */
+            energyMode: "comfort_first" | "eco";
             /** Name */
             name: string;
             /** Spaceid */
             spaceId: string;
+        };
+        /**
+         * SpaceRule
+         * @description Shared rule of a space. Visible to everyone in the space (unlike personal preferences).
+         */
+        SpaceRule: {
+            /**
+             * Enforced
+             * @description True when code enforces it (not just displayed)
+             */
+            enforced: boolean;
+            /** Ruleid */
+            ruleId: string;
+            /** Text */
+            text: string;
         };
         /** StopServiceRequest */
         StopServiceRequest: {
@@ -697,6 +925,11 @@ export interface components {
             /** Unlocked */
             unlocked: boolean;
         };
+        /** UpdatePreferenceRequest */
+        UpdatePreferenceRequest: {
+            context: components["schemas"]["RequestContext"];
+            preference: components["schemas"]["RestPreference"];
+        };
     };
     responses: never;
     parameters: never;
@@ -706,6 +939,75 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
+    sendMessage: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AssistantMessageRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AssistantReply"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
     getBootstrap: {
         parameters: {
             query: {
@@ -791,6 +1093,144 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["BootstrapResponse"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    getMemory: {
+        parameters: {
+            query: {
+                accountId: string;
+                personId: string;
+                spaceId: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MemoryView"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    updatePreference: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdatePreferenceRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MemoryView"];
                 };
             };
             /** @description Forbidden */
@@ -1279,6 +1719,77 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["DeviceState"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    setEnergyMode: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                space_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SetEnergyModeRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Space"];
                 };
             };
             /** @description Forbidden */

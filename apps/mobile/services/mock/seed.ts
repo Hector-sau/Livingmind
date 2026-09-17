@@ -1,5 +1,5 @@
 // Front-end mock seed. Mirrors backend/app/demo/seed.py (see docs/test-data.md).
-import type { DemoAccount, Person, RestPreference, Scene, Space } from '../types';
+import type { DemoAccount, Person, RestPreference, Scene, Space, SpaceRule } from '../types';
 
 export const MOCK_ACCOUNT: DemoAccount = {
   accountId: 'demo-account',
@@ -53,7 +53,17 @@ export const MOCK_PERSONS: Person[] = [
 // Demo-only PINs (mirror of the backend). Not authentication.
 export const MOCK_PINS: Record<string, string> = { 'person-lin': '2468', 'person-chen': '1357', 'person-zhou': '8024' };
 
-export const MOCK_SPACES: Space[] = [{ spaceId: 'space-home-bedroom', name: '家 · 主卧', defaultRestPreference: SPACE_DEFAULT }];
+export const MOCK_SPACES: Space[] = [
+  { spaceId: 'space-home-bedroom', name: '家 · 主卧', defaultRestPreference: SPACE_DEFAULT, energyMode: 'comfort_first' },
+];
+
+export const NIGHT_LIGHT_MAX = 60;
+
+export const MOCK_SPACE_RULES: SpaceRule[] = [
+  { ruleId: 'rule-night-light', text: `休息时灯光不超过 ${NIGHT_LIGHT_MAX}%`, enforced: true },
+  { ruleId: 'rule-guest-privacy', text: '访客模式不读取任何个人偏好', enforced: true },
+  { ruleId: 'rule-confirm', text: '所有设备动作都要先确认再执行（模拟事件的自动调整除外）', enforced: true },
+];
 
 export const MOCK_INITIAL_DEVICES = { lightBrightness: 80, acTargetTempC: 26, curtainOpenPercent: 100 };
 

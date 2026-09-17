@@ -89,6 +89,7 @@ def start_backend(real_model: bool) -> subprocess.Popen:
             "DEEPSEEK_API_KEY": "e2e-stub-key",
             "DEEPSEEK_BASE_URL": f"http://127.0.0.1:{STUB_PORT}",
             "LIVINGMIND_MODEL_TIMEOUT_S": str(MODEL_TIMEOUT_S),
+            "LIVINGMIND_DEMO_LOCAL_HOUR": "20",  # peak tariff, so energy advice is deterministic
         }
     proc = subprocess.Popen(
         cmd,
@@ -130,15 +131,14 @@ def set_mode(page: Page, mode: str) -> None:
 
 def send(page: Page, text: str) -> None:
     """Send a chat message and wait for the assistant's plan card (or a system message)."""
-    before = page.get_by_text("我的建议").count() + page.get_by_test_id("system-message").count()
+    js = (
+        "() => ['plan-message', 'system-message', 'assistant-message']"
+        ".map(t => document.querySelectorAll(`[data-testid=${t}]`).length).reduce((a, b) => a + b, 0)"
+    )
+    before = page.evaluate(js)
     page.get_by_test_id("composer-input").fill(text)
     page.get_by_test_id("composer-send").click()
-    page.wait_for_function(
-        "n => document.body.innerText.split('我的建议').length - 1 + "
-        "document.querySelectorAll('[data-testid=system-message]').length > n",
-        arg=before,
-        timeout=20000,
-    )
+    page.wait_for_function(f"n => ({js})() > n", arg=before, timeout=20000)
 
 
 def wait_person(page: Page, name: str) -> None:
@@ -213,7 +213,7 @@ def scenario_pin_and_evidence(page: Page, url: str) -> None:
     page.get_by_test_id("pin-input").fill("8024")
     page.get_by_test_id("pin-submit").click()
     wait_person(page, "周禾")
-    assert "26.5°C" in body(page), "only 周禾's own preferences are shown"
+    page.get_by_test_id("pref-ac-value").filter(has_text="26.5°C").wait_for(timeout=10000)
     assert "25°C" not in page.get_by_text("我的休息偏好", exact=False).locator("..").inner_text()
     page.get_by_test_id("evidence-switch").click()
     page.get_by_test_id("evidence-panel").wait_for()
@@ -302,7 +302,7 @@ def scenario_model_paths(page: Page) -> None:
     assert "模型计划" in text and "deepseek/" in text and "24°C" in text, text[:400]
     shot(page, "http-model-plan")
 
-    send(page, "慢一点")
+    send(page, "我想休息，慢一点")
     page.get_by_text("默认方案 / 规则降级：模型响应超过", exact=False).wait_for(timeout=15000)
     shot(page, "http-timeout-fallback")
 
@@ -313,6 +313,72 @@ def scenario_model_paths(page: Page) -> None:
     page.get_by_test_id("confirm-plan").click()
     page.get_by_test_id("result-card").wait_for()
     assert "25°C" in page.get_by_test_id("result-card").last.inner_text(), "fallback must use 林悦's own preference"
+
+
+def last_assistant(page: Page) -> str:
+    return page.get_by_test_id("assistant-message").last.inner_text()
+
+
+def scenario_agents(page: Page, url: str, label: str) -> None:
+    """1+2 agents: full-branch trace, direct device command branch, status and out-of-scope answers."""
+    open_app(page, url)
+    set_mode(page, "rule")
+    send(page, "我想休息")
+    page.get_by_test_id("energy-line").last.wait_for()
+    page.get_by_test_id("trace-toggle").last.click()
+    panel = page.get_by_test_id("trace-panel").last
+    panel.wait_for()
+    text = panel.inner_text()
+    for name in ["主 Agent", "人物记忆", "Experience Agent", "能源智能", "Space Execution Agent", "Harness"]:
+        assert name in text, (name, text)
+    if label == "mock":
+        assert "前端模拟" in text
+    shot(page, f"{label}-agents-trace")
+
+    send(page, "把空调调到24度")
+    page.get_by_text("设备指令：空调设定 24°C", exact=False).first.wait_for()
+    page.get_by_test_id("confirm-plan").click()
+    page.get_by_test_id("result-card").wait_for()
+    assert page.get_by_test_id("service-strip").count() == 0, "a device command must not start a rest service"
+    assert "24°C" in page.get_by_test_id("result-card").last.inner_text()
+
+    send(page, "空调调到10度")
+    assert "没有生成动作" in last_assistant(page)
+    send(page, "卧室现在几度")
+    assert "24°C" in last_assistant(page)
+    send(page, "今天股市怎么样")
+    assert "休息" in last_assistant(page)
+    shot(page, f"{label}-agents-command")
+
+
+def scenario_energy_memory(page: Page) -> None:
+    """Eco mode applies advice inside the comfort band; editing one's own preference changes the next plan."""
+    open_app(page, f"http://localhost:{HTTP_PORT}/")
+    tab(page, "space")
+    page.get_by_test_id("energy-mode-eco").click()
+    page.get_by_text("节能模式：高峰电价时", exact=False).wait_for()
+    tab(page, "chat")
+    set_mode(page, "rule")
+    send(page, "我想休息")
+    line = page.get_by_test_id("energy-line").last.inner_text()
+    assert "节能模式" in line and "25°C → 25.5°C" in line, line
+    assert "空调设定 25.5°C" in body(page)
+    shot(page, "energy-eco-plan")
+
+    tab(page, "me")
+    assert page.get_by_test_id("pref-ac-value").inner_text().strip() == "25°C"
+    page.get_by_test_id("pref-ac-plus").click()
+    page.get_by_test_id("pref-ac-plus").click()
+    assert page.get_by_test_id("pref-ac-value").inner_text().strip() == "26°C"
+    page.get_by_test_id("pref-save").click()
+    page.get_by_text("偏好已保存", exact=False).wait_for()
+    shot(page, "memory-edited")
+    tab(page, "chat")
+    send(page, "我想休息")
+    assert "空调设定 26.5°C" in page.get_by_test_id("plan-message").last.inner_text()
+
+    switch_person(page, "person-chen", "1357", "陈川")
+    assert page.get_by_test_id("pref-ac-value").inner_text().strip() == "22°C", "陈川 sees only his own preference"
 
 
 def scenario_real_model(page: Page) -> None:
@@ -423,6 +489,20 @@ def main() -> int:
                 scenario_guest_and_scenes(page, f"http://localhost:{HTTP_PORT}/")
 
             run("http-guest-scenes", http_guest)
+
+            run("mock-agents", lambda page: scenario_agents(page, f"http://localhost:{MOCK_PORT}/", "mock"))
+
+            def http_agents(page):
+                reset_backend()
+                scenario_agents(page, f"http://localhost:{HTTP_PORT}/", "http")
+
+            run("http-agents", http_agents)
+
+            def http_energy_memory(page):
+                reset_backend()
+                scenario_energy_memory(page)
+
+            run("http-energy-memory", http_energy_memory)
 
             if args.real_model:
                 def real_model(page):

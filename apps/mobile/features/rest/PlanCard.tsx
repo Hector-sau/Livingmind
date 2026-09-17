@@ -7,6 +7,8 @@ import { Pill, type PillTone } from '../../components/Pill';
 import type { ActionResult, Plan } from '../../services/types';
 import { colors, font, radius, space } from '../../theme/tokens';
 import { PLAN_SOURCE_LABEL, PLAN_STATUS_LABEL } from '../../utils/format';
+import { TraceView } from '../agents/TraceView';
+import { EnergyLine } from '../energy/EnergyLine';
 
 interface Props {
   plan: Plan | null;
@@ -53,7 +55,10 @@ export function PlanCard({ plan, results, blockReason, loading, disabled, onConf
   }
   const resultById = new Map(results.map((r) => [r.actionId, r]));
   return (
-    <Card title={title} icon="sparkles-outline" right={<Pill label={PLAN_STATUS_LABEL[plan.status]} tone={STATUS_TONE[plan.status]} />}>
+    <Card
+      title={plan.scenario === 'device_command' ? '设备指令' : title}
+      icon={plan.scenario === 'device_command' ? 'hardware-chip-outline' : 'sparkles-outline'}
+      right={<Pill label={PLAN_STATUS_LABEL[plan.status]} tone={STATUS_TONE[plan.status]} />}>
       <Text style={styles.summary}>{plan.summary}</Text>
       <View style={styles.meta}>
         <Pill label={PLAN_SOURCE_LABEL[plan.source]} tone={SOURCE_TONE[plan.source]} />
@@ -83,6 +88,7 @@ export function PlanCard({ plan, results, blockReason, loading, disabled, onConf
           );
         })}
       </View>
+      {plan.energy ? <EnergyLine advice={plan.energy} /> : null}
       <View style={styles.notes}>
         {plan.notes.map((n) => (
           <Text key={n} style={styles.note}>
@@ -91,6 +97,7 @@ export function PlanCard({ plan, results, blockReason, loading, disabled, onConf
         ))}
         <Text style={styles.note}>“{plan.utterance}”</Text>
       </View>
+      <TraceView trace={plan.trace ?? []} />
       {plan.status === 'proposed' && !actionable ? <Text style={styles.note}>这是较早的计划，已被新的计划替代。</Text> : null}
       {plan.status === 'proposed' && actionable ? (
         <>

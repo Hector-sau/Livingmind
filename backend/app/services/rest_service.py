@@ -1,4 +1,7 @@
-"""Rest-service lifecycle: plan -> confirm -> execute -> active -> stop.
+"""Rest-service lifecycle: message -> main Agent plan -> confirm -> execute -> active -> stop.
+
+Planning is delegated to the main Agent (agents/orchestrator), which coordinates memory,
+the Experience Agent, Energy Intelligence, the Space Execution Agent and the Harness pre-check.
 
 Locking model:
 - Bookkeeping (plans, services, epochs, activity) changes only under ``self._lock``.
@@ -18,9 +21,16 @@ from app import config
 from app.adapters.virtual.devices import VirtualDeviceAdapter
 from app.api.errors import ApiError
 from app.clock import Clock, utc_now
+from app.agents.orchestrator import Orchestrator
+from app.agents.space_execution import SpaceExecutionAgent
 from app.contracts import (
     ActionResult,
+    AssistantReply,
+    EnergyMode,
+    MemoryView,
     PlannerMode,
+    RestPreference,
+    Space,
     ActivityKind,
     ActivityRecord,
     ActivitySource,
@@ -39,7 +49,9 @@ from app.contracts import (
     StopServiceResponse,
 )
 from app.demo import seed
+from app.energy import EnergyIntelligence
 from app.harness.executor import Executor
+from app.memory import MemoryService
 from app.repositories.memory_store import MemoryStore, PlanRecord
 from app.services.planner import Planner, planner_from_config
 
@@ -61,6 +73,17 @@ class RestService:
         self._devices = {
             s.space_id: VirtualDeviceAdapter(s.space_id, seed.INITIAL_DEVICE_STATE, clock) for s in seed.SPACES
         }
+        self._memory = MemoryService(clock)
+        self._energy_modes: dict[str, EnergyMode] = {s.space_id: s.energy_mode for s in seed.SPACES}
+        self._agent = Orchestrator(
+            planner=self._planner,
+            memory=self._memory,
+            energy=EnergyIntelligence(
+                seed.OUTDOOR_TEMP_C, seed.PEAK_HOURS_LOCAL, config.LOCAL_UTC_OFFSET_HOURS, config.DEMO_LOCAL_HOUR
+            ),
+            space_execution=SpaceExecutionAgent(seed.NIGHT_LIGHT_MAX),
+            clock=clock,
+        )
 
     # ---- identity (demo only, not authentication) ----
 
@@ -108,14 +131,18 @@ class RestService:
             )
         )
 
+    def _space(self, space: Space) -> Space:
+        return space.model_copy(update={"energy_mode": self._energy_modes[space.space_id]})
+
     def _bootstrap(self) -> BootstrapResponse:
         space_id = seed.DEFAULT_SPACE_ID
         return BootstrapResponse(
             mode="demo",
             planner=self._planner.info(),
             account=seed.DEMO_ACCOUNT,
-            persons=seed.PERSONS,
-            spaces=seed.SPACES,
+            # Shared listing: no personal preferences (read your own via the memory endpoint).
+            persons=[p.model_copy(update={"rest_preference": None}) for p in seed.PERSONS],
+            spaces=[self._space(s) for s in seed.SPACES],
             default_space_id=space_id,
             device_state=self._devices[space_id].read_state(),
             active_service=self._store.active_service(space_id),
@@ -152,18 +179,48 @@ class RestService:
         with self._lock:
             return self._devices[space_id].read_state()
 
-    def create_rest_plan(self, ctx: RequestContext, utterance: str, mode: Optional[PlannerMode] = None) -> Plan:
-        person = self._check_context(ctx)
+    def handle_message(
+        self, ctx: RequestContext, text: str, mode: Optional[PlannerMode] = None, force_rest: bool = False
+    ) -> AssistantReply:
+        """Main entry for the chat: the main Agent decides the branch and returns a plan or an answer."""
+        self._check_context(ctx)
         # Planning may call a model (slow): do it outside the lock. Only bookkeeping is locked.
-        device_state = self._devices[ctx.space_id].read_state()
-        outcome = self._planner.plan(person, ctx.space_id, utterance, device_state, self._store.new_id, mode)
-        plan = outcome.plan
+        reply = self._agent.handle(
+            ctx.person_id,
+            ctx.space_id,
+            text,
+            mode,
+            self._devices[ctx.space_id],
+            self._energy_modes[ctx.space_id],
+            self._store.new_id,
+            force_intent="rest" if force_rest else None,
+        )
+        if reply.plan is not None:
+            self._record_new_plan(reply.plan)
+        return reply
+
+    def create_rest_plan(self, ctx: RequestContext, utterance: str, mode: Optional[PlannerMode] = None) -> Plan:
+        reply = self.handle_message(ctx, utterance, mode, force_rest=True)
+        assert reply.plan is not None
+        return reply.plan
+
+    def _record_new_plan(self, plan: Plan) -> None:
+        person = next(p for p in seed.PERSONS if p.person_id == plan.person_id)
+        gen = plan.generation
         with self._lock:
-            self._store.plans[plan.plan_id] = PlanRecord(plan=plan, epoch=self._store.epoch(ctx.space_id))
-            gen = plan.generation
-            if plan.source == "model":
+            self._store.plans[plan.plan_id] = PlanRecord(plan=plan, epoch=self._store.epoch(plan.space_id))
+            if plan.scenario == "device_command":
                 self._log(
-                    ctx.space_id,
+                    plan.space_id,
+                    "plan_created",
+                    "rule_engine",
+                    f"主 Agent → 执行 Agent：{plan.summary}（{person.name}）",
+                    plan_id=plan.plan_id,
+                    person_id=person.person_id,
+                )
+            elif plan.source == "model":
+                self._log(
+                    plan.space_id,
                     "plan_created",
                     "experience_agent",
                     f"模型生成休息计划（{person.name}，{gen.provider}/{gen.model}，{gen.latency_ms} ms）",
@@ -171,24 +228,49 @@ class RestService:
                     person_id=person.person_id,
                 )
             else:
-                if outcome.fallback_reason:
+                if gen.fallback_reason:
                     self._log(
-                        ctx.space_id,
+                        plan.space_id,
                         "plan_fallback",
                         "system",
-                        f"模型计划未采用，改用规则：{outcome.fallback_reason}（{gen.latency_ms} ms）",
+                        f"模型计划未采用，改用规则：{gen.fallback_reason}（{gen.latency_ms} ms）",
                         plan_id=plan.plan_id,
                         person_id=person.person_id,
                     )
                 self._log(
-                    ctx.space_id,
+                    plan.space_id,
                     "plan_created",
                     "rule_engine",
-                    f"生成休息计划（{person.name}，{'规则降级' if outcome.fallback_reason else '规则'}）",
+                    f"生成休息计划（{person.name}，{'规则降级' if gen.fallback_reason else '规则'}）",
                     plan_id=plan.plan_id,
                     person_id=person.person_id,
                 )
-            return plan
+
+    # ---- memory (own preference only) and energy settings ----
+
+    def memory_view(self, ctx: RequestContext) -> MemoryView:
+        self._check_context(ctx)
+        with self._lock:
+            return self._memory.view(ctx.person_id, ctx.space_id)
+
+    def update_preference(self, ctx: RequestContext, preference: RestPreference) -> MemoryView:
+        self._check_context(ctx)
+        with self._lock:
+            change = self._memory.update(ctx.person_id, preference)
+            person = next(p for p in seed.PERSONS if p.person_id == ctx.person_id)
+            self._log(
+                ctx.space_id, "memory_updated", "user", f"{person.name} 更新了自己的休息偏好：{change}", person_id=ctx.person_id
+            )
+            return self._memory.view(ctx.person_id, ctx.space_id)
+
+    def set_energy_mode(self, space_id: str, ctx: RequestContext, mode: EnergyMode) -> Space:
+        self._check_context(ctx)
+        if ctx.space_id != space_id:
+            raise ApiError("FORBIDDEN_CONTEXT", "空间与请求上下文不一致", {"spaceId": space_id})
+        with self._lock:
+            self._energy_modes[space_id] = mode
+            self._log(space_id, "energy_mode_changed", "user", f"节能设置改为：{'节能模式' if mode == 'eco' else '舒适优先'}")
+            return self._space(next(s for s in seed.SPACES if s.space_id == space_id))
 
     def _reject(self, record: PlanRecord, code, message: str) -> ApiError:
         plan = record.plan
@@ -209,13 +291,13 @@ class RestService:
 
             # Idempotent: an executed (or currently executing) plan is never executed again.
             if plan.status == "executed":
-                service = self._store.services[record.service_id]  # type: ignore[index]
+                service = self._store.services[record.service_id] if record.service_id else None
                 self._log(
                     plan.space_id,
                     "plan_confirm_repeated",
                     "system",
                     "重复确认，未再次执行",
-                    service_id=service.service_id,
+                    service_id=service.service_id if service else None,
                     plan_id=plan_id,
                     person_id=plan.person_id,
                 )
@@ -233,41 +315,57 @@ class RestService:
             if plan.status == "expired" or self._clock() > plan.expires_at:
                 plan.status = "expired"
                 raise self._reject(record, "PLAN_EXPIRED", "计划已过期，请重新生成")
-            if self._store.active_service(plan.space_id):
+            if plan.scenario == "device_command":
+                # Direct device command: no rest service; stop/epoch still guard every write.
+                plan.status = "executed"
+                self._log(
+                    plan.space_id, "plan_confirmed", "user", "用户确认设备指令", plan_id=plan_id, person_id=plan.person_id
+                )
+                epoch_at_start = self._store.epoch(plan.space_id)
+                actions = list(plan.actions)
+                command_mode = True
+            else:
+                command_mode = False
+            if not command_mode and self._store.active_service(plan.space_id):
                 raise self._reject(record, "SERVICE_ALREADY_ACTIVE", "当前空间已有运行中的服务，请先停止")
 
-            now = self._clock()
-            service = Service(
-                service_id=self._store.new_id("svc"),
-                space_id=plan.space_id,
-                person_id=plan.person_id,
-                plan_id=plan_id,
-                plan_version=plan.version,
-                status="active",
-                started_at=now,
-                stopped_at=None,
-                planner_mode=plan.generation.mode_requested,
-                adjustments=0,
-                last_adjusted_at=None,
-            )
-            self._store.services[service.service_id] = service
-            plan.status = "executed"
-            record.service_id = service.service_id
-            record.results = []
-            self._log(
-                plan.space_id,
-                "plan_confirmed",
-                "user",
-                "用户确认执行休息计划",
-                service_id=service.service_id,
-                plan_id=plan_id,
-                person_id=plan.person_id,
-            )
-            epoch_at_start = self._store.epoch(plan.space_id)
-            actions = list(plan.actions)
+            if not command_mode:
+                now = self._clock()
+                service = Service(
+                    service_id=self._store.new_id("svc"),
+                    space_id=plan.space_id,
+                    person_id=plan.person_id,
+                    plan_id=plan_id,
+                    plan_version=plan.version,
+                    status="active",
+                    started_at=now,
+                    stopped_at=None,
+                    planner_mode=plan.generation.mode_requested,
+                    adjustments=0,
+                    last_adjusted_at=None,
+                )
+                self._store.services[service.service_id] = service
+                plan.status = "executed"
+                record.service_id = service.service_id
+                record.results = []
+                self._log(
+                    plan.space_id,
+                    "plan_confirmed",
+                    "user",
+                    "用户确认执行休息计划",
+                    service_id=service.service_id,
+                    plan_id=plan_id,
+                    person_id=plan.person_id,
+                )
+                epoch_at_start = self._store.epoch(plan.space_id)
+                actions = list(plan.actions)
 
         # Lock released: device writes may be slow, and a stop must be able to land meanwhile.
-        self._execute(service, actions, epoch_at_start, record)
+        if command_mode:
+            self._execute_command(plan, actions, epoch_at_start, record)
+            service = None
+        else:
+            self._execute(service, actions, epoch_at_start, record)
 
         with self._lock:
             return ConfirmPlanResponse(
@@ -277,6 +375,29 @@ class RestService:
                 device_state=self._devices[plan.space_id].read_state(),
                 repeated=False,
             )
+
+    def _execute_command(self, plan: Plan, actions: list[DeviceAction], epoch_at_start: int, record: PlanRecord) -> None:
+        def guard() -> Optional[str]:
+            with self._lock:
+                if self._store.epoch(plan.space_id) != epoch_at_start:
+                    return "计划版本已失效"
+                return None
+
+        def on_result(action: DeviceAction, result: ActionResult) -> None:
+            ok = result.outcome == "succeeded"
+            with self._lock:
+                record.results.append(result)
+                self._log(
+                    plan.space_id,
+                    "action_executed" if ok else "action_rejected",
+                    "virtual_device" if ok else "executor",
+                    f"{action.label}（回读 {result.observed_value:g}）" if ok else f"{action.label}：{result.reason}",
+                    plan_id=plan.plan_id,
+                    person_id=plan.person_id,
+                    action=result,
+                )
+
+        Executor(self._devices[plan.space_id]).run(actions, guard, on_result)
 
     def _execute(self, service: Service, actions: list[DeviceAction], epoch_at_start: int, record: PlanRecord) -> None:
         def guard() -> Optional[str]:
@@ -361,21 +482,20 @@ class RestService:
 
         try:
             # Planning (possibly a model call) happens outside the lock.
-            outcome = self._planner.plan_adjustment(
-                person, space_id, room_temp_c, adapter.read_state(), self._store.new_id, mode
+            plan, fallback_reason = self._agent.adjustment_plan(
+                person.person_id, space_id, room_temp_c, mode, adapter, self._store.new_id
             )
-            plan = outcome.plan
             with self._lock:
                 if service.status != "active" or self._store.epoch(space_id) != epoch_at_start:
                     return ignored(event_id, "规划期间服务已停止", service)
                 record = PlanRecord(plan=plan, epoch=epoch_at_start, service_id=service.service_id)
                 self._store.plans[plan.plan_id] = record
-                if outcome.fallback_reason:
+                if fallback_reason:
                     self._log(
                         space_id,
                         "plan_fallback",
                         "system",
-                        f"模型计划未采用，改用调整规则：{outcome.fallback_reason}（{plan.generation.latency_ms} ms）",
+                        f"模型计划未采用，改用调整规则：{fallback_reason}（{plan.generation.latency_ms} ms）",
                         service_id=service.service_id,
                         plan_id=plan.plan_id,
                         person_id=person.person_id,
@@ -452,6 +572,8 @@ class RestService:
         self._check_account(account_id)
         with self._lock:
             self._store.clear()
+            self._memory.reset()
+            self._energy_modes = {sp.space_id: sp.energy_mode for sp in seed.SPACES}
             for adapter in self._devices.values():
                 adapter.reset()
                 self._log(adapter.space_id, "demo_reset", "system", "演示数据已重置（内存数据与虚拟设备回到初始状态）")

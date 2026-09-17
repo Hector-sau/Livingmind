@@ -6,7 +6,13 @@ import threading
 from dataclasses import dataclass
 
 from app.clock import Clock
-from app.contracts import DeviceCommand, DeviceState, DeviceType
+from app.contracts import Capability, DeviceCommand, DeviceState, DeviceType
+
+CAPABILITIES = [
+    Capability(device="light", command="set_brightness", min=0, max=100, integer=True),
+    Capability(device="ac", command="set_target_temperature", min=16, max=30, integer=False),
+    Capability(device="curtain", command="set_open_percent", min=0, max=100, integer=True),
+]
 
 
 @dataclass
@@ -28,6 +34,9 @@ class VirtualDeviceAdapter:
         self._updated_at = clock()
         # Device-level lock: state reads/writes are atomic even when the service lock is not held.
         self._lock = threading.Lock()
+
+    def list_capabilities(self) -> list[Capability]:
+        return list(CAPABILITIES)
 
     def reset(self) -> None:
         with self._lock:

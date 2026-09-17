@@ -1,15 +1,15 @@
 import { LinearGradient } from 'expo-linear-gradient';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Switch, Text, TextInput, View } from 'react-native';
 
 import { Avatar } from '../../components/Avatar';
 import { Button } from '../../components/Button';
 import { Card } from '../../components/Card';
-import { DeviceIcon, type DeviceKind } from '../../components/Icon';
+import { DeviceIcon, Icon, type DeviceKind } from '../../components/Icon';
 import { FadeIn } from '../../components/motion';
 import { Pill } from '../../components/Pill';
 import type { LivingMindApi } from '../../services';
-import type { Person } from '../../services/types';
+import type { Person, RestPreference } from '../../services/types';
 import { colors, font, gradients, radius, shadow, space } from '../../theme/tokens';
 import { ActivityList } from '../activity/ActivityList';
 import type { RestFlow } from '../rest/useRestFlow';
@@ -21,12 +21,66 @@ interface Props {
   onToggleEvidence: (v: boolean) => void;
 }
 
-function PrefTile({ device, label, value }: { device: DeviceKind; label: string; value: string }) {
+interface Stepper {
+  device: DeviceKind;
+  key: keyof RestPreference;
+  label: string;
+  unit: string;
+  step: number;
+  min: number;
+  max: number;
+}
+
+const STEPPERS: Stepper[] = [
+  { device: 'light', key: 'lightBrightness', label: '灯光', unit: '%', step: 5, min: 0, max: 60 },
+  { device: 'ac', key: 'acTargetTempC', label: '空调', unit: '°C', step: 0.5, min: 16, max: 30 },
+  { device: 'curtain', key: 'curtainOpenPercent', label: '窗帘', unit: '%', step: 5, min: 0, max: 100 },
+];
+
+const SHORT = { lightBrightness: 'light', acTargetTempC: 'ac', curtainOpenPercent: 'curtain' } as const;
+
+function PrefTile({
+  cfg,
+  value,
+  editable,
+  onChange,
+}: {
+  cfg: Stepper;
+  value: number;
+  editable: boolean;
+  onChange: (v: number) => void;
+}) {
+  const clamp = (v: number) => Math.min(cfg.max, Math.max(cfg.min, Math.round(v * 10) / 10));
   return (
     <View style={styles.prefTile}>
-      <DeviceIcon device={device} size={18} color={colors.blue} />
-      <Text style={styles.prefLabel}>{label}</Text>
-      <Text style={styles.prefValue}>{value}</Text>
+      <DeviceIcon device={cfg.device} size={18} color={colors.blue} />
+      <Text style={styles.prefLabel}>{cfg.label}</Text>
+      <Text style={styles.prefValue} testID={`pref-${SHORT[cfg.key]}-value`}>
+        {value}
+        {cfg.unit}
+      </Text>
+      {editable ? (
+        <View style={styles.stepRow}>
+          <Pressable
+            style={styles.stepBtn}
+            onPress={() => onChange(clamp(value - cfg.step))}
+            accessibilityRole="button"
+            accessibilityLabel={`${cfg.label}减少`}
+            testID={`pref-${SHORT[cfg.key]}-minus`}
+          >
+            <Text style={styles.stepText}>−</Text>
+          </Pressable>
+          <Pressable
+            style={styles.stepBtn}
+            onPress={() => onChange(clamp(value + cfg.step))}
+            accessibilityRole="button"
+            accessibilityLabel={`${cfg.label}增加`}
+            testID={`pref-${SHORT[cfg.key]}-plus`}
+          >
+            <Text style={styles.stepText}>＋</Text>
+          </Pressable>
+        </View>
+      ) : null}
     </View>
   );
 }
@@ -62,7 +116,25 @@ export function MeScreen({ api, flow, showEvidence, onToggleEvidence }: Props) {
     }
   };
 
-  const pref = person?.restPreference;
+  const memory = state.memory;
+  const [draft, setDraft] = useState<RestPreference | null>(null);
+  const [prefError, setPrefError] = useState<string | null>(null);
+  useEffect(() => {
+    setDraft(memory ? { ...memory.preference } : null);
+    setPrefError(null);
+  }, [memory]);
+  const pref = draft;
+  const dirty =
+    !!memory &&
+    !!draft &&
+    (draft.lightBrightness !== memory.preference.lightBrightness ||
+      draft.acTargetTempC !== memory.preference.acTargetTempC ||
+      draft.curtainOpenPercent !== memory.preference.curtainOpenPercent);
+  const save = async () => {
+    if (!draft) return;
+    const res = await actions.updatePreference(draft);
+    setPrefError(res.ok ? null : res.error.message);
+  };
 
   return (
     <ScrollView contentContainerStyle={styles.page}>
@@ -79,13 +151,49 @@ export function MeScreen({ api, flow, showEvidence, onToggleEvidence }: Props) {
             </View>
             <Text style={styles.section}>{person.isGuest ? '空间默认设置' : '我的休息偏好（只有你自己能看到）'}</Text>
             <View style={styles.prefs}>
-              <PrefTile device="light" label="灯光" value={`${pref.lightBrightness}%`} />
-              <PrefTile device="ac" label="空调" value={`${pref.acTargetTempC}°C`} />
-              <PrefTile device="curtain" label="窗帘" value={`${pref.curtainOpenPercent}%`} />
+              {STEPPERS.map((cfg) => (
+                <PrefTile
+                  key={cfg.key}
+                  cfg={cfg}
+                  value={pref[cfg.key]}
+                  editable={!!memory?.editable}
+                  onChange={(v) => setDraft({ ...pref, [cfg.key]: v })}
+                />
+              ))}
             </View>
-            <Text style={styles.hint}>偏好是演示用的预设数据，编辑功能在后续步骤。</Text>
+            {prefError ? <Text style={styles.error}>{prefError}</Text> : null}
+            {memory?.editable ? (
+              <View style={styles.pinActions}>
+                <Button
+                  label="保存偏好"
+                  icon="save-outline"
+                  onPress={save}
+                  disabled={!dirty}
+                  loading={state.busy === 'memory'}
+                  testID="pref-save"
+                />
+                {dirty ? <Button label="还原" variant="ghost" onPress={() => memory && setDraft({ ...memory.preference })} /> : null}
+              </View>
+            ) : (
+              <Text style={styles.hint}>访客使用空间默认设置，不能编辑。</Text>
+            )}
+            <Text style={styles.hint}>
+              {memory?.updatedAt ? '已按你的修改保存（仅本次演示内有效）。' : '预设的演示偏好；修改后下一次计划会使用新偏好。'}
+            </Text>
           </LinearGradient>
         </FadeIn>
+      ) : null}
+
+      {memory ? (
+        <Card title="空间规则（所有人可见）" icon="home-outline">
+          {memory.sharedRules.map((r) => (
+            <View key={r.ruleId} style={styles.ruleRow}>
+              <Icon name={r.enforced ? 'shield-checkmark-outline' : 'information-circle-outline'} size={16} color={colors.blue} />
+              <Text style={styles.ruleText}>{r.text}</Text>
+              {r.enforced ? <Pill label="代码强制" tone="blue" /> : null}
+            </View>
+          ))}
+        </Card>
       ) : null}
 
       <Card title="切换使用者" icon="people-outline">
@@ -179,6 +287,18 @@ const styles = StyleSheet.create({
   prefTile: { flexGrow: 1, flexBasis: 90, backgroundColor: colors.card, borderRadius: radius.md, padding: space.md, gap: 2 },
   prefLabel: { fontSize: font.caption, color: colors.muted, marginTop: 4 },
   prefValue: { fontSize: 20, color: colors.ink, fontWeight: '800' },
+  stepRow: { flexDirection: 'row', gap: space.sm, marginTop: space.sm },
+  stepBtn: {
+    width: 40,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: colors.homeTint,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  stepText: { fontSize: 18, color: colors.blue, fontWeight: '700' },
+  ruleRow: { flexDirection: 'row', alignItems: 'center', gap: space.sm },
+  ruleText: { flex: 1, fontSize: font.body, color: colors.ink },
   hint: { fontSize: font.caption, color: colors.muted },
   warn: { fontSize: font.small, color: colors.amber, fontWeight: '600' },
   people: { flexDirection: 'row', flexWrap: 'wrap', gap: space.sm },

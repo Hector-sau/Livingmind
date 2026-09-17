@@ -1,5 +1,11 @@
 import type {
   ActivityResponse,
+  AssistantMessageRequest,
+  AssistantReply,
+  EnergyMode,
+  MemoryView,
+  RestPreference,
+  Space,
   BootstrapResponse,
   ConfirmPlanRequest,
   ConfirmPlanResponse,
@@ -8,6 +14,7 @@ import type {
   ErrorCode,
   EventResult,
   InjectEventRequest,
+  RequestContext,
   Plan,
   ScenesResponse,
   StopServiceRequest,
@@ -23,7 +30,13 @@ export interface LivingMindApi {
   unlockPerson(personId: string, pin: string | null): Promise<UnlockPersonResponse>;
   getScenes(): Promise<ScenesResponse>;
   getDeviceState(spaceId: string): Promise<DeviceState>;
+  /** Main Agent entry for the chat: returns a plan to confirm or a short answer. */
+  sendMessage(req: AssistantMessageRequest): Promise<AssistantReply>;
   createRestPlan(req: CreateRestPlanRequest): Promise<Plan>;
+  /** Only the acting person's own preference plus shared space rules. */
+  getMemory(ctx: RequestContext): Promise<MemoryView>;
+  updatePreference(ctx: RequestContext, preference: RestPreference): Promise<MemoryView>;
+  setEnergyMode(ctx: RequestContext, mode: EnergyMode): Promise<Space>;
   confirmPlan(planId: string, req: ConfirmPlanRequest): Promise<ConfirmPlanResponse>;
   stopService(serviceId: string, req: StopServiceRequest): Promise<StopServiceResponse>;
   /** Simulated environment event (demo only). May lead to one automatic adjustment. */

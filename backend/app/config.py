@@ -25,3 +25,9 @@ DEEPSEEK_MODEL = os.getenv("DEEPSEEK_MODEL", "deepseek-flash")
 # ---- environment events (step 6) ----
 EVENT_COOLDOWN_S = float(os.getenv("LIVINGMIND_EVENT_COOLDOWN_S", "30"))
 EVENT_MAX_ADJUSTMENTS = int(os.getenv("LIVINGMIND_EVENT_MAX_ADJUSTMENTS", "3"))
+
+# ---- energy (step 8) ----
+# Local hour override for the time-of-use tariff, so demos and tests are deterministic.
+_demo_hour = os.getenv("LIVINGMIND_DEMO_LOCAL_HOUR", "").strip()
+DEMO_LOCAL_HOUR = int(_demo_hour) if _demo_hour else None
+LOCAL_UTC_OFFSET_HOURS = int(os.getenv("LIVINGMIND_LOCAL_UTC_OFFSET", "8"))

@@ -104,6 +104,8 @@
               "action_executed",
               "action_rejected",
               "service_stopped",
+              "memory_updated",
+              "energy_mode_changed",
               "demo_reset"
             ],
             "title": "Kind",
@@ -199,6 +201,145 @@
           "items"
         ],
         "title": "ActivityResponse",
+        "type": "object"
+      },
+      "AgentStep": {
+        "description": "One step of the 1+2 agent collaboration, kept with the plan as call evidence.",
+        "properties": {
+          "agent": {
+            "enum": [
+              "orchestrator",
+              "memory",
+              "experience",
+              "energy",
+              "space_execution",
+              "harness"
+            ],
+            "title": "Agent",
+            "type": "string"
+          },
+          "detail": {
+            "title": "Detail",
+            "type": "string"
+          },
+          "latencyMs": {
+            "title": "Latencyms",
+            "type": "integer"
+          },
+          "ok": {
+            "title": "Ok",
+            "type": "boolean"
+          },
+          "source": {
+            "enum": [
+              "rule",
+              "model",
+              "rule_fallback",
+              "frontend_mock"
+            ],
+            "title": "Source",
+            "type": "string"
+          },
+          "title": {
+            "title": "Title",
+            "type": "string"
+          }
+        },
+        "required": [
+          "agent",
+          "title",
+          "detail",
+          "source",
+          "latencyMs",
+          "ok"
+        ],
+        "title": "AgentStep",
+        "type": "object"
+      },
+      "AssistantMessageRequest": {
+        "properties": {
+          "context": {
+            "$ref": "#/components/schemas/RequestContext"
+          },
+          "mode": {
+            "anyOf": [
+              {
+                "enum": [
+                  "rule",
+                  "model"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Mode"
+          },
+          "text": {
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Text",
+            "type": "string"
+          }
+        },
+        "required": [
+          "context",
+          "text"
+        ],
+        "title": "AssistantMessageRequest",
+        "type": "object"
+      },
+      "AssistantReply": {
+        "properties": {
+          "intent": {
+            "enum": [
+              "rest",
+              "device_command",
+              "status",
+              "other"
+            ],
+            "title": "Intent",
+            "type": "string"
+          },
+          "kind": {
+            "enum": [
+              "plan",
+              "answer"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "plan": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Plan"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "text": {
+            "title": "Text",
+            "type": "string"
+          },
+          "trace": {
+            "items": {
+              "$ref": "#/components/schemas/AgentStep"
+            },
+            "title": "Trace",
+            "type": "array"
+          }
+        },
+        "required": [
+          "kind",
+          "intent",
+          "text",
+          "plan",
+          "trace"
+        ],
+        "title": "AssistantReply",
         "type": "object"
       },
       "BootstrapResponse": {
@@ -297,7 +438,15 @@
             "type": "array"
           },
           "service": {
-            "$ref": "#/components/schemas/Service"
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Service"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Null for direct device commands (no rest service)"
           }
         },
         "required": [
@@ -462,10 +611,113 @@
         "title": "DeviceState",
         "type": "object"
       },
+      "EnergyAdvice": {
+        "description": "Rule-based energy advice. Loads are rough rule estimates, not measurements.",
+        "properties": {
+          "applied": {
+            "description": "True only in eco mode when the recommendation changed the set point",
+            "title": "Applied",
+            "type": "boolean"
+          },
+          "comfortMaxC": {
+            "title": "Comfortmaxc",
+            "type": "number"
+          },
+          "comfortMinC": {
+            "title": "Comfortminc",
+            "type": "number"
+          },
+          "loadKwAfter": {
+            "title": "Loadkwafter",
+            "type": "number"
+          },
+          "loadKwBefore": {
+            "title": "Loadkwbefore",
+            "type": "number"
+          },
+          "mode": {
+            "enum": [
+              "comfort_first",
+              "eco"
+            ],
+            "title": "Mode",
+            "type": "string"
+          },
+          "outdoorTempC": {
+            "title": "Outdoortempc",
+            "type": "number"
+          },
+          "reason": {
+            "title": "Reason",
+            "type": "string"
+          },
+          "recommendedAcC": {
+            "title": "Recommendedacc",
+            "type": "number"
+          },
+          "requestedAcC": {
+            "title": "Requestedacc",
+            "type": "number"
+          },
+          "source": {
+            "enum": [
+              "rule",
+              "frontend_mock"
+            ],
+            "title": "Source",
+            "type": "string"
+          },
+          "tariff": {
+            "enum": [
+              "peak",
+              "offpeak"
+            ],
+            "title": "Tariff",
+            "type": "string"
+          },
+          "tierAfter": {
+            "enum": [
+              "low",
+              "medium",
+              "high"
+            ],
+            "title": "Tierafter",
+            "type": "string"
+          },
+          "tierBefore": {
+            "enum": [
+              "low",
+              "medium",
+              "high"
+            ],
+            "title": "Tierbefore",
+            "type": "string"
+          }
+        },
+        "required": [
+          "mode",
+          "tariff",
+          "outdoorTempC",
+          "comfortMinC",
+          "comfortMaxC",
+          "requestedAcC",
+          "recommendedAcC",
+          "applied",
+          "loadKwBefore",
+          "loadKwAfter",
+          "tierBefore",
+          "tierAfter",
+          "reason",
+          "source"
+        ],
+        "title": "EnergyAdvice",
+        "type": "object"
+      },
       "ErrorBody": {
         "properties": {
           "code": {
             "enum": [
+              "NOT_EDITABLE",
               "VALIDATION_ERROR",
               "NOT_FOUND",
               "FORBIDDEN_CONTEXT",
@@ -637,6 +889,55 @@
         "title": "InjectEventRequest",
         "type": "object"
       },
+      "MemoryView": {
+        "description": "What the requesting person may see: only their own preference plus shared space rules.",
+        "properties": {
+          "editable": {
+            "title": "Editable",
+            "type": "boolean"
+          },
+          "isGuest": {
+            "title": "Isguest",
+            "type": "boolean"
+          },
+          "personId": {
+            "title": "Personid",
+            "type": "string"
+          },
+          "preference": {
+            "$ref": "#/components/schemas/RestPreference"
+          },
+          "sharedRules": {
+            "items": {
+              "$ref": "#/components/schemas/SpaceRule"
+            },
+            "title": "Sharedrules",
+            "type": "array"
+          },
+          "updatedAt": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Updatedat"
+          }
+        },
+        "required": [
+          "personId",
+          "isGuest",
+          "preference",
+          "editable",
+          "updatedAt",
+          "sharedRules"
+        ],
+        "title": "MemoryView",
+        "type": "object"
+      },
       "Person": {
         "properties": {
           "avatarColor": {
@@ -667,14 +968,21 @@
             "type": "string"
           },
           "restPreference": {
-            "$ref": "#/components/schemas/RestPreference"
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/RestPreference"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Omitted in shared listings; read your own via the memory endpoint"
           }
         },
         "required": [
           "personId",
           "name",
           "description",
-          "restPreference",
           "isGuest",
           "hasPin",
           "avatarColor"
@@ -695,6 +1003,16 @@
             "format": "date-time",
             "title": "Createdat",
             "type": "string"
+          },
+          "energy": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/EnergyAdvice"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "expiresAt": {
             "format": "date-time",
@@ -722,7 +1040,8 @@
           "scenario": {
             "enum": [
               "rest",
-              "rest_adjustment"
+              "rest_adjustment",
+              "device_command"
             ],
             "title": "Scenario",
             "type": "string"
@@ -754,6 +1073,13 @@
           "summary": {
             "title": "Summary",
             "type": "string"
+          },
+          "trace": {
+            "items": {
+              "$ref": "#/components/schemas/AgentStep"
+            },
+            "title": "Trace",
+            "type": "array"
           },
           "utterance": {
             "title": "Utterance",
@@ -1117,10 +1443,40 @@
         "title": "Service",
         "type": "object"
       },
+      "SetEnergyModeRequest": {
+        "properties": {
+          "context": {
+            "$ref": "#/components/schemas/RequestContext"
+          },
+          "mode": {
+            "enum": [
+              "comfort_first",
+              "eco"
+            ],
+            "title": "Mode",
+            "type": "string"
+          }
+        },
+        "required": [
+          "context",
+          "mode"
+        ],
+        "title": "SetEnergyModeRequest",
+        "type": "object"
+      },
       "Space": {
         "properties": {
           "defaultRestPreference": {
             "$ref": "#/components/schemas/RestPreference"
+          },
+          "energyMode": {
+            "description": "comfort_first: advise only; eco: apply advice inside the comfort band",
+            "enum": [
+              "comfort_first",
+              "eco"
+            ],
+            "title": "Energymode",
+            "type": "string"
           },
           "name": {
             "title": "Name",
@@ -1134,9 +1490,35 @@
         "required": [
           "spaceId",
           "name",
-          "defaultRestPreference"
+          "defaultRestPreference",
+          "energyMode"
         ],
         "title": "Space",
+        "type": "object"
+      },
+      "SpaceRule": {
+        "description": "Shared rule of a space. Visible to everyone in the space (unlike personal preferences).",
+        "properties": {
+          "enforced": {
+            "description": "True when code enforces it (not just displayed)",
+            "title": "Enforced",
+            "type": "boolean"
+          },
+          "ruleId": {
+            "title": "Ruleid",
+            "type": "string"
+          },
+          "text": {
+            "title": "Text",
+            "type": "string"
+          }
+        },
+        "required": [
+          "ruleId",
+          "text",
+          "enforced"
+        ],
+        "title": "SpaceRule",
         "type": "object"
       },
       "StopServiceRequest": {
@@ -1215,6 +1597,22 @@
         ],
         "title": "UnlockPersonResponse",
         "type": "object"
+      },
+      "UpdatePreferenceRequest": {
+        "properties": {
+          "context": {
+            "$ref": "#/components/schemas/RequestContext"
+          },
+          "preference": {
+            "$ref": "#/components/schemas/RestPreference"
+          }
+        },
+        "required": [
+          "context",
+          "preference"
+        ],
+        "title": "UpdatePreferenceRequest",
+        "type": "object"
       }
     }
   },
@@ -1224,6 +1622,88 @@
   },
   "openapi": "3.1.0",
   "paths": {
+    "/api/assistant/messages": {
+      "post": {
+        "description": "Main Agent entry: routes the message and returns a plan (to confirm) or a short answer.",
+        "operationId": "sendMessage",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AssistantMessageRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AssistantReply"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          }
+        },
+        "summary": "Send Message",
+        "tags": [
+          "assistant"
+        ]
+      }
+    },
     "/api/bootstrap": {
       "get": {
         "operationId": "getBootstrap",
@@ -1385,6 +1865,188 @@
         "summary": "Reset Demo",
         "tags": [
           "demo"
+        ]
+      }
+    },
+    "/api/memory": {
+      "get": {
+        "description": "Only the acting person's own preference plus shared space rules.",
+        "operationId": "getMemory",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "accountId",
+            "required": true,
+            "schema": {
+              "title": "Accountid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "personId",
+            "required": true,
+            "schema": {
+              "title": "Personid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "spaceId",
+            "required": true,
+            "schema": {
+              "title": "Spaceid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MemoryView"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          }
+        },
+        "summary": "Get Memory",
+        "tags": [
+          "memory"
+        ]
+      }
+    },
+    "/api/memory/preference": {
+      "put": {
+        "operationId": "updatePreference",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdatePreferenceRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MemoryView"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          }
+        },
+        "summary": "Update Preference",
+        "tags": [
+          "memory"
         ]
       }
     },
@@ -2019,6 +2681,98 @@
         "summary": "Get Device State",
         "tags": [
           "devices"
+        ]
+      }
+    },
+    "/api/spaces/{space_id}/energy-mode": {
+      "put": {
+        "operationId": "setEnergyMode",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "space_id",
+            "required": true,
+            "schema": {
+              "title": "Space Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SetEnergyModeRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Space"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          }
+        },
+        "summary": "Set Energy Mode",
+        "tags": [
+          "energy"
         ]
       }
     },

@@ -33,7 +33,7 @@ test('repeat confirm does not execute again; stop invalidates older plans', asyn
   assert.equal(again.repeated, true);
   assert.equal(again.deviceState.version, first.deviceState.version);
 
-  await api.stopService(first.service.serviceId, { context: ctx('person-lin') });
+  await api.stopService(first.service!.serviceId, { context: ctx('person-lin') });
   await assert.rejects(
     api.confirmPlan(pending.planId, { context: ctx('person-lin'), planVersion: 1 }),
     (e: unknown) => e instanceof ApiError && e.code === 'PLAN_INVALIDATED',
@@ -81,7 +81,7 @@ test('events: ignored without service, one adjustment, cooldown, ignored after s
   assert.equal(cooling.outcome, 'ignored');
   assert.match(cooling.reason ?? '', /冷却/);
 
-  await api.stopService(started.service.serviceId, { context: c });
+  await api.stopService(started.service!.serviceId, { context: c });
   const version = (await api.getDeviceState('space-home-bedroom')).version;
   t += 60_000;
   assert.equal((await ev(30)).outcome, 'ignored');

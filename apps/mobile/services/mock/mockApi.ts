@@ -1,48 +1,78 @@
-// Front-end mock of the backend rules. Everything here is simulated and labelled "frontend_mock".
-// Keep the behaviour aligned with backend/app/services/rest_service.py.
+// Front-end mock of the backend. Everything here is simulated and labelled "frontend_mock".
+// Keep the behaviour aligned with backend/app/services/rest_service.py and the agents
+// (see ./agents.ts for the mirrored rules).
 import { ApiError, type LivingMindApi } from '../api';
 import type {
   ActionResult,
   ActivityRecord,
+  AgentStep,
+  AssistantMessageRequest,
+  AssistantReply,
   BootstrapResponse,
   ConfirmPlanRequest,
   ConfirmPlanResponse,
   CreateRestPlanRequest,
   DeviceAction,
   DeviceState,
+  EnergyMode,
   EventResult,
   InjectEventRequest,
+  MemoryView,
   Plan,
+  PlannerMode,
   RequestContext,
+  RestPreference,
   Service,
   StopServiceRequest,
   StopServiceResponse,
 } from '../types';
-import { MOCK_ACCOUNT, MOCK_INITIAL_DEVICES, MOCK_PERSONS, MOCK_PINS, MOCK_SCENES, MOCK_SPACES } from './seed';
+import {
+  adjustmentTarget,
+  commandActions,
+  energyAdvise,
+  INTENT_LABEL,
+  parseCommand,
+  precheck,
+  restActions,
+  routeIntent,
+  TIER_LABEL,
+  type Intent,
+} from './agents';
+import { MOCK_ACCOUNT, MOCK_INITIAL_DEVICES, MOCK_PERSONS, MOCK_PINS, MOCK_SCENES, MOCK_SPACE_RULES, MOCK_SPACES, NIGHT_LIGHT_MAX } from './seed';
 
 const PLAN_TTL_MS = 10 * 60 * 1000;
-// Mirrors backend config defaults and backend/app/rules/rest_rule.py adjustment_rule.
 const EVENT_COOLDOWN_MS = 30 * 1000;
 const EVENT_MAX_ADJUSTMENTS = 3;
-const ADJUST_TRIGGER_C = 2;
-const ADJUST_STEP_C = 1;
-const ADJUST_BAND_C = 3;
 
 export interface MockOptions {
   latencyMs?: number;
   now?: () => Date;
   eventCooldownMs?: number;
+  /** Local hour used for the tariff (defaults to the device clock). */
+  localHour?: number;
 }
 
 interface PlanRecord {
   plan: Plan;
   epoch: number;
+  serviceId: string | null;
+  results: ActionResult[];
 }
+
+const step = (agent: AgentStep['agent'], title: string, detail: string, ok = true): AgentStep => ({
+  agent,
+  title,
+  detail,
+  source: 'frontend_mock',
+  latencyMs: 0,
+  ok,
+});
 
 export function createMockApi(options: MockOptions = {}): LivingMindApi {
   const latencyMs = options.latencyMs ?? 350;
   const now = options.now ?? (() => new Date());
   const cooldownMs = options.eventCooldownMs ?? EVENT_COOLDOWN_MS;
+  const localHour = () => options.localHour ?? now().getHours();
   let seq = 0;
   const id = (prefix: string) => `${prefix}-mock-${++seq}`;
 
@@ -51,7 +81,9 @@ export function createMockApi(options: MockOptions = {}): LivingMindApi {
   let services: Map<string, Service>;
   let activity: ActivityRecord[];
   let epoch: number;
-  let confirmResults: Map<string, ActionResult[]>;
+  let prefs: Map<string, RestPreference>;
+  let prefUpdated: Map<string, string>;
+  let energyMode: EnergyMode;
 
   const reset = () => {
     devices = {
@@ -65,7 +97,9 @@ export function createMockApi(options: MockOptions = {}): LivingMindApi {
     services = new Map();
     activity = [];
     epoch = 0;
-    confirmResults = new Map();
+    prefs = new Map(MOCK_PERSONS.map((p) => [p.personId, { ...p.restPreference! }]));
+    prefUpdated = new Map();
+    energyMode = MOCK_SPACES[0].energyMode;
   };
   reset();
 
@@ -79,6 +113,8 @@ export function createMockApi(options: MockOptions = {}): LivingMindApi {
   const log = (entry: Omit<ActivityRecord, 'activityId' | 'timestamp' | 'spaceId'>) => {
     activity.unshift({ activityId: id('act'), timestamp: now().toISOString(), spaceId: devices.spaceId, ...entry });
   };
+  const note = (kind: ActivityRecord['kind'], message: string, extra: Partial<ActivityRecord> = {}) =>
+    log({ kind, source: 'frontend_mock', message, serviceId: null, planId: null, personId: null, action: null, ...extra });
 
   const checkContext = (ctx: RequestContext) => {
     if (ctx.accountId !== MOCK_ACCOUNT.accountId) throw new ApiError('FORBIDDEN_CONTEXT', '演示账户不匹配', 403);
@@ -86,6 +122,7 @@ export function createMockApi(options: MockOptions = {}): LivingMindApi {
       throw new ApiError('FORBIDDEN_CONTEXT', '该人物不属于演示账户', 403);
     if (!MOCK_SPACES.some((s) => s.spaceId === ctx.spaceId))
       throw new ApiError('FORBIDDEN_CONTEXT', '该空间不属于演示账户', 403);
+    return MOCK_PERSONS.find((p) => p.personId === ctx.personId)!;
   };
 
   const activeService = () => [...services.values()].find((s) => s.status === 'active') ?? null;
@@ -95,21 +132,149 @@ export function createMockApi(options: MockOptions = {}): LivingMindApi {
     // The front-end mock has no model; "model" mode always degrades to a labelled rule fallback.
     planner: { defaultMode: 'rule', modelConfigured: false, provider: null, model: null, timeoutMs: 0 },
     account: MOCK_ACCOUNT,
-    persons: MOCK_PERSONS,
-    spaces: MOCK_SPACES,
+    persons: MOCK_PERSONS.map((p) => ({ ...p, restPreference: null })),
+    spaces: MOCK_SPACES.map((s) => ({ ...s, energyMode })),
     defaultSpaceId: MOCK_SPACES[0].spaceId,
     deviceState: devices,
     activeService: activeService(),
   });
 
   const apply = (action: DeviceAction): ActionResult => {
-    const base = { actionId: action.actionId, device: action.device, command: action.command, value: action.value };
     if (action.command === 'set_brightness') devices.lightBrightness = action.value;
     else if (action.command === 'set_target_temperature') devices.acTargetTempC = action.value;
     else devices.curtainOpenPercent = action.value;
     devices.version += 1;
     devices.updatedAt = now().toISOString();
-    return { ...base, outcome: 'succeeded', reason: null, observedValue: action.value };
+    return { actionId: action.actionId, device: action.device, command: action.command, value: action.value, outcome: 'succeeded', reason: null, observedValue: action.value };
+  };
+
+  const memoryView = (personId: string): MemoryView => {
+    const person = MOCK_PERSONS.find((p) => p.personId === personId)!;
+    return {
+      personId,
+      isGuest: person.isGuest,
+      preference: prefs.get(personId)!,
+      editable: !person.isGuest,
+      updatedAt: prefUpdated.get(personId) ?? null,
+      sharedRules: MOCK_SPACE_RULES,
+    };
+  };
+
+  const newPlan = (partial: Omit<Plan, 'planId' | 'version' | 'status' | 'createdAt' | 'expiresAt'>): Plan => {
+    const created = now();
+    return {
+      planId: id('plan'),
+      version: 1,
+      status: 'proposed',
+      createdAt: created.toISOString(),
+      expiresAt: new Date(created.getTime() + PLAN_TTL_MS).toISOString(),
+      ...partial,
+    };
+  };
+
+  const record = (plan: Plan) => {
+    plans.set(plan.planId, { plan, epoch, serviceId: null, results: [] });
+  };
+
+  const handle = (req: AssistantMessageRequest, force?: Intent): AssistantReply => {
+    const person = checkContext(req.context);
+    const mode: PlannerMode = req.mode ?? 'rule';
+    const intent = force ?? routeIntent(req.text);
+    const trace: AgentStep[] = [step('orchestrator', `识别意图：${INTENT_LABEL[intent]}`, '前端模拟的规则路由')];
+
+    if (intent === 'rest') {
+      const pref = prefs.get(person.personId)!;
+      trace.push(
+        step('memory', '读取上下文', `${person.isGuest ? '访客（空间默认设置）' : `${person.name} 的休息偏好（仅本人）`} + 空间规则 ${MOCK_SPACE_RULES.length} 条`),
+      );
+      const wantsModel = mode === 'model';
+      const fallbackReason = wantsModel ? '前端模拟模式没有模型，改用本地规则' : null;
+      trace.push(
+        step('experience', '生成体验目标', `体验目标：灯光 ${pref.lightBrightness}% · 空调 ${pref.acTargetTempC}°C · 窗帘 ${pref.curtainOpenPercent}%${fallbackReason ? `；${fallbackReason}` : ''}`, !wantsModel),
+      );
+      const advice = energyAdvise(pref, energyMode, localHour());
+      const target = advice.applied ? { ...pref, acTargetTempC: advice.recommendedAcC } : pref;
+      trace.push(
+        step(
+          'energy',
+          '能源策略',
+          `${energyMode === 'eco' ? '节能模式' : '舒适优先'} · ${advice.tariff === 'peak' ? '高峰' : '非高峰'}电价 · 建议 ${advice.recommendedAcC}°C${advice.applied ? ' · 已应用' : ' · 未改设定'} · 估算负荷 ${advice.loadKwBefore}→${advice.loadKwAfter} kW（${TIER_LABEL[advice.tierAfter]}档）`,
+        ),
+      );
+      const built = restActions(target, id, NIGHT_LIGHT_MAX);
+      trace.push(step('space_execution', '生成设备动作', `生成 ${built.actions.length} 个动作`));
+      const checked = precheck(built.actions);
+      trace.push(step('harness', '执行前检查', `${checked.problems.length ? checked.problems.join('；') : '全部通过白名单与参数范围'} · 需用户确认后执行`, !checked.problems.length));
+      const notes = [
+        ...(person.isGuest ? ['访客模式：使用空间默认设置，没有读取任何个人偏好'] : []),
+        wantsModel ? `前端模拟：${fallbackReason}` : '前端模拟：计划由本地规则生成，没有调用后端或模型',
+        '当前为固定休息场景，输入文字只做记录，不做语义理解',
+        ...built.notes,
+        ...(advice.applied ? [`节能模式：空调由 ${advice.requestedAcC}°C 调到 ${advice.recommendedAcC}°C（仍在舒适范围内）`] : []),
+      ];
+      const plan = newPlan({
+        personId: person.personId,
+        spaceId: req.context.spaceId,
+        scenario: 'rest',
+        source: 'frontend_mock',
+        summary: person.isGuest ? '按空间默认设置调整灯光、空调和窗帘（访客）' : `按 ${person.name} 的休息偏好调整灯光、空调和窗帘`,
+        notes,
+        utterance: req.text,
+        actions: checked.allowed,
+        generation: { modeRequested: mode, provider: null, model: null, latencyMs: 0, fallbackReason, goal: null },
+        trace,
+        energy: advice,
+      });
+      record(plan);
+      if (fallbackReason) note('plan_fallback', fallbackReason, { planId: plan.planId, personId: person.personId });
+      note('plan_created', `生成休息计划（${person.name}）`, { planId: plan.planId, personId: person.personId });
+      return { kind: 'plan', intent, text: plan.summary, plan, trace };
+    }
+
+    if (intent === 'device_command') {
+      const target = parseCommand(req.text, NIGHT_LIGHT_MAX);
+      if (target.light === null && target.ac === null && target.curtain === null) {
+        trace.push(step('space_execution', '解析设备指令', '没有识别出设备和目标值', false));
+        return { kind: 'answer', intent, text: '我没听清要调哪个设备，可以说“把灯关了”“空调调到 24 度”或“打开窗帘”。', plan: null, trace };
+      }
+      const built = commandActions(target, devices, id);
+      trace.push(step('space_execution', '解析设备指令', `${target.phrases.join('、')} → ${built.actions.length} 个动作`));
+      const checked = precheck(built.actions);
+      trace.push(step('harness', '执行前检查', `${checked.problems.length ? `拦截：${checked.problems.join('；')}` : '通过白名单与参数范围'} · 需用户确认后执行`, !checked.problems.length));
+      if (checked.allowed.length === 0) {
+        const why = [...checked.problems, ...built.notes].join('；') || '没有需要执行的动作';
+        return { kind: 'answer', intent, text: `没有生成动作：${why}`, plan: null, trace };
+      }
+      const summary = `设备指令：${checked.allowed.map((a) => a.label).join('，')}`;
+      const plan = newPlan({
+        personId: person.personId,
+        spaceId: req.context.spaceId,
+        scenario: 'device_command',
+        source: 'frontend_mock',
+        summary,
+        notes: ['简化分支：直接设备指令，不经过体验 Agent 与能源模块', ...built.notes],
+        utterance: req.text,
+        actions: checked.allowed,
+        generation: { modeRequested: mode, provider: null, model: null, latencyMs: 0, fallbackReason: null, goal: null },
+        trace,
+        energy: null,
+      });
+      record(plan);
+      note('plan_created', `主 Agent → 执行 Agent：${summary}（${person.name}）`, { planId: plan.planId, personId: person.personId });
+      return { kind: 'plan', intent, text: summary, plan, trace };
+    }
+
+    if (intent === 'status') {
+      trace.push(step('space_execution', '读取设备状态', '只读，不生成动作'));
+      return {
+        kind: 'answer',
+        intent,
+        text: `卧室现在：灯光 ${devices.lightBrightness}%，空调设定 ${devices.acTargetTempC}°C，窗帘开度 ${devices.curtainOpenPercent}%（前端模拟设备）。`,
+        plan: null,
+        trace,
+      };
+    }
+    return { kind: 'answer', intent, text: '我目前负责休息相关的空间服务：可以说“我想休息”，或者直接说“把灯关了”“空调调到 24 度”。', plan: null, trace };
   };
 
   return {
@@ -134,67 +299,52 @@ export function createMockApi(options: MockOptions = {}): LivingMindApi {
       return delay(devices);
     },
 
+    async sendMessage(req: AssistantMessageRequest) {
+      return delay(handle(req));
+    },
+
     async createRestPlan(req: CreateRestPlanRequest) {
-      checkContext(req.context);
-      const person = MOCK_PERSONS.find((p) => p.personId === req.context.personId)!;
-      const pref = person.restPreference;
-      const created = now();
-      const actions: DeviceAction[] = [
-        { actionId: id('a'), device: 'light', command: 'set_brightness', value: pref.lightBrightness, label: `灯光亮度调到 ${pref.lightBrightness}%` },
-        { actionId: id('a'), device: 'ac', command: 'set_target_temperature', value: pref.acTargetTempC, label: `空调设定 ${pref.acTargetTempC}°C` },
-        { actionId: id('a'), device: 'curtain', command: 'set_open_percent', value: pref.curtainOpenPercent, label: pref.curtainOpenPercent === 0 ? '窗帘全部关闭' : `窗帘保留 ${pref.curtainOpenPercent}%` },
-      ];
-      const wantsModel = req.mode === 'model';
-      const fallbackReason = wantsModel ? '前端模拟模式没有模型，改用本地规则' : null;
-      const plan: Plan = {
-        planId: id('plan'),
-        version: 1,
-        personId: person.personId,
-        spaceId: req.context.spaceId,
-        scenario: 'rest',
-        source: 'frontend_mock',
-        summary: person.isGuest ? '按空间默认设置调整灯光、空调和窗帘（访客）' : `按 ${person.name} 的休息偏好调整灯光、空调和窗帘`,
-        notes: [
-          ...(person.isGuest ? ['访客模式：使用空间默认设置，没有读取任何个人偏好'] : []),
-          wantsModel ? `前端模拟：${fallbackReason}` : '前端模拟：计划由本地规则生成，没有调用后端或模型',
-          '当前为固定休息场景，输入文字只做记录，不做语义理解',
-        ],
-        generation: {
-          modeRequested: wantsModel ? 'model' : 'rule',
-          provider: null,
-          model: null,
-          latencyMs: 0,
-          fallbackReason,
-          goal: null,
-        },
-        utterance: req.utterance,
-        actions,
-        status: 'proposed',
-        createdAt: created.toISOString(),
-        expiresAt: new Date(created.getTime() + PLAN_TTL_MS).toISOString(),
-      };
-      plans.set(plan.planId, { plan, epoch });
-      if (fallbackReason) {
-        log({ kind: 'plan_fallback', source: 'frontend_mock', message: fallbackReason, serviceId: null, planId: plan.planId, personId: person.personId, action: null });
-      }
-      log({ kind: 'plan_created', source: 'frontend_mock', message: `生成休息计划（${person.name}）`, serviceId: null, planId: plan.planId, personId: person.personId, action: null });
-      return delay(plan);
+      return delay(handle({ context: req.context, text: req.utterance, mode: req.mode }, 'rest').plan!);
+    },
+
+    async getMemory(ctx: RequestContext) {
+      checkContext(ctx);
+      return delay(memoryView(ctx.personId));
+    },
+
+    async updatePreference(ctx: RequestContext, preference: RestPreference) {
+      const person = checkContext(ctx);
+      if (person.isGuest) throw new ApiError('NOT_EDITABLE', '访客没有个人偏好，不能编辑', 409);
+      if (preference.lightBrightness > NIGHT_LIGHT_MAX)
+        throw new ApiError('VALIDATION_ERROR', `休息偏好的灯光不能超过 ${NIGHT_LIGHT_MAX}%（空间规则）`, 422);
+      if (preference.acTargetTempC < 16 || preference.acTargetTempC > 30) throw new ApiError('VALIDATION_ERROR', '空调温度超出范围', 422);
+      prefs.set(person.personId, { ...preference });
+      prefUpdated.set(person.personId, now().toISOString());
+      note('memory_updated', `${person.name} 更新了自己的休息偏好（前端模拟）`, { personId: person.personId });
+      return delay(memoryView(person.personId));
+    },
+
+    async setEnergyMode(ctx: RequestContext, mode: EnergyMode) {
+      checkContext(ctx);
+      energyMode = mode;
+      note('energy_mode_changed', `节能设置改为：${mode === 'eco' ? '节能模式' : '舒适优先'}（前端模拟）`);
+      return delay({ ...MOCK_SPACES[0], energyMode });
     },
 
     async confirmPlan(planId: string, req: ConfirmPlanRequest): Promise<ConfirmPlanResponse> {
       checkContext(req.context);
-      const record = plans.get(planId);
-      if (!record) throw new ApiError('NOT_FOUND', '计划不存在', 404);
-      const { plan } = record;
+      const rec = plans.get(planId);
+      if (!rec) throw new ApiError('NOT_FOUND', '计划不存在', 404);
+      const { plan } = rec;
       if (plan.personId !== req.context.personId) throw new ApiError('FORBIDDEN_CONTEXT', '计划不属于当前人物', 403);
       if (plan.version !== req.planVersion) throw new ApiError('PLAN_VERSION_MISMATCH', '计划版本已变化，请刷新', 409);
 
       if (plan.status === 'executed') {
-        const service = [...services.values()].find((s) => s.planId === planId)!;
-        log({ kind: 'plan_confirm_repeated', source: 'frontend_mock', message: '重复确认，未再次执行', serviceId: service.serviceId, planId, personId: plan.personId, action: null });
-        return delay({ plan, service, results: confirmResults.get(planId) ?? [], deviceState: devices, repeated: true });
+        const service = rec.serviceId ? services.get(rec.serviceId)! : null;
+        note('plan_confirm_repeated', '重复确认，未再次执行', { serviceId: rec.serviceId, planId, personId: plan.personId });
+        return delay({ plan, service, results: rec.results, deviceState: devices, repeated: true });
       }
-      if (plan.status !== 'proposed' || record.epoch !== epoch) {
+      if (plan.status !== 'proposed' || rec.epoch !== epoch) {
         plan.status = 'invalidated';
         throw new ApiError('PLAN_INVALIDATED', '计划已失效（服务停止后需重新生成）', 409);
       }
@@ -202,31 +352,42 @@ export function createMockApi(options: MockOptions = {}): LivingMindApi {
         plan.status = 'expired';
         throw new ApiError('PLAN_EXPIRED', '计划已过期，请重新生成', 409);
       }
-      if (activeService()) throw new ApiError('SERVICE_ALREADY_ACTIVE', '当前空间已有运行中的服务，请先停止', 409);
 
-      const service: Service = {
-        serviceId: id('svc'),
-        spaceId: plan.spaceId,
-        personId: plan.personId,
-        planId,
-        planVersion: plan.version,
-        status: 'active',
-        startedAt: now().toISOString(),
-        stoppedAt: null,
-        plannerMode: plan.generation.modeRequested,
-        adjustments: 0,
-        lastAdjustedAt: null,
-      };
-      services.set(service.serviceId, service);
+      let service: Service | null = null;
+      if (plan.scenario !== 'device_command') {
+        if (activeService()) throw new ApiError('SERVICE_ALREADY_ACTIVE', '当前空间已有运行中的服务，请先停止', 409);
+        service = {
+          serviceId: id('svc'),
+          spaceId: plan.spaceId,
+          personId: plan.personId,
+          planId,
+          planVersion: plan.version,
+          status: 'active',
+          startedAt: now().toISOString(),
+          stoppedAt: null,
+          plannerMode: plan.generation.modeRequested,
+          adjustments: 0,
+          lastAdjustedAt: null,
+        };
+        services.set(service.serviceId, service);
+        rec.serviceId = service.serviceId;
+      }
       plan.status = 'executed';
-      log({ kind: 'plan_confirmed', source: 'user', message: '用户确认执行休息计划', serviceId: service.serviceId, planId, personId: plan.personId, action: null });
-      const results = plan.actions.map((a) => {
+      log({
+        kind: 'plan_confirmed',
+        source: 'user',
+        message: service ? '用户确认执行休息计划' : '用户确认设备指令',
+        serviceId: service?.serviceId ?? null,
+        planId,
+        personId: plan.personId,
+        action: null,
+      });
+      rec.results = plan.actions.map((a) => {
         const r = apply(a);
-        log({ kind: 'action_executed', source: 'frontend_mock', message: a.label, serviceId: service.serviceId, planId, personId: plan.personId, action: r });
+        note('action_executed', a.label, { serviceId: service?.serviceId ?? null, planId, personId: plan.personId, action: r });
         return r;
       });
-      confirmResults.set(planId, results);
-      return delay({ plan, service, results, deviceState: devices, repeated: false });
+      return delay({ plan, service, results: rec.results, deviceState: devices, repeated: false });
     },
 
     async stopService(serviceId: string, req: StopServiceRequest): Promise<StopServiceResponse> {
@@ -245,9 +406,9 @@ export function createMockApi(options: MockOptions = {}): LivingMindApi {
       checkContext(req.context);
       const eventId = id('event');
       const service = activeService();
-      log({ kind: 'event_received', source: 'frontend_mock', message: `模拟事件：室温变为 ${req.roomTempC}°C（前端模拟）`, serviceId: service?.serviceId ?? null, planId: null, personId: null, action: null });
+      note('event_received', `模拟事件：室温变为 ${req.roomTempC}°C（前端模拟）`, { serviceId: service?.serviceId ?? null });
       const ignore = (reason: string): Promise<EventResult> => {
-        log({ kind: 'event_ignored', source: 'frontend_mock', message: `事件已忽略：${reason}`, serviceId: service?.serviceId ?? null, planId: null, personId: service?.personId ?? null, action: null });
+        note('event_ignored', `事件已忽略：${reason}`, { serviceId: service?.serviceId ?? null, personId: service?.personId ?? null });
         return delay({ eventId, source: 'simulated', outcome: 'ignored', reason, service, plan: null, results: [], deviceState: devices });
       };
       if (!service) return ignore('当前没有运行中的服务');
@@ -257,44 +418,45 @@ export function createMockApi(options: MockOptions = {}): LivingMindApi {
         return ignore(`冷却中，约 ${left} 秒后才会再次调整`);
       }
       const person = MOCK_PERSONS.find((p) => p.personId === service.personId)!;
-      const pref = person.restPreference.acTargetTempC;
-      const target = devices.acTargetTempC;
-      let next = target;
-      if (req.roomTempC >= target + ADJUST_TRIGGER_C) next = Math.max(target - ADJUST_STEP_C, pref - ADJUST_BAND_C, 16);
-      else if (req.roomTempC <= target - ADJUST_TRIGGER_C) next = Math.min(target + ADJUST_STEP_C, pref + ADJUST_BAND_C, 30);
-      if (next === target) return ignore(Math.abs(req.roomTempC - target) < ADJUST_TRIGGER_C ? `室温 ${req.roomTempC}°C 与设定 ${target}°C 接近，无需调整` : '已到偏好允许的调整边界');
+      const { next, summary } = adjustmentTarget(prefs.get(person.personId)!.acTargetTempC, devices.acTargetTempC, req.roomTempC);
+      if (next === devices.acTargetTempC) return ignore(summary);
       const wantsModel = service.plannerMode === 'model';
-      const created = now();
       const action: DeviceAction = { actionId: id('a'), device: 'ac', command: 'set_target_temperature', value: next, label: `空调设定 ${next}°C` };
       const plan: Plan = {
-        planId: id('plan'),
-        version: 1,
-        personId: person.personId,
-        spaceId: devices.spaceId,
-        scenario: 'rest_adjustment',
-        source: 'frontend_mock',
-        summary: `室温 ${req.roomTempC}°C，空调调整到 ${next}°C`,
-        notes: [wantsModel ? '前端模拟：前端模拟模式没有模型，改用本地调整规则' : '前端模拟：本地调整规则'],
-        utterance: `【模拟事件】室温 ${req.roomTempC}°C`,
-        actions: [action],
+        ...newPlan({
+          personId: person.personId,
+          spaceId: devices.spaceId,
+          scenario: 'rest_adjustment',
+          source: 'frontend_mock',
+          summary,
+          notes: [wantsModel ? '前端模拟：前端模拟模式没有模型，改用本地调整规则' : '前端模拟：本地调整规则'],
+          utterance: `【模拟事件】室温 ${req.roomTempC}°C`,
+          actions: [action],
+          generation: {
+            modeRequested: service.plannerMode,
+            provider: null,
+            model: null,
+            latencyMs: 0,
+            fallbackReason: wantsModel ? '前端模拟模式没有模型，改用本地规则' : null,
+            goal: null,
+          },
+          trace: [
+            step('orchestrator', '处理模拟事件', `室温 ${req.roomTempC}°C · 读取${person.name}的偏好`),
+            step('experience', '调整目标', summary),
+            step('energy', '能源策略', '事件调整以舒适优先，不应用节能策略'),
+            step('space_execution', '生成调整动作', '只对有变化的设备生成 1 个动作'),
+            step('harness', '执行前检查', '通过'),
+          ],
+          energy: null,
+        }),
         status: 'executed',
-        createdAt: created.toISOString(),
-        expiresAt: new Date(created.getTime() + PLAN_TTL_MS).toISOString(),
-        generation: {
-          modeRequested: service.plannerMode,
-          provider: null,
-          model: null,
-          latencyMs: 0,
-          fallbackReason: wantsModel ? '前端模拟模式没有模型，改用本地规则' : null,
-          goal: null,
-        },
       };
-      plans.set(plan.planId, { plan, epoch });
+      plans.set(plan.planId, { plan, epoch, serviceId: service.serviceId, results: [] });
       service.adjustments += 1;
-      service.lastAdjustedAt = created.toISOString();
-      log({ kind: 'service_adjusted', source: 'frontend_mock', message: `自动调整（前端模拟）：${plan.summary}`, serviceId: service.serviceId, planId: plan.planId, personId: person.personId, action: null });
+      service.lastAdjustedAt = now().toISOString();
+      note('service_adjusted', `自动调整（前端模拟）：${summary}`, { serviceId: service.serviceId, planId: plan.planId, personId: person.personId });
       const result = apply(action);
-      log({ kind: 'action_executed', source: 'frontend_mock', message: action.label, serviceId: service.serviceId, planId: plan.planId, personId: person.personId, action: result });
+      note('action_executed', action.label, { serviceId: service.serviceId, planId: plan.planId, personId: person.personId, action: result });
       return delay({ eventId, source: 'simulated', outcome: 'adjusted', reason: null, service, plan, results: [result], deviceState: devices });
     },
 
@@ -304,7 +466,7 @@ export function createMockApi(options: MockOptions = {}): LivingMindApi {
 
     async resetDemo() {
       reset();
-      log({ kind: 'demo_reset', source: 'frontend_mock', message: '演示数据已重置（前端模拟）', serviceId: null, planId: null, personId: null, action: null });
+      note('demo_reset', '演示数据已重置（前端模拟）');
       return delay(bootstrap());
     },
   };

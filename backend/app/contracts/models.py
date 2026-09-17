@@ -21,6 +21,19 @@ __all__ = [
     "PlannerMode",
     "Service",
     "ActionResult",
+    "AgentName",
+    "AgentStep",
+    "StepSource",
+    "EnergyAdvice",
+    "EnergyMode",
+    "PowerTier",
+    "AssistantMessageRequest",
+    "AssistantReply",
+    "MemoryView",
+    "SpaceRule",
+    "UpdatePreferenceRequest",
+    "SetEnergyModeRequest",
+    "Capability",
     "InjectEventRequest",
     "UnlockPersonRequest",
     "UnlockPersonResponse",
@@ -83,14 +96,21 @@ ActivityKind = Literal[
     "action_executed",
     "action_rejected",
     "service_stopped",
+    "memory_updated",
+    "energy_mode_changed",
     "demo_reset",
 ]
 ActivitySource = Literal[
     "user", "rule_engine", "experience_agent", "executor", "virtual_device", "system", "simulated_event", "frontend_mock"
 ]
 EventType = Literal["room_temperature_changed"]
+AgentName = Literal["orchestrator", "memory", "experience", "energy", "space_execution", "harness"]
+StepSource = Literal["rule", "model", "rule_fallback", "frontend_mock"]
+EnergyMode = Literal["comfort_first", "eco"]
+PowerTier = Literal["low", "medium", "high"]
 EventOutcome = Literal["adjusted", "ignored"]
 ErrorCode = Literal[
+    "NOT_EDITABLE",
     "VALIDATION_ERROR",
     "NOT_FOUND",
     "FORBIDDEN_CONTEXT",
@@ -117,7 +137,10 @@ class Person(Contract):
     person_id: str
     name: str
     description: str
-    rest_preference: RestPreference
+    rest_preference: Optional[RestPreference] = Field(
+        default=None,
+        description="Omitted in shared listings; read your own via the memory endpoint",
+    )
     is_guest: bool = Field(description="Guest / shared-space context: space defaults, no personal profile")
     has_pin: bool = Field(description="A demo PIN guards switching to this person (the PIN itself is never sent)")
     avatar_color: str = Field(description="Display color for the avatar")
@@ -127,6 +150,15 @@ class Space(Contract):
     space_id: str
     name: str
     default_rest_preference: RestPreference
+    energy_mode: EnergyMode = Field(description="comfort_first: advise only; eco: apply advice inside the comfort band")
+
+
+class SpaceRule(Contract):
+    """Shared rule of a space. Visible to everyone in the space (unlike personal preferences)."""
+
+    rule_id: str
+    text: str
+    enforced: bool = Field(description="True when code enforces it (not just displayed)")
 
 
 SceneStatus = Literal["implemented", "planned"]
@@ -191,12 +223,50 @@ class PlanGeneration(Contract):
     goal: Optional[str] = Field(description="Experience goal stated by the model")
 
 
+class AgentStep(Contract):
+    """One step of the 1+2 agent collaboration, kept with the plan as call evidence."""
+
+    agent: AgentName
+    title: str
+    detail: str
+    source: StepSource
+    latency_ms: int
+    ok: bool
+
+
+class EnergyAdvice(Contract):
+    """Rule-based energy advice. Loads are rough rule estimates, not measurements."""
+
+    mode: EnergyMode
+    tariff: Literal["peak", "offpeak"]
+    outdoor_temp_c: float
+    comfort_min_c: float
+    comfort_max_c: float
+    requested_ac_c: float
+    recommended_ac_c: float
+    applied: bool = Field(description="True only in eco mode when the recommendation changed the set point")
+    load_kw_before: float
+    load_kw_after: float
+    tier_before: PowerTier
+    tier_after: PowerTier
+    reason: str
+    source: Literal["rule", "frontend_mock"]
+
+
+class Capability(Contract):
+    device: DeviceType
+    command: DeviceCommand
+    min: float
+    max: float
+    integer: bool
+
+
 class Plan(Contract):
     plan_id: str
     version: int
     person_id: str
     space_id: str
-    scenario: Literal["rest", "rest_adjustment"]
+    scenario: Literal["rest", "rest_adjustment", "device_command"]
     source: PlanSource
     summary: str
     notes: list[str]
@@ -206,6 +276,8 @@ class Plan(Contract):
     created_at: datetime
     expires_at: datetime
     generation: PlanGeneration
+    trace: list[AgentStep] = Field(default_factory=list)
+    energy: Optional[EnergyAdvice] = None
 
 
 class Service(Contract):
@@ -276,6 +348,22 @@ class UnlockPersonResponse(Contract):
     note: str
 
 
+class AssistantMessageRequest(Contract):
+    context: RequestContext
+    text: str = Field(min_length=1, max_length=200)
+    mode: Optional[PlannerMode] = None
+
+
+class UpdatePreferenceRequest(Contract):
+    context: RequestContext
+    preference: RestPreference
+
+
+class SetEnergyModeRequest(Contract):
+    context: RequestContext
+    mode: EnergyMode
+
+
 class InjectEventRequest(Contract):
     """Simulated environment event (demo only; there is no real sensor)."""
 
@@ -308,7 +396,7 @@ class BootstrapResponse(Contract):
 
 class ConfirmPlanResponse(Contract):
     plan: Plan
-    service: Service
+    service: Optional[Service] = Field(description="Null for direct device commands (no rest service)")
     results: list[ActionResult]
     device_state: DeviceState
     repeated: bool = Field(description="True when the plan was already executed; nothing was re-run")
@@ -328,6 +416,25 @@ class EventResult(Contract):
     plan: Optional[Plan] = Field(description="The adjustment plan that was executed")
     results: list[ActionResult]
     device_state: DeviceState
+
+
+class AssistantReply(Contract):
+    kind: Literal["plan", "answer"]
+    intent: Literal["rest", "device_command", "status", "other"]
+    text: str
+    plan: Optional[Plan]
+    trace: list[AgentStep]
+
+
+class MemoryView(Contract):
+    """What the requesting person may see: only their own preference plus shared space rules."""
+
+    person_id: str
+    is_guest: bool
+    preference: RestPreference
+    editable: bool
+    updated_at: Optional[datetime]
+    shared_rules: list[SpaceRule]
 
 
 class ScenesResponse(Contract):

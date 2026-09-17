@@ -1,13 +1,11 @@
-"""Fixed rest rule (no model) and the shared action builder used by both rule and model plans."""
+"""Fixed rest rules (no model) and the action mapping shared by all plan sources."""
 
 from __future__ import annotations
 
-from datetime import datetime, timedelta
+from datetime import timedelta
 from typing import Callable
 
-from typing import Literal, Optional
-
-from app.contracts import DeviceAction, DeviceState, Person, Plan, PlanGeneration, PlanSource, RestPreference
+from app.contracts import DeviceAction, DeviceState, Person, RestPreference
 
 PLAN_TTL = timedelta(minutes=10)
 
@@ -50,54 +48,11 @@ def changed_actions(settings: RestPreference, state: DeviceState, new_id: Callab
     return [a for a in actions_from_settings(settings, new_id) if float(a.value) != float(current[a.device])]
 
 
-def build_plan(
-    *,
-    person: Person,
-    space_id: str,
-    utterance: str,
-    now: datetime,
-    new_id: Callable[[str], str],
-    settings: RestPreference,
-    source: PlanSource,
-    summary: str,
-    notes: list[str],
-    generation: PlanGeneration,
-    scenario: Literal["rest", "rest_adjustment"] = "rest",
-    actions: Optional[list[DeviceAction]] = None,
-) -> Plan:
-    return Plan(
-        plan_id=new_id("plan"),
-        version=1,
-        person_id=person.person_id,
-        space_id=space_id,
-        scenario=scenario,
-        source=source,
-        summary=summary,
-        notes=notes,
-        utterance=utterance,
-        actions=actions if actions is not None else actions_from_settings(settings, new_id),
-        status="proposed",
-        created_at=now,
-        expires_at=now + PLAN_TTL,
-        generation=generation,
-    )
-
-
-def build_rest_plan(
-    person: Person,
-    space_id: str,
-    utterance: str,
-    now: datetime,
-    new_id: Callable[[str], str],
-    *,
-    latency_ms: int = 0,
-    fallback_reason: str | None = None,
-) -> Plan:
-    """Rule plan straight from the seeded preference. With fallback_reason it is a rule fallback."""
-    is_fallback = fallback_reason is not None
+def rest_rule_text(person: Person, fallback_reason: str | None) -> tuple[str, list[str]]:
+    """Summary and notes for a rule-based rest target."""
     notes = [
         "规则计划：由后端固定休息规则生成，没有调用模型"
-        if not is_fallback
+        if fallback_reason is None
         else f"规则降级：请求了模型，但改用固定规则生成（{fallback_reason}）",
         "当前为固定休息场景，输入文字只做记录，不做语义理解",
     ]
@@ -108,25 +63,7 @@ def build_rest_plan(
         if person.is_guest
         else f"按 {person.name} 的休息偏好调整灯光、空调和窗帘"
     )
-    return build_plan(
-        person=person,
-        space_id=space_id,
-        utterance=utterance,
-        now=now,
-        new_id=new_id,
-        settings=person.rest_preference,
-        source="rule_fallback" if is_fallback else "rule",
-        summary=summary,
-        notes=notes,
-        generation=PlanGeneration(
-            mode_requested="model" if is_fallback else "rule",
-            provider=None,
-            model=None,
-            latency_ms=latency_ms,
-            fallback_reason=fallback_reason,
-            goal=None,
-        ),
-    )
+    return summary, notes
 
 
 # ---- adjustment rule (step 6) ----
@@ -160,41 +97,3 @@ def adjustment_rule(pref: RestPreference, state: DeviceState, room_temp_c: float
     return settings, summary
 
 
-def build_adjustment_rule_plan(
-    person: Person,
-    space_id: str,
-    room_temp_c: float,
-    state: DeviceState,
-    now: datetime,
-    new_id: Callable[[str], str],
-    *,
-    latency_ms: int = 0,
-    fallback_reason: Optional[str] = None,
-) -> Plan:
-    settings, summary = adjustment_rule(person.rest_preference, state, room_temp_c)
-    is_fallback = fallback_reason is not None
-    return build_plan(
-        person=person,
-        space_id=space_id,
-        utterance=f"【模拟事件】室温 {room_temp_c:g}°C",
-        now=now,
-        new_id=new_id,
-        settings=settings,
-        source="rule_fallback" if is_fallback else "rule",
-        summary=summary,
-        notes=[
-            "规则调整：室温偏离设定 2°C 以上时，空调每次调整 1°C，且不超出偏好 ±3°C"
-            if not is_fallback
-            else f"规则降级：请求了模型，但改用调整规则（{fallback_reason}）",
-        ],
-        generation=PlanGeneration(
-            mode_requested="model" if is_fallback else "rule",
-            provider=None,
-            model=None,
-            latency_ms=latency_ms,
-            fallback_reason=fallback_reason,
-            goal=None,
-        ),
-        scenario="rest_adjustment",
-        actions=changed_actions(settings, state, new_id),
-    )

@@ -9,14 +9,14 @@ Design notes (see docs/test-data.md):
   and the backend never uses them to authorise requests.
 """
 
-from app.contracts import DemoAccount, Person, RestPreference, Scene, Space
+from app.contracts import DemoAccount, Person, RestPreference, Scene, Space, SpaceRule
 
 DEMO_ACCOUNT = DemoAccount(account_id="demo-account", display_name="演示家庭", is_demo=True)
 
 SPACE_DEFAULT = RestPreference(light_brightness=30, ac_target_temp_c=25, curtain_open_percent=0)
 
 SPACES: list[Space] = [
-    Space(space_id="space-home-bedroom", name="家 · 主卧", default_rest_preference=SPACE_DEFAULT),
+    Space(space_id="space-home-bedroom", name="家 · 主卧", default_rest_preference=SPACE_DEFAULT, energy_mode="comfort_first"),
 ]
 DEFAULT_SPACE_ID = SPACES[0].space_id
 
@@ -60,6 +60,20 @@ PERSONS: list[Person] = [
         avatar_color="#66738A",
     ),
 ]
+
+# Shared rules of the bedroom (visible to everyone in the space).
+NIGHT_LIGHT_MAX = 60
+SPACE_RULES: dict[str, list[SpaceRule]] = {
+    "space-home-bedroom": [
+        SpaceRule(rule_id="rule-night-light", text=f"休息时灯光不超过 {NIGHT_LIGHT_MAX}%", enforced=True),
+        SpaceRule(rule_id="rule-guest-privacy", text="访客模式不读取任何个人偏好", enforced=True),
+        SpaceRule(rule_id="rule-confirm", text="所有设备动作都要先确认再执行（模拟事件的自动调整除外）", enforced=True),
+    ]
+}
+
+# Simulated environment for energy advice (no real weather or tariff feed).
+OUTDOOR_TEMP_C = 29.0
+PEAK_HOURS_LOCAL = range(18, 23)  # 18:00–22:59 treated as peak tariff
 
 # Demo-only PINs. Never returned by any API.
 PERSON_PINS: dict[str, str] = {"person-lin": "2468", "person-chen": "1357", "person-zhou": "8024"}

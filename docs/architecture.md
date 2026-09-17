@@ -2,7 +2,24 @@
 
 定稿方案见 `../架构评审/LivingMind-架构评审与迁移步骤-v0.2.md`。本文件只记录**代码里实际怎么分**，以及哪些位置是后续预留。
 
-## 请求链路（步骤 4 起）
+## 请求链路（⑧ 起）
+
+```text
+App 对话 → POST /api/assistant/messages
+  → 主 Agent（agents/orchestrator）规则路由：休息请求 / 设备指令 / 状态查询 / 其他
+  休息请求（完整分支）：
+    → 人物记忆（memory/）：只取本人偏好 + 空间规则
+    → Experience Agent（services/planner.py + agents/experience/）：体验目标（规则或模型，失败降级，偏离上限）
+    → 能源智能（energy/）：舒适范围内的空调建议；节能模式才应用
+    → Space Execution Agent（agents/space_execution/）：按设备能力和空间规则生成动作
+    → Harness 预检（harness/policy.py）：白名单与参数范围；需用户确认
+    → Plan（附 trace 与 energy）
+  设备指令（简化分支）：主 Agent → Space Execution Agent 解析 → Harness 预检 → Plan（不经过体验与能源）
+  状态查询 / 其他：直接回答，不生成动作
+确认 → 执行器（harness/executor.py，每个动作前 guard）→ 虚拟设备 → 回读 → 活动记录
+```
+
+## 请求链路（步骤 4 时的最初版本）
 
 ```text
 App 页面 → services/api（http 实现）→ FastAPI 路由
@@ -42,8 +59,11 @@ App 页面 → services/api（http 实现）→ FastAPI 路由
 | `backend/app/repositories/` | 内存存储（重启重置） | 第一批实现 |
 | `backend/app/demo/` | 种子人物、空间、演示账户 | 第一批实现 |
 | `packages/api-client/` | 由 OpenAPI 生成的 TS 类型 | 第一批实现 |
-| `backend/app/agents/orchestrator/`、`space_execution/` | 主 Agent / 执行 Agent | **未创建**，第二批 ⑧ |
-| `backend/app/memory/`、`energy/` | 人物记忆、能源规则 | **未创建**，第二批 ⑧ |
+| `backend/app/agents/orchestrator/` | 主 Agent：规则路由、编排、协作轨迹（AgentStep）、事件调整编排 | ⑧ 实现 |
+| `backend/app/agents/space_execution/` | Space Execution Agent：设备能力、空间规则（夜间灯光上限）、休息动作、调整动作、设备指令解析（规则） | ⑧ 实现 |
+| `backend/app/memory/` | 人物记忆：本人偏好（可编辑，访客不可）、空间共享规则；共享列表不含任何人的偏好 | ⑧ 实现 |
+| `backend/app/energy/` | 能源智能（在线规则）：舒适范围、分时电价、估算负荷档位、舒适优先 / 节能模式 | ⑧ 实现 |
+| `backend/app/harness/policy.py` | 规划阶段预检（与执行器同一套白名单和范围） | ⑧ 实现 |
 | 事件入口与调整（`services/rest_service.py::inject_event`、`rules/rest_rule.py::adjustment_rule`） | 一次事件调整 | ⑥ 实现 |
 | 定时器、SpaceMind / 语音 Adapter | 整晚服务与真实接入 | **未创建**，⑦ 及以后 |
 
@@ -95,3 +115,12 @@ App 页面 → services/api（http 实现）→ FastAPI 路由
 - `POST /api/persons/{personId}/unlock` 校验演示 PIN，只用于共享平板防误切换；不签发令牌，后续请求不据此授权；PIN 不会出现在任何接口返回里。
 - 访客 `person-guest` 使用空间默认设置，没有 PIN；计划摘要与说明都写明“访客”。
 - `GET /api/scenes` 返回场景库，状态与实现一致，由测试守护。
+
+## ⑧ 补充规则
+
+19. 主 Agent 的路由是规则（关键词），在协作过程里标为“规则”；只有 Experience Agent 会调用模型，每条消息最多一次。
+20. 共享列表（bootstrap）不含任何人的偏好；`GET /api/memory` 只返回请求人物自己的偏好和空间规则。演示身份下这由请求上下文决定，不是认证。
+21. 偏好编辑：访客不可编辑；灯光不超过空间规则 60%；数值范围由契约校验；改动写入活动记录，下一次计划立即使用。
+22. 能源智能：舒适范围 = 体验目标 ±1°C；高峰电价（本地 18–23 点，可用 `LIVINGMIND_DEMO_LOCAL_HOUR` 固定）且需要制冷时，建议把空调提高 0.5°C；“舒适优先”只给建议，“节能模式”才应用。负荷是规则估算，只显示档位和 kW 估算，不显示节省比例或金额。
+23. 设备指令走简化分支，确认后执行但**不创建休息服务**；休息服务运行中也可以下设备指令；停止服务会让未确认的设备指令失效。
+24. 事件调整也由主 Agent 编排（体验 → 执行 → Harness），以舒适优先，不应用节能策略。

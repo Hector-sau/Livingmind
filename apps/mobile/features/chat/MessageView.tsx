@@ -51,6 +51,8 @@ export function MessageView({ message, livePlan, actionable, blockReason, busy, 
           </LinearGradient>
         </FadeIn>
       );
+    case 'assistant':
+      return <AssistantText text={message.text} />;
     case 'system': {
       const tone = SYSTEM_TONE[message.tone];
       return (
@@ -66,7 +68,7 @@ export function MessageView({ message, livePlan, actionable, blockReason, busy, 
       return (
         <FadeIn style={[styles.row, styles.left]}>
           <AssistantAvatar />
-          <View style={styles.assistantBlock}>
+          <View style={styles.assistantBlock} testID="plan-message">
             <PlanCard
               title="我的建议"
               plan={livePlan ?? message.plan}
@@ -112,11 +114,11 @@ export function MessageView({ message, livePlan, actionable, blockReason, busy, 
   }
 }
 
-export function AssistantText({ text }: { text: string }) {
+export function AssistantText({ text, testID = 'assistant-message' }: { text: string; testID?: string }) {
   return (
     <FadeIn style={[styles.row, styles.left]}>
       <AssistantAvatar />
-      <View style={styles.assistantBubble}>
+      <View style={styles.assistantBubble} testID={testID}>
         <Text style={styles.assistantText}>{text}</Text>
       </View>
     </FadeIn>

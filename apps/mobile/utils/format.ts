@@ -43,5 +43,7 @@ export const ACTIVITY_KIND_LABEL: Record<ActivityKind, string> = {
   action_executed: '设备动作',
   action_rejected: '动作未执行',
   service_stopped: '停止服务',
+  memory_updated: '偏好更新',
+  energy_mode_changed: '节能设置',
   demo_reset: '重置演示',
 };

@@ -15,7 +15,8 @@
 
 | 当前做 | 暂不做（后续批次） |
 |---|---|
-| 对话主页、四个入口、人物切换（演示 PIN）、访客模式、证据面板、场景库 | 多 Agent 协作 |
+| 对话主页、四个入口、人物切换（演示 PIN）、访客模式、证据面板、场景库 | 整晚定时服务 |
+| 1+2 Agent 编排：主 Agent（路由与编排）+ Experience Agent + Space Execution Agent，共享人物记忆、能源规则、Harness 预检，每个计划附协作过程 | 真实设备 / SpaceMind |
 | Experience Agent 一次模型调用（DeepSeek，规则/模型可切换，失败降级为规则并标注） | 整晚定时服务 |
 | 模拟室温事件触发一次自动调整（冷却、次数上限、停止后忽略） | 真实传感器 |
 | 固定规则计划 + 有状态虚拟设备 + 统一执行器 | 整晚定时服务、事件触发调整 |
@@ -54,7 +55,7 @@ pip install -r requirements-dev.txt
 uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 ```
 
-`--host 0.0.0.0` 让同一局域网的平板能访问；只在可信网络这样做。需要改 CORS（仅浏览器预览用）时：`cp .env.example .env` 后加 `--env-file .env`。
+演示时建议在 `.env` 里设 `LIVINGMIND_DEMO_LOCAL_HOUR=20`，让能源建议固定在高峰电价时段。`--host 0.0.0.0` 让同一局域网的平板能访问；只在可信网络这样做。需要改 CORS（仅浏览器预览用）时：`cp .env.example .env` 后加 `--env-file .env`。
 
 打开 http://localhost:8000/health 应返回 `{"status":"ok"}`；接口文档在 http://localhost:8000/docs 。
 

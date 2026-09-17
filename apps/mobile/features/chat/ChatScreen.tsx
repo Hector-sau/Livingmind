@@ -37,9 +37,11 @@ export function ChatScreen({ api, flow, messages, dispatch }: Props) {
 
   const send = async (text: string) => {
     push({ kind: 'user', id: messageId(), text, at: now() });
-    const res = await actions.createPlan(text);
-    if (res.ok) push({ kind: 'plan', id: messageId(), plan: res.value, at: now() });
-    else system(`没能生成计划：${res.error.message}`, res.error.connectivity ? 'warning' : 'error');
+    const res = await actions.sendMessage(text);
+    if (!res.ok) return system(`没能处理：${res.error.message}`, res.error.connectivity ? 'warning' : 'error');
+    const reply = res.value;
+    if (reply.plan) push({ kind: 'plan', id: messageId(), plan: reply.plan, at: now() });
+    else push({ kind: 'assistant', id: messageId(), text: reply.text, trace: reply.trace, at: now() });
   };
 
   const confirm = async () => {
@@ -101,7 +103,9 @@ export function ChatScreen({ api, flow, messages, dispatch }: Props) {
             onConfirm={confirm}
           />
         ))}
-        {state.busy === 'plan' ? <AssistantText text={state.mode === 'model' ? '正在理解你的需求…' : '正在生成计划…'} /> : null}
+        {state.busy === 'plan' ? (
+          <AssistantText testID="assistant-typing" text={state.mode === 'model' ? '正在理解你的需求…' : '正在思考…'} />
+        ) : null}
       </ScrollView>
       <Composer
         disabled={busy || !state.personId}

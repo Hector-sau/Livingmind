@@ -4,7 +4,11 @@ import { ApiError, DEMO_ACCOUNT_ID, type LivingMindApi } from '../../services';
 import type {
   ActionResult,
   ActivityRecord,
+  AssistantReply,
   BootstrapResponse,
+  EnergyMode,
+  MemoryView,
+  RestPreference,
   ConfirmPlanResponse,
   DeviceState,
   EventResult,
@@ -17,7 +21,7 @@ import type {
 } from '../../services/types';
 import { planBlockReason } from './planGate';
 
-export type Busy = null | 'plan' | 'confirm' | 'stop' | 'refresh' | 'reset' | 'event' | 'unlock';
+export type Busy = null | 'plan' | 'confirm' | 'stop' | 'refresh' | 'reset' | 'event' | 'unlock' | 'memory' | 'energy';
 
 export interface FlowError {
   message: string;
@@ -32,6 +36,8 @@ export interface RestFlowState {
   data: BootstrapResponse | null;
   scenes: Scene[];
   personId: string | null;
+  /** Current person's own memory (preference + shared rules). */
+  memory: MemoryView | null;
   mode: PlannerMode;
   plan: Plan | null;
   service: Service | null;
@@ -49,6 +55,7 @@ const initial: RestFlowState = {
   data: null,
   scenes: [],
   personId: null,
+  memory: null,
   mode: 'rule',
   plan: null,
   service: null,
@@ -129,6 +136,22 @@ export function useRestFlow(api: LivingMindApi) {
     void load();
   }, [load]);
 
+  // Load the acting person's own memory whenever the person changes.
+  const personKey = state.data ? state.personId : null;
+  useEffect(() => {
+    const ctx = context();
+    if (!ctx) return;
+    let alive = true;
+    patch({ memory: null });
+    api
+      .getMemory(ctx)
+      .then((memory) => alive && patch({ memory }))
+      .catch(() => undefined);
+    return () => {
+      alive = false;
+    };
+  }, [api, context, patch, personKey]);
+
   const fail = useCallback(<T,>(e: unknown): Outcome<T> => {
     const err = toFlowError(e);
     // Connectivity problems mean the shown device state may no longer be true.
@@ -163,6 +186,67 @@ export function useRestFlow(api: LivingMindApi) {
     [api, patch, selectPerson],
   );
 
+  /** Main Agent entry: plan or answer. */
+  const sendMessage = useCallback(
+    async (text: string): Promise<Outcome<AssistantReply>> => {
+      const ctx = context();
+      if (!ctx || !text.trim()) return NO_CONTEXT;
+      patch({ busy: 'plan', error: null, info: null });
+      try {
+        const reply = await api.sendMessage({ context: ctx, text: text.trim(), mode: stateRef.current.mode });
+        patch(reply.plan ? { plan: reply.plan, results: [], busy: null } : { busy: null });
+        await loadActivity(ctx.spaceId);
+        return { ok: true, value: reply };
+      } catch (e) {
+        return fail(e);
+      }
+    },
+    [api, context, fail, loadActivity, patch],
+  );
+
+  const updatePreference = useCallback(
+    async (preference: RestPreference): Promise<Outcome<MemoryView>> => {
+      const ctx = context();
+      if (!ctx) return NO_CONTEXT;
+      patch({ busy: 'memory' });
+      try {
+        const memory = await api.updatePreference(ctx, preference);
+        patch({ memory, busy: null, info: '偏好已保存，下一次计划会使用新偏好' });
+        await loadActivity(ctx.spaceId);
+        return { ok: true, value: memory };
+      } catch (e) {
+        patch({ busy: null });
+        return { ok: false, error: toFlowError(e) };
+      }
+    },
+    [api, context, loadActivity, patch],
+  );
+
+  const setEnergyMode = useCallback(
+    async (mode: EnergyMode): Promise<Outcome<true>> => {
+      const ctx = context();
+      if (!ctx) return NO_CONTEXT;
+      patch({ busy: 'energy', error: null });
+      try {
+        const space = await api.setEnergyMode(ctx, mode);
+        setState((s) =>
+          s.data
+            ? {
+                ...s,
+                busy: null,
+                data: { ...s.data, spaces: s.data.spaces.map((x) => (x.spaceId === space.spaceId ? space : x)) },
+              }
+            : { ...s, busy: null },
+        );
+        await loadActivity(ctx.spaceId);
+        return { ok: true, value: true };
+      } catch (e) {
+        return fail(e);
+      }
+    },
+    [api, context, fail, loadActivity, patch],
+  );
+
   const createPlan = useCallback(
     async (utterance: string): Promise<Outcome<Plan>> => {
       const ctx = context();
@@ -189,7 +273,7 @@ export function useRestFlow(api: LivingMindApi) {
       const res = await api.confirmPlan(plan.planId, { context: ctx, planVersion: plan.version });
       patch({
         plan: res.plan,
-        service: res.service,
+        service: res.service ?? stateRef.current.service,
         results: res.results,
         deviceState: res.deviceState,
         deviceStale: false,
@@ -265,12 +349,14 @@ export function useRestFlow(api: LivingMindApi) {
       const data = await api.resetDemo();
       applyBootstrap(data, true);
       patch({ busy: null, info: '演示数据已重置' });
+      const ctx = context();
+      if (ctx) api.getMemory(ctx).then((memory) => patch({ memory })).catch(() => undefined);
       await loadActivity(data.defaultSpaceId);
       return { ok: true, value: true };
     } catch (e) {
       return fail(e);
     }
-  }, [api, applyBootstrap, fail, loadActivity, patch]);
+  }, [api, applyBootstrap, context, fail, loadActivity, patch]);
 
   // Re-evaluate time-based rules (plan expiry) while a proposed plan is on screen.
   const [now, setNow] = useState(() => new Date());
@@ -288,12 +374,16 @@ export function useRestFlow(api: LivingMindApi) {
     [state.plan, activeService, state.personId, now],
   );
   const person = state.data?.persons.find((p) => p.personId === state.personId) ?? null;
+  const space = state.data?.spaces.find((x) => x.spaceId === state.data?.defaultSpaceId) ?? null;
 
   const actions = useMemo(
     () => ({
       load,
       selectPerson,
       unlockPerson,
+      sendMessage,
+      updatePreference,
+      setEnergyMode,
       setMode: (mode: PlannerMode) => patch({ mode }),
       createPlan,
       confirm,
@@ -304,10 +394,10 @@ export function useRestFlow(api: LivingMindApi) {
       dismissError: () => patch({ error: null }),
       dismissInfo: () => patch({ info: null }),
     }),
-    [load, selectPerson, unlockPerson, patch, createPlan, confirm, stop, refresh, injectEvent, resetDemo],
+    [load, selectPerson, unlockPerson, sendMessage, updatePreference, setEnergyMode, patch, createPlan, confirm, stop, refresh, injectEvent, resetDemo],
   );
 
-  return { state, person, activeService, blockReason, actions };
+  return { state, person, space, activeService, blockReason, actions };
 }
 
 export type RestFlow = ReturnType<typeof useRestFlow>;

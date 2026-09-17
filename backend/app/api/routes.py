@@ -5,6 +5,13 @@ from fastapi import APIRouter, Depends, Query
 from app.api.errors import ERROR_RESPONSES
 from app.contracts import (
     ActivityResponse,
+    AssistantMessageRequest,
+    AssistantReply,
+    MemoryView,
+    RequestContext,
+    SetEnergyModeRequest,
+    Space,
+    UpdatePreferenceRequest,
     BootstrapResponse,
     ConfirmPlanRequest,
     ConfirmPlanResponse,
@@ -46,6 +53,33 @@ def get_scenes(account_id: str = Query(alias="accountId"), svc: RestService = Sv
 @router.get("/spaces/{space_id}/devices", response_model=DeviceState, operation_id="getDeviceState", tags=["devices"])
 def get_device_state(space_id: str, account_id: str = Query(alias="accountId"), svc: RestService = Svc) -> DeviceState:
     return svc.device_state(account_id, space_id)
+
+
+@router.post("/assistant/messages", response_model=AssistantReply, operation_id="sendMessage", tags=["assistant"])
+def send_message(body: AssistantMessageRequest, svc: RestService = Svc) -> AssistantReply:
+    """Main Agent entry: routes the message and returns a plan (to confirm) or a short answer."""
+    return svc.handle_message(body.context, body.text, body.mode)
+
+
+@router.get("/memory", response_model=MemoryView, operation_id="getMemory", tags=["memory"])
+def get_memory(
+    account_id: str = Query(alias="accountId"),
+    person_id: str = Query(alias="personId"),
+    space_id: str = Query(alias="spaceId"),
+    svc: RestService = Svc,
+) -> MemoryView:
+    """Only the acting person's own preference plus shared space rules."""
+    return svc.memory_view(RequestContext(account_id=account_id, person_id=person_id, space_id=space_id))
+
+
+@router.put("/memory/preference", response_model=MemoryView, operation_id="updatePreference", tags=["memory"])
+def update_preference(body: UpdatePreferenceRequest, svc: RestService = Svc) -> MemoryView:
+    return svc.update_preference(body.context, body.preference)
+
+
+@router.put("/spaces/{space_id}/energy-mode", response_model=Space, operation_id="setEnergyMode", tags=["energy"])
+def set_energy_mode(space_id: str, body: SetEnergyModeRequest, svc: RestService = Svc) -> Space:
+    return svc.set_energy_mode(space_id, body.context, body.mode)
 
 
 @router.post("/plans/rest", response_model=Plan, operation_id="createRestPlan", tags=["plans"])

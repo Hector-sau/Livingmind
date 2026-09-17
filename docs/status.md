@@ -1,6 +1,6 @@
 # 实现状态
 
-更新：2026-09-17 · 第一批（步骤 0–4）完成；B 并发修正完成；⑤ Experience Agent **已完成并验证真实调用**（2026-09-17 在用户 Mac 上运行 `scripts/try_model.py`，deepseek-flash，2035 ms）。评审修正 R1 完成；⑥ 一次事件调整完成；⑥b 对话外壳完成；C 视觉整理完成。⑦ 起未开始。真机验收仍未做。
+更新：2026-09-17 · 第一批（步骤 0–4）完成；B 并发修正完成；⑤ Experience Agent **已完成并验证真实调用**（2026-09-17 在用户 Mac 上运行 `scripts/try_model.py`，deepseek-flash，2035 ms）。评审修正 R1 完成；⑥ 一次事件调整完成；⑥b 对话外壳完成；C 视觉整理完成；⑧ 补齐模块完成（1+2 Agent 编排已实现）。⑦ 未做（可选），⑨、D 未开始。真机验收仍未做。
 
 ## 已实现
 
@@ -37,6 +37,11 @@
 | ⑥b：场景库（`GET /api/scenes`，状态如实）与人话时间线 | `backend/app/demo/seed.py`、`apps/mobile/features/scenes/` | `test_scene_library_status_is_honest`；`tests/conversation.test.ts` |
 | ⑥b：演示与测试数据重新设计（3 位成员 + 访客、场景库、事件序列、15 条 Experience Agent 评测用例与打分） | `backend/app/demo/seed.py`、`backend/evals/`、`docs/test-data.md` | `tests/test_eval_cases.py` |
 | C：天蓝色明亮主题、LivingMind Logo（头部、App 图标、启动图、AI 头像）、统一图标、渐变按钮、柔和阴影、入场/呼吸/数值条动画（尊重减弱动态效果）、骨架屏 | `apps/mobile/theme/`、`components/`、`features/**`、`assets/` | 端到端 12/12；截图见 `apps/mobile/e2e/.out/screens/`（本地生成，不入库） |
+| ⑧：主 Agent（规则路由 + 编排 + 协作轨迹）；完整分支 记忆 → Experience → 能源 → Space Execution → Harness；简化分支（设备指令）；状态查询与范围外回答 | `backend/app/agents/orchestrator/`、`POST /api/assistant/messages` | `tests/test_agents.py`；端到端 `mock-agents`、`http-agents` |
+| ⑧：Space Execution Agent（设备能力、夜间灯光上限、动作生成、中文设备指令解析） | `backend/app/agents/space_execution/` | 同上（解析 6 例、能力缺失、规则限幅） |
+| ⑧：人物记忆（本人偏好读取与编辑、空间规则；共享列表不含偏好） | `backend/app/memory/`、`GET /api/memory`、`PUT /api/memory/preference`；“我的”页编辑 | 同上；端到端 `http-energy-memory` |
+| ⑧：能源智能（舒适范围、分时电价、估算负荷档位、舒适优先 / 节能模式） | `backend/app/energy/`、`PUT /api/spaces/{id}/energy-mode`；计划卡与空间页 | 同上 |
+| ⑧：Harness 规划预检；协作过程展示（计划卡“查看协作过程”） | `backend/app/harness/policy.py`、`apps/mobile/features/agents/TraceView.tsx` | 同上 |
 | 真实模型端到端脚本（后端：5 句话 → 计划 → 确认 → 回读 → 停止，延迟统计；浏览器：`--real-model`） | `backend/scripts/e2e_real_model.py`（含 `--eval`）、`apps/mobile/e2e/run_e2e.py --real-model` | 已用本地桩空跑通过；真实模型运行为**可选项**（开发环境无法访问 api.deepseek.com，需在用户 Mac 终端运行） |
 
 ## 步骤 4 的 7 项验证
@@ -51,7 +56,7 @@
 | 6 | 非法人物 / 空间 / 账户 / 参数 / 过期 / 版本不符被拒绝 | 自动化测试通过 |
 | 7 | 后端断开时 App 明确反馈 | 前端单元测试 + 端到端场景 `http-offline`（关掉后端后点确认，出现“无法连接后端，显示的状态可能已过期”，设备数值变灰，没有假装成功） |
 
-浏览器端到端：`apps/mobile/e2e/run_e2e.py`（已入库，可复现）。用 Expo 网页导出，在 1180×820 和 390×844 两种尺寸下跑前端模拟与后端两种模式的完整流程，外加模型计划、超时降级、偏离降级、模拟模式降级、断网反馈，共 12 个场景（⑥b 后全部改为通过对话操作，并新增 PIN、证据面板、访客、场景库），最近一次 12/12 通过（连续 3 次），无页面错误。模型路径连的是本地桩，不是 DeepSeek。
+浏览器端到端：`apps/mobile/e2e/run_e2e.py`（已入库，可复现）。用 Expo 网页导出，在 1180×820 和 390×844 两种尺寸下跑前端模拟与后端两种模式的完整流程，外加模型计划、超时降级、偏离降级、模拟模式降级、断网反馈，共 15 个场景（对话操作；含 PIN、证据面板、访客、场景库、1+2 Agent 协作、设备指令、节能模式、偏好编辑），最近一次 15/15 通过，无页面错误。模型路径连的是本地桩，不是 DeepSeek。
 
 ## ⑤ 的验证情况
 
@@ -79,15 +84,18 @@
 - 演示 PIN 不是认证；“我的”页上直接写出了演示 PIN，便于评审操作。
 - 语音按钮是占位，点击只提示“后续接入”。
 - Logo 来自 `KidMind-PPT/output/brand/livingmind-logo-primary-v2.png`（用户已同意在 App 中使用），为 PNG；正式发布前按品牌说明补 SVG 母版与商标检索。
-- 所有人物、偏好、评测用例都是设计的模拟数据（见 `docs/test-data.md`）。
+- 所有人物、偏好、评测用例、室外温度与电价时段都是设计的模拟数据（见 `docs/test-data.md`）。
+- 主 Agent 路由与 Space Execution Agent 的指令解析是规则实现；只有 Experience Agent 可调用模型。
+- 能源负荷是规则估算，不是实测，也不代表节省比例。
+- 演示身份下，谁能读哪份记忆由请求上下文决定，不是认证。
 - 规则模式下输入文字只记录，不做语义理解。模型模式已验证一次真实调用；延迟只有单次样本。
 - CI 配置写好了，但还没有在 GitHub 上跑过。
 
 ## 未开始
 
-⑦ 整晚服务 · ⑧ 主 Agent / 执行 Agent / 记忆 / 能源 · ⑨ 空间与场景页 · D 演示打包 · A 真机验收（有 iPad 时）
+⑦ 整晚服务（可选） · ⑨ 补齐入口细节 · D 演示打包 · A 真机验收（有 iPad 时）
 
 ## 下一步接口
 
-- ⑦：见 `AGENT-HANDOFF.md` 第 9 节（可选步骤）。
+- 下一步见 `AGENT-HANDOFF.md` 第 9 节。
 - ⑦：定时器可复用 `inject_event` 的检查顺序（服务 active、单调整、代次），把事件来源换成模拟时钟。
