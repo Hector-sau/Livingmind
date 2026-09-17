@@ -359,6 +359,8 @@ def main() -> int:
     args = parser.parse_args()
 
     SCREENS.mkdir(parents=True, exist_ok=True)
+    for old in SCREENS.glob("*.png"):  # screenshots always belong to this run only
+        old.unlink()
     mock_dir, http_dir = OUT / "web-mock", OUT / "web-http"
     if not args.skip_build:
         build(mock_dir, None)
