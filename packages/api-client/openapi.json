@@ -110,7 +110,8 @@
               "clock_advanced",
               "schedule_step_executed",
               "schedule_cancelled",
-              "service_completed"
+              "service_completed",
+              "service_failed"
             ],
             "title": "Kind",
             "type": "string"
@@ -358,6 +359,22 @@
             "minLength": 1,
             "title": "Text",
             "type": "string"
+          },
+          "wakeTime": {
+            "anyOf": [
+              {
+                "enum": [
+                  "06:30",
+                  "07:00",
+                  "07:30"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Waketime"
           }
         },
         "required": [
@@ -562,6 +579,22 @@
             "minLength": 1,
             "title": "Utterance",
             "type": "string"
+          },
+          "wakeTime": {
+            "anyOf": [
+              {
+                "enum": [
+                  "06:30",
+                  "07:00",
+                  "07:30"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Waketime"
           }
         },
         "required": [
@@ -1363,6 +1396,23 @@
           "version": {
             "title": "Version",
             "type": "integer"
+          },
+          "wakeTime": {
+            "anyOf": [
+              {
+                "enum": [
+                  "06:30",
+                  "07:00",
+                  "07:30"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Requested simulated wake time; ignored by direct device commands",
+            "title": "Waketime"
           }
         },
         "required": [
@@ -1773,6 +1823,19 @@
             "title": "Serviceid",
             "type": "string"
           },
+          "sleepDetectedAt": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Set only when the demo's explicit simulated-sleep event was used",
+            "title": "Sleepdetectedat"
+          },
           "spaceId": {
             "title": "Spaceid",
             "type": "string"
@@ -1786,7 +1849,8 @@
             "enum": [
               "active",
               "stopped",
-              "completed"
+              "completed",
+              "failed"
             ],
             "title": "Status",
             "type": "string"
@@ -1802,6 +1866,17 @@
               }
             ],
             "title": "Stoppedat"
+          },
+          "wakeTime": {
+            "default": "07:00",
+            "description": "Requested simulated wake time for this service",
+            "enum": [
+              "06:30",
+              "07:00",
+              "07:30"
+            ],
+            "title": "Waketime",
+            "type": "string"
           }
         },
         "required": [
@@ -1842,6 +1917,19 @@
           "mode"
         ],
         "title": "SetEnergyModeRequest",
+        "type": "object"
+      },
+      "SimulateSleepRequest": {
+        "description": "Explicit demo sleep signal; this is not a physical sensor integration.",
+        "properties": {
+          "context": {
+            "$ref": "#/components/schemas/RequestContext"
+          }
+        },
+        "required": [
+          "context"
+        ],
+        "title": "SimulateSleepRequest",
         "type": "object"
       },
       "Space": {
@@ -2866,6 +2954,99 @@
           }
         },
         "summary": "Advance Clock",
+        "tags": [
+          "services"
+        ]
+      }
+    },
+    "/api/services/{service_id}/sleep": {
+      "post": {
+        "description": "Explicit simulated sleep signal for the pitch demo; not a real sensor integration.",
+        "operationId": "simulateSleep",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "service_id",
+            "required": true,
+            "schema": {
+              "title": "Service Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SimulateSleepRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdvanceClockResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          }
+        },
+        "summary": "Simulate Sleep",
         "tags": [
           "services"
         ]

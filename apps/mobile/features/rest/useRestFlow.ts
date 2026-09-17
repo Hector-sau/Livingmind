@@ -196,12 +196,12 @@ export function useRestFlow(api: LivingMindApi) {
 
   /** Main Agent entry: plan or answer. */
   const sendMessage = useCallback(
-    async (text: string): Promise<Outcome<AssistantReply>> => {
+    async (text: string, wakeTime: '06:30' | '07:00' | '07:30' = '07:00'): Promise<Outcome<AssistantReply>> => {
       const ctx = context();
       if (!ctx || !text.trim()) return NO_CONTEXT;
       patch({ busy: 'plan', error: null, info: null });
       try {
-        const reply = await api.sendMessage({ context: ctx, text: text.trim(), mode: stateRef.current.mode });
+        const reply = await api.sendMessage({ context: ctx, text: text.trim(), mode: stateRef.current.mode, wakeTime });
         patch(reply.plan ? { plan: reply.plan, results: [], busy: null } : { busy: null });
         await loadActivity(ctx.spaceId);
         return { ok: true, value: reply };
@@ -256,12 +256,12 @@ export function useRestFlow(api: LivingMindApi) {
   );
 
   const createPlan = useCallback(
-    async (utterance: string): Promise<Outcome<Plan>> => {
+    async (utterance: string, wakeTime: '06:30' | '07:00' | '07:30' = '07:00'): Promise<Outcome<Plan>> => {
       const ctx = context();
       if (!ctx || !utterance.trim()) return NO_CONTEXT;
       patch({ busy: 'plan', error: null, info: null });
       try {
-        const plan = await api.createRestPlan({ context: ctx, utterance: utterance.trim(), mode: stateRef.current.mode });
+        const plan = await api.createRestPlan({ context: ctx, utterance: utterance.trim(), mode: stateRef.current.mode, wakeTime });
         patch({ plan, results: [], busy: null });
         await loadActivity(ctx.spaceId);
         return { ok: true, value: plan };
@@ -357,6 +357,22 @@ export function useRestFlow(api: LivingMindApi) {
     [api, context, fail, loadActivity, patch],
   );
 
+  /** Explicit pitch-demo sleep signal. It advances only the first "sleep" schedule step. */
+  const simulateSleep = useCallback(async (): Promise<Outcome<AdvanceClockResponse>> => {
+    const ctx = context();
+    const service = stateRef.current.service;
+    if (!ctx || !service) return NO_CONTEXT;
+    patch({ busy: 'clock', error: null });
+    try {
+      const res = await api.simulateSleep(service.serviceId, { context: ctx });
+      patch({ service: res.service, deviceState: res.deviceState, deviceStale: false, busy: null, info: res.note });
+      await loadActivity(ctx.spaceId);
+      return { ok: true, value: res };
+    } catch (e) {
+      return fail(e);
+    }
+  }, [api, context, fail, loadActivity, patch]);
+
   const refresh = useCallback(async () => {
     const sid = stateRef.current.data?.defaultSpaceId;
     if (!sid) return;
@@ -419,11 +435,12 @@ export function useRestFlow(api: LivingMindApi) {
       refresh,
       injectEvent,
       advanceClock,
+      simulateSleep,
       resetDemo,
       dismissError: () => patch({ error: null }),
       dismissInfo: () => patch({ info: null }),
     }),
-    [load, selectPerson, unlockPerson, sendMessage, updatePreference, setEnergyMode, patch, createPlan, confirm, stop, refresh, injectEvent, advanceClock, resetDemo],
+    [load, selectPerson, unlockPerson, sendMessage, updatePreference, setEnergyMode, patch, createPlan, confirm, stop, refresh, injectEvent, advanceClock, simulateSleep, resetDemo],
   );
 
   return { state, person, space, activeService, blockReason, actions };

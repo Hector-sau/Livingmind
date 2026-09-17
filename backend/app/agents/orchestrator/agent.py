@@ -5,7 +5,7 @@ import time
 from datetime import datetime
 from typing import Callable, Literal, Optional
 
-from app.adapters.virtual.devices import VirtualDeviceAdapter
+from app.adapters.protocol import DeviceAdapter
 from app.agents.space_execution import SpaceExecutionAgent
 from app.contracts import (
     AgentName,
@@ -16,6 +16,7 @@ from app.contracts import (
     PlanGeneration,
     PlannerMode,
     StepSource,
+    WakeTime,
 )
 from app.energy import EnergyIntelligence
 from app.energy.rules import TIER_LABEL
@@ -88,10 +89,11 @@ class Orchestrator:
         space_id: str,
         text: str,
         mode: Optional[PlannerMode],
-        adapter: VirtualDeviceAdapter,
+        adapter: DeviceAdapter,
         energy_mode: EnergyMode,
         new_id: NewId,
         force_intent: Optional[Intent] = None,
+        wake_time: WakeTime = "07:00",
     ) -> AssistantReply:
         trace = _Trace()
         t0 = time.monotonic()
@@ -104,7 +106,7 @@ class Orchestrator:
             t0,
         )
         if intent == "rest":
-            return self._rest(trace, person_id, space_id, text, mode, adapter, energy_mode, new_id)
+            return self._rest(trace, person_id, space_id, text, mode, adapter, energy_mode, new_id, wake_time)
         if intent == "device_command":
             return self._command(trace, person_id, space_id, text, mode, adapter, new_id)
         state = adapter.read_state()
@@ -121,7 +123,7 @@ class Orchestrator:
 
     # ---- full branch: memory -> experience -> energy -> space execution -> harness ----
 
-    def _rest(self, trace, person_id, space_id, text, mode, adapter, energy_mode, new_id) -> AssistantReply:
+    def _rest(self, trace, person_id, space_id, text, mode, adapter, energy_mode, new_id, wake_time: WakeTime) -> AssistantReply:
         t = time.monotonic()
         ctx = self.memory.context_for(person_id, space_id)
         who = "访客（空间默认设置）" if ctx.person.is_guest else f"{ctx.person.name} 的休息偏好（仅本人）"
@@ -151,7 +153,7 @@ class Orchestrator:
         t = time.monotonic()
         caps = adapter.list_capabilities()
         actions, exec_notes = self.space.rest_actions(target, caps, new_id)
-        schedule = self.space.night_schedule(target, ctx.preference, caps, new_id)
+        schedule = self.space.night_schedule(target, ctx.preference, caps, new_id, wake_time)
         trace.add(
             "space_execution",
             "生成设备动作",
@@ -205,6 +207,7 @@ class Orchestrator:
             trace=trace.steps,
             energy=advice,
             schedule=schedule,
+            wake_time=wake_time,
         )
         return AssistantReply(kind="plan", intent="rest", text=exp.summary, plan=plan, trace=trace.steps)
 
@@ -278,7 +281,7 @@ class Orchestrator:
         space_id: str,
         room_temp_c: float,
         mode: PlannerMode,
-        adapter: VirtualDeviceAdapter,
+        adapter: DeviceAdapter,
         new_id: NewId,
     ) -> tuple[Plan, Optional[str]]:
         trace = _Trace()

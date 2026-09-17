@@ -29,6 +29,21 @@ test('mock schedule mirrors the backend night rule', () => {
   const chen = { lightBrightness: 30, acTargetTempC: 22, curtainOpenPercent: 10 };
   assert.equal(nightSchedule({ ...chen, acTargetTempC: 25 }, chen, 60, newId)[1].actions[0].value, 25);
   assert.match(nightSchedule({ ...chen, acTargetTempC: 25 }, chen, 60, newId)[1].title, /保持/);
+  assert.equal(nightSchedule(lin, lin, 60, newId, '06:30').at(-1)?.at, '06:30');
+});
+
+test('mock sleep signal runs the initial sleep step once and retains the requested wake time', async () => {
+  const api = createMockApi({ latencyMs: 0 });
+  const c = ctx('person-lin');
+  const plan = await api.createRestPlan({ context: c, utterance: '我想休息', wakeTime: '07:30' });
+  assert.equal(plan.schedule.at(-1)?.at, '07:30');
+  const service = (await api.confirmPlan(plan.planId, { context: c, planVersion: 1 })).service!;
+  const sleep = await api.simulateSleep(service.serviceId, { context: c });
+  assert.equal(sleep.note, '已模拟入睡，灯光已按计划关闭');
+  assert.ok(sleep.service.sleepDetectedAt);
+  assert.equal(sleep.service.schedule[0].status, 'done');
+  const repeat = await api.simulateSleep(service.serviceId, { context: c });
+  assert.equal(repeat.executed.length, 0);
 });
 
 test('mock night: steps run once, completion ends the service, stop cancels the rest', async () => {

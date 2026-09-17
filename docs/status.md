@@ -1,6 +1,6 @@
 # 实现状态
 
-更新：2026-09-18 · 第一批（步骤 0–4）完成；B 并发修正完成；⑤ Experience Agent **已完成并验证真实调用**（2026-09-17 在用户 Mac 上运行 `scripts/try_model.py`，deepseek-flash，2035 ms）。评审修正 R1 完成；⑥ 一次事件调整完成；⑥b 对话外壳完成；C 视觉整理完成；⑧ 补齐模块完成（1+2 Agent 编排已实现）。⑨ 演示打磨完成；⑦ 整晚服务完成（模拟时钟）。D 演示打包的云端部分完成（网页版录屏、主张证据表、开发版构建配置）；P07 给定的家庭能源研究快照、只读 API 与 App 展示已迁入。平板构建与真机录屏待有设备后做。
+更新：2026-09-18 · 第一批（步骤 0–4）完成；B 并发修正完成；⑤ Experience Agent **已完成并验证真实调用**（2026-09-17 在用户 Mac 上运行 `scripts/try_model.py`，deepseek-flash，2035 ms）。评审修正 R1 完成；⑥ 一次事件调整完成；⑥b 对话外壳完成；C 视觉整理完成；⑧ 补齐模块完成（1+2 Agent 编排已实现）。⑨ 演示打磨完成；⑦ 整晚服务完成（模拟时钟）。本轮已补：自动操作互斥、停止期间的旧计划失效、设备全失败状态、模拟入睡、可选起床时间、设备/语音接口预留及团队协作文档。D 演示打包的云端部分完成（网页版录屏、主张证据表、开发版构建配置）；P07 给定的家庭能源研究快照、只读 API 与 App 展示已迁入。平板构建与真机录屏待有设备后做。
 
 ## 已实现
 
@@ -19,6 +19,7 @@
 | 固定休息规则（无模型） | `backend/app/rules/rest_rule.py` | `tests/test_rest_flow.py` |
 | 统一执行器：白名单、参数范围、每个动作前检查服务、回读 | `backend/app/harness/executor.py` | 同上 |
 | 有状态虚拟设备（灯光、空调、窗帘） | `backend/app/adapters/virtual/devices.py` | 同上 |
+| 真实设备与语音接口预留 | `backend/app/adapters/protocol.py`、`voice.py` | 仅接口预留；未接入真实设备、SpaceMind 或音箱 |
 | 服务状态、确认幂等、单空间单服务、停止失效、计划过期 | `backend/app/services/rest_service.py` | 同上 |
 | 活动记录（按实际发生写入，标注来源） | 同上 | 同上 |
 | PR 模板 + CI（后端测试、契约一致性、前端类型检查与测试） | `.github/` | 尚未在 GitHub 上运行（没有远程仓库） |
@@ -47,8 +48,8 @@
 | ⑨：“场景”页“1+2 Agent 如何协作”说明卡（措辞与交接文档 0.4 一致；有计划时展示真实协作过程，否则引导去对话） | `apps/mobile/features/scenes/ScenesScreen.tsx` | 同上 |
 | ⑨：信息类提示 3 秒自动淡出（警告、错误常驻）；空态改为大图标 + 引导语（对话、服务、设备、证据、场景时间线） | `features/shell/notices.ts`、`components/EmptyState.tsx` | `tests/notices.test.ts`；端到端 `http-prepare-demo` |
 | ⑨：3 分钟演示讲稿 | `docs/demo-script.md` | — |
-| ⑦：整晚安排（5 步：23:00 关灯、01:00 空调 +1°C、06:30 / 06:45 / 07:00 三步唤醒），Space Execution Agent 规则生成、Harness 预检、随休息计划确认 | `backend/app/rules/night_rule.py`、`agents/space_execution/agent.py` | `tests/test_night_service.py` |
-| ⑦：模拟时钟推进 `POST /api/services/{id}/clock/advance`；锁内认领保证每步只执行一次；单服务单推进；停止取消剩余步骤；最后一步后服务 `completed` | `backend/app/services/rest_service.py::advance_clock` | 同上（10 项，含并发推进、推进中停止）；前端 Mock 同步 `tests/night.test.ts` |
+| ⑦：整晚安排（5 步：23:00 关灯、01:00 空调 +1°C、所选起床时间前 30 / 15 / 0 分钟三步唤醒），Space Execution Agent 规则生成、Harness 预检、随休息计划确认 | `backend/app/rules/night_rule.py`、`agents/space_execution/agent.py` | `tests/test_night_service.py` |
+| ⑦：模拟时钟推进与模拟入睡；锁内认领保证每步只执行一次；时钟与事件自动操作互斥；停止取消剩余步骤；设备全失败时服务 `failed`，全部成功才 `completed` | `backend/app/services/rest_service.py` | `tests/test_night_service.py`（13 项）、`tests/test_concurrency.py`；前端 Mock 同步 `tests/night.test.ts` |
 | ⑦：App 运行条“快进 / 自动播放整晚”、计划卡整晚安排、空间页整晚时间线、对话系统消息；场景“起床渐进唤醒”改为已实现；场景时间线按触发来源归类动作 | `apps/mobile/features/night/`、`features/chat/ServiceStrip.tsx`、`features/scenes/timeline.ts` | 端到端 `http-night`、`mock-night`、`http-night-stop-phone`；`tests/conversation.test.ts` |
 | D：三段网页版演示录屏（字幕标注网页版 / 虚拟设备 / 规则模式） | `apps/mobile/e2e/record_demo.py` | 已生成 `01-user-trigger`、`02-event-adjust`、`03-night-stop`（mp4，不入库；已放到用户 Mac 的 `Livingmind/演示打包/`） |
 | D：汇报主张与证据对照表（23 条，逐条写明原型实际情况、证据、来源类型） | `scripts/build_evidence.py` → `docs/evidence.md`、PDF | 路径逐一核对存在；PDF 4 页 |
@@ -94,7 +95,7 @@
 - 模拟事件没有真实传感器；室温数值由按钮或 API 直接给出。
 - 整晚服务跑在模拟时钟上，由按钮或“自动播放”（每 2.5 秒推进一步）驱动；后端没有真实定时器，也不读真实时间。
 - 演示 PIN 不是认证；“我的”页上直接写出了演示 PIN，便于评审操作。
-- 语音按钮是占位，点击只提示“后续接入”。
+- 语音按钮仍是占位，点击只提示“后续接入”；后端已有转写输入协议，但没有麦克风、唤醒词或音箱接入。
 - Logo 来自团队既有的 LivingMind 品牌源文件（用户已同意在 App 中使用），为 PNG；正式发布前按品牌说明补 SVG 母版与商标检索。
 - 所有人物、偏好、评测用例、室外温度与电价时段都是设计的模拟数据（见 `docs/test-data.md`）。
 - 主 Agent 路由与 Space Execution Agent 的指令解析是规则实现；只有 Experience Agent 可调用模型。

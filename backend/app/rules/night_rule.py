@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from app.contracts import RestPreference
+from app.contracts import RestPreference, WakeTime
 from app.demo import seed
 from app.rules.rest_rule import ADJUST_BAND_C
 
@@ -44,12 +44,14 @@ def _at(hhmm: str) -> tuple[str, int]:
     return hhmm, offset_of(hhmm)
 
 
-def night_plan(target: RestPreference, preference: RestPreference, night_light_max: int) -> list[StepSpec]:
-    """Five timed steps: sleep, deep night, and a three-step wake-up ending at WAKE_TIME_LOCAL."""
+def night_plan(
+    target: RestPreference, preference: RestPreference, night_light_max: int, wake_time: WakeTime = seed.WAKE_TIME_LOCAL
+) -> list[StepSpec]:
+    """Five timed steps: sleep, deep night, and a three-step wake-up ending at the requested demo wake time."""
     ac = target.ac_target_temp_c
     deep_ac = min(ac + seed.DEEP_NIGHT_AC_RAISE_C, preference.ac_target_temp_c + ADJUST_BAND_C, 30.0)
     wake_light = min(seed.WAKE_LIGHT_MAX, night_light_max)
-    wake_min = offset_of(seed.WAKE_TIME_LOCAL)
+    wake_min = offset_of(wake_time)
     curtain = target.curtain_open_percent
 
     deep_title = f"深夜：空调调高到 {deep_ac:g}°C" if deep_ac != ac else f"深夜：空调保持 {ac:g}°C（已到偏好边界）"

@@ -34,6 +34,7 @@ export type Service = Schemas['Service'];
 export type ScheduledStep = Schemas['ScheduledStep'];
 export type AdvanceClockRequest = Schemas['AdvanceClockRequest'];
 export type AdvanceClockResponse = Schemas['AdvanceClockResponse'];
+export type SimulateSleepRequest = Schemas['SimulateSleepRequest'];
 export type ActionResult = Schemas['ActionResult'];
 export type ActivityRecord = Schemas['ActivityRecord'];
 export type CreateRestPlanRequest = Schemas['CreateRestPlanRequest'];

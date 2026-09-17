@@ -50,6 +50,7 @@ from app.contracts import (
     Service,
     UnlockPersonResponse,
     StopServiceResponse,
+    WakeTime,
 )
 from app.demo import seed
 from app.energy import EnergyIntelligence
@@ -190,10 +191,19 @@ class RestService:
         return offline_energy_simulation()
 
     def handle_message(
-        self, ctx: RequestContext, text: str, mode: Optional[PlannerMode] = None, force_rest: bool = False
+        self,
+        ctx: RequestContext,
+        text: str,
+        mode: Optional[PlannerMode] = None,
+        force_rest: bool = False,
+        wake_time: WakeTime = "07:00",
     ) -> AssistantReply:
         """Main entry for the chat: the main Agent decides the branch and returns a plan or an answer."""
         self._check_context(ctx)
+        # Capture this before the (possibly slow) model call. A stop increments the
+        # epoch, so a request that began before stop can never resurrect a service.
+        with self._lock:
+            request_epoch = self._store.epoch(ctx.space_id)
         # Planning may call a model (slow): do it outside the lock. Only bookkeeping is locked.
         reply = self._agent.handle(
             ctx.person_id,
@@ -204,21 +214,36 @@ class RestService:
             self._energy_modes[ctx.space_id],
             self._store.new_id,
             force_intent="rest" if force_rest else None,
+            wake_time=wake_time,
         )
         if reply.plan is not None:
-            self._record_new_plan(reply.plan)
+            self._record_new_plan(reply.plan, request_epoch)
         return reply
 
-    def create_rest_plan(self, ctx: RequestContext, utterance: str, mode: Optional[PlannerMode] = None) -> Plan:
-        reply = self.handle_message(ctx, utterance, mode, force_rest=True)
+    def create_rest_plan(
+        self, ctx: RequestContext, utterance: str, mode: Optional[PlannerMode] = None, wake_time: WakeTime = "07:00"
+    ) -> Plan:
+        reply = self.handle_message(ctx, utterance, mode, force_rest=True, wake_time=wake_time)
         assert reply.plan is not None
         return reply.plan
 
-    def _record_new_plan(self, plan: Plan) -> None:
+    def _record_new_plan(self, plan: Plan, request_epoch: int) -> None:
         person = next(p for p in seed.PERSONS if p.person_id == plan.person_id)
         gen = plan.generation
         with self._lock:
-            self._store.plans[plan.plan_id] = PlanRecord(plan=plan, epoch=self._store.epoch(plan.space_id))
+            current_epoch = self._store.epoch(plan.space_id)
+            self._store.plans[plan.plan_id] = PlanRecord(plan=plan, epoch=request_epoch)
+            if request_epoch != current_epoch:
+                plan.status = "invalidated"
+                self._log(
+                    plan.space_id,
+                    "plan_rejected",
+                    "system",
+                    "生成期间服务已停止，计划已失效",
+                    plan_id=plan.plan_id,
+                    person_id=person.person_id,
+                )
+                return
             if plan.scenario == "device_command":
                 self._log(
                     plan.space_id,
@@ -357,6 +382,8 @@ class RestService:
                     night_offset_min=0,
                     # The service owns its own copy; the plan keeps the confirmed preview.
                     schedule=[step.model_copy(deep=True) for step in plan.schedule],
+                    wake_time=plan.wake_time or "07:00",
+                    sleep_detected_at=None,
                 )
                 self._store.services[service.service_id] = service
                 plan.status = "executed"
@@ -486,6 +513,8 @@ class RestService:
                 return ignored(event_id, "当前没有运行中的服务", None)
             if service.service_id in self._store.replanning:
                 return ignored(event_id, "上一次调整仍在进行", service)
+            if service.service_id in self._store.advancing:
+                return ignored(event_id, "整晚安排正在执行，请稍后重试", service)
             if service.adjustments >= self._max_adjustments:
                 return ignored(event_id, f"本次服务已调整 {service.adjustments} 次，达到上限", service)
             if service.last_adjusted_at and now - service.last_adjusted_at < self._cooldown:
@@ -572,6 +601,14 @@ class RestService:
                 return AdvanceClockResponse(
                     service=service, executed=[], results=[], device_state=adapter.read_state(), note="上一次推进仍在进行"
                 )
+            if service_id in self._store.replanning:
+                return AdvanceClockResponse(
+                    service=service,
+                    executed=[],
+                    results=[],
+                    device_state=adapter.read_state(),
+                    note="环境调整正在进行，请稍后再推进",
+                )
             pending = [st for st in service.schedule if st.status == "pending"]
             if not pending:
                 return AdvanceClockResponse(
@@ -633,32 +670,84 @@ class RestService:
                     if st.status == "running":
                         st.status = "cancelled"
                 skipped = [st for st in due if st.status == "cancelled"]
-                if skipped:
+                if skipped and service.status == "active":
                     self._log(
                         service.space_id,
                         "schedule_cancelled",
                         "system",
-                        f"服务已停止，{len(skipped)} 个到点步骤未执行（{skipped[0].at} 起）",
+                        f"设备动作未成功，{len(skipped)} 个到点步骤未完成（{skipped[0].at} 起）",
                         service_id=service_id,
                         person_id=service.person_id,
                     )
                 if service.status == "active" and all(st.status in ("done", "cancelled") for st in service.schedule):
-                    service.status = "completed"
                     service.stopped_at = self._clock()
-                    self._log(
-                        service.space_id,
-                        "service_completed",
-                        "system",
-                        f"{service.night_clock} 唤醒完成，整晚服务结束，设备保持当前状态",
-                        service_id=service_id,
-                        plan_id=service.plan_id,
-                        person_id=service.person_id,
-                    )
+                    if any(st.status == "cancelled" for st in service.schedule):
+                        service.status = "failed"
+                        self._log(
+                            service.space_id,
+                            "service_failed",
+                            "system",
+                            "整晚安排执行失败，服务结束，设备保持当前状态",
+                            service_id=service_id,
+                            plan_id=service.plan_id,
+                            person_id=service.person_id,
+                        )
+                    else:
+                        service.status = "completed"
+                        self._log(
+                            service.space_id,
+                            "service_completed",
+                            "system",
+                            f"{service.night_clock} 唤醒完成，整晚服务结束，设备保持当前状态",
+                            service_id=service_id,
+                            plan_id=service.plan_id,
+                            person_id=service.person_id,
+                        )
 
         with self._lock:
             return AdvanceClockResponse(
                 service=service, executed=executed, results=results, device_state=adapter.read_state(), note=None
             )
+
+    def simulate_sleep(self, service_id: str, ctx: RequestContext) -> AdvanceClockResponse:
+        """Record an explicit demo sleep signal and run only the initial sleep step.
+
+        It is deliberately a button/API event, not an assertion that a camera, wearable,
+        or speaker has detected sleep.  Later clock steps still need explicit demo advance.
+        """
+        self._check_context(ctx)
+        with self._lock:
+            service = self._store.services.get(service_id)
+            if service is None or service.space_id != ctx.space_id:
+                raise ApiError("NOT_FOUND", "服务不存在", {"serviceId": service_id})
+            if service.status != "active":
+                raise ApiError("SERVICE_NOT_ACTIVE", "服务已经结束", {"serviceId": service_id})
+            sleep_step = next((step for step in service.schedule if step.phase == "sleep"), None)
+            if sleep_step is None or sleep_step.status != "pending":
+                return AdvanceClockResponse(
+                    service=service,
+                    executed=[],
+                    results=[],
+                    device_state=self._devices[ctx.space_id].read_state(),
+                    note="已记录模拟入睡，初始入睡步骤无需重复执行",
+                )
+            self._log(
+                service.space_id,
+                "event_received",
+                "simulated_event",
+                "模拟入睡信号已收到，执行入睡步骤",
+                service_id=service.service_id,
+                person_id=service.person_id,
+            )
+            minutes = max(1, sleep_step.offset_min - service.night_offset_min)
+
+        response = self.advance_clock(service_id, ctx, minutes)
+        with self._lock:
+            if any(step.step_id == sleep_step.step_id and step.status == "done" for step in response.executed):
+                service.sleep_detected_at = self._clock()
+                response.service = service
+                response.note = "已模拟入睡，灯光已按计划关闭"
+        return response
 
     def stop_service(self, service_id: str, ctx: RequestContext) -> StopServiceResponse:
         self._check_context(ctx)

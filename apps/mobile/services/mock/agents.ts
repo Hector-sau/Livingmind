@@ -3,7 +3,7 @@
 //   backend/app/agents/orchestrator/agent.py, agents/space_execution/agent.py,
 //   backend/app/energy/rules.py, backend/app/rules/rest_rule.py, backend/app/rules/night_rule.py
 import type { DeviceAction, DeviceState, EnergyAdvice, EnergyMode, RestPreference, ScheduledStep } from '../types';
-import { DEEP_NIGHT_AC_RAISE_C, NIGHT_START_LOCAL, WAKE_LIGHT_MAX, WAKE_TIME_LOCAL } from './seed';
+import { DEEP_NIGHT_AC_RAISE_C, NIGHT_START_LOCAL, WAKE_LIGHT_MAX } from './seed';
 
 export type Intent = 'rest' | 'device_command' | 'status' | 'other';
 
@@ -240,11 +240,12 @@ export function nightSchedule(
   preference: RestPreference,
   nightLightMax: number,
   newId: (p: string) => string,
+  wakeTime: '06:30' | '07:00' | '07:30' = '07:00',
 ): ScheduledStep[] {
   const ac = target.acTargetTempC;
   const deepAc = Math.min(ac + DEEP_NIGHT_AC_RAISE_C, preference.acTargetTempC + 3, 30);
   const wakeLight = Math.min(WAKE_LIGHT_MAX, nightLightMax);
-  const wake = nightOffset(WAKE_TIME_LOCAL);
+  const wake = nightOffset(wakeTime);
   const curtain = target.curtainOpenPercent;
   const specs: [number, ScheduledStep['phase'], string, [Device, number][]][] = [
     [nightOffset('23:00'), 'sleep', '入睡：关灯', [['light', 0]]],

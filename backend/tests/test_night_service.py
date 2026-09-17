@@ -188,3 +188,60 @@ def test_reset_clears_the_night():
     boot = client.get("/api/bootstrap", params={"accountId": "demo-account"}).json()
     assert boot["activeService"] is None
     assert svc_obj._store.advancing == set()
+
+
+def test_requested_wake_time_and_explicit_simulated_sleep_are_visible():
+    client, _, _ = make()
+    plan = client.post(
+        "/api/plans/rest", json={"context": ctx(), "utterance": "我想休息", "wakeTime": "06:30"}
+    ).json()
+    assert plan["wakeTime"] == "06:30"
+    assert plan["schedule"][-1]["at"] == "06:30"
+    confirmed = client.post(
+        f"/api/plans/{plan['planId']}/confirm", json={"context": ctx(), "planVersion": plan["version"]}
+    ).json()
+    service_id = confirmed["service"]["serviceId"]
+
+    sleep = client.post(f"/api/services/{service_id}/sleep", json={"context": ctx()})
+    assert sleep.status_code == 200, sleep.text
+    body = sleep.json()
+    assert body["note"] == "已模拟入睡，灯光已按计划关闭"
+    assert body["service"]["sleepDetectedAt"] is not None
+    assert body["service"]["schedule"][0]["status"] == "done"
+    assert devices(client)["lightBrightness"] == 0
+
+
+def test_event_is_ignored_while_an_overnight_step_is_writing():
+    client, svc_obj, _ = make(adapter_cls=GateAdapter, cooldown=0)
+    adapter = svc_obj._devices[SPACE]
+    service = start_rest(client)
+    adapter.armed = True
+    out = {}
+    t = threading.Thread(target=lambda: out.setdefault("advance", advance(client, service["serviceId"])))
+    t.start()
+    assert adapter.started.wait(timeout=5)
+    event_res = event(client, 30)
+    assert event_res["outcome"] == "ignored"
+    assert event_res["reason"] == "整晚安排正在执行，请稍后重试"
+    adapter.release.set()
+    t.join(timeout=5)
+
+
+class FailingAdapter(VirtualDeviceAdapter):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.armed = False
+
+    def _before_write(self, device, command, value):
+        if self.armed:
+            raise RuntimeError("simulated device offline")
+
+
+def test_all_failed_overnight_actions_mark_the_service_failed_not_completed():
+    client, svc_obj, _ = make(adapter_cls=FailingAdapter)
+    service = start_rest(client)
+    svc_obj._devices[SPACE].armed = True
+    result = advance(client, service["serviceId"], minutes=720)
+    assert result["service"]["status"] == "failed"
+    assert all(step["status"] == "cancelled" for step in result["service"]["schedule"])
+    assert "service_failed" in kinds(client)

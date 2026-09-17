@@ -6,6 +6,7 @@ import type {
   ActionResult,
   AdvanceClockRequest,
   AdvanceClockResponse,
+  SimulateSleepRequest,
   ActivityRecord,
   AgentStep,
   AssistantMessageRequest,
@@ -208,7 +209,8 @@ export function createMockApi(options: MockOptions = {}): LivingMindApi {
         ),
       );
       const built = restActions(target, id, NIGHT_LIGHT_MAX);
-      const schedule = nightSchedule(target, pref, NIGHT_LIGHT_MAX, id);
+      const wakeTime = req.wakeTime ?? '07:00';
+      const schedule = nightSchedule(target, pref, NIGHT_LIGHT_MAX, id, wakeTime);
       trace.push(step('space_execution', '生成设备动作', `生成 ${built.actions.length} 个动作 · 整晚安排 ${schedule.length} 个定时步骤`));
       const checked = precheck(built.actions);
       trace.push(step('harness', '执行前检查', `${checked.problems.length ? checked.problems.join('；') : '全部通过白名单与参数范围'} · 计划与整晚安排需用户确认后执行`, !checked.problems.length));
@@ -233,6 +235,7 @@ export function createMockApi(options: MockOptions = {}): LivingMindApi {
         trace,
         energy: advice,
         schedule,
+        wakeTime,
       });
       record(plan);
       if (fallbackReason) note('plan_fallback', fallbackReason, { planId: plan.planId, personId: person.personId });
@@ -268,6 +271,7 @@ export function createMockApi(options: MockOptions = {}): LivingMindApi {
         trace,
         energy: null,
         schedule: [],
+        wakeTime: '07:00',
       });
       record(plan);
       note('plan_created', `主 Agent → 执行 Agent：${summary}（${person.name}）`, { planId: plan.planId, personId: person.personId });
@@ -314,7 +318,7 @@ export function createMockApi(options: MockOptions = {}): LivingMindApi {
     },
 
     async createRestPlan(req: CreateRestPlanRequest) {
-      return delay(handle({ context: req.context, text: req.utterance, mode: req.mode }, 'rest').plan!);
+      return delay(handle({ context: req.context, text: req.utterance, mode: req.mode, wakeTime: req.wakeTime }, 'rest').plan!);
     },
 
     async getMemory(ctx: RequestContext) {
@@ -386,6 +390,8 @@ export function createMockApi(options: MockOptions = {}): LivingMindApi {
           nightClock: nightClockLabel(0),
           nightOffsetMin: 0,
           schedule: plan.schedule.map((s) => ({ ...s, actions: s.actions.map((a) => ({ ...a })) })),
+          wakeTime: plan.wakeTime ?? '07:00',
+          sleepDetectedAt: null,
         };
         services.set(service.serviceId, service);
         rec.serviceId = service.serviceId;
@@ -473,6 +479,25 @@ export function createMockApi(options: MockOptions = {}): LivingMindApi {
       return reply(due, results, null);
     },
 
+    async simulateSleep(serviceId: string, req: SimulateSleepRequest): Promise<AdvanceClockResponse> {
+      checkContext(req.context);
+      const service = services.get(serviceId);
+      if (!service) throw new ApiError('NOT_FOUND', '服务不存在', 404);
+      if (service.status !== 'active') throw new ApiError('SERVICE_NOT_ACTIVE', '服务已经结束', 409);
+      const sleep = service.schedule.find((step) => step.phase === 'sleep');
+      if (!sleep || sleep.status !== 'pending') {
+        return delay({ service, executed: [], results: [], deviceState: devices, note: '已记录模拟入睡，初始入睡步骤无需重复执行' });
+      }
+      note('event_received', '模拟入睡信号已收到，执行入睡步骤（前端模拟）', { serviceId, personId: service.personId });
+      const res = await this.advanceClock(serviceId, { context: req.context, minutes: Math.max(1, sleep.offsetMin - service.nightOffsetMin) });
+      if (res.executed.some((step) => step.stepId === sleep.stepId && step.status === 'done')) {
+        service.sleepDetectedAt = now().toISOString();
+        res.service = clone(service);
+        res.note = '已模拟入睡，灯光已按计划关闭';
+      }
+      return res;
+    },
+
     async injectEvent(_spaceId: string, req: InjectEventRequest): Promise<EventResult> {
       checkContext(req.context);
       const eventId = id('event');
@@ -520,6 +545,7 @@ export function createMockApi(options: MockOptions = {}): LivingMindApi {
           ],
           energy: null,
           schedule: [],
+          wakeTime: '07:00',
         }),
         status: 'executed',
       };

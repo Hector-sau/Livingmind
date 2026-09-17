@@ -1,10 +1,10 @@
 # LivingMind AI 交接文档
 
-更新日期：2026-09-17  
+更新日期：2026-09-18
 仓库位置：`/Users/macbookair/Desktop/Business/项目材料整理/Livingmind/livingmind-app/`  
 当前分支：`main`  
 第一批实现基线提交：`99b1138 feat: step 4 rule-based backend loop, executor, virtual devices, CI`  
-当前基线：B + ⑤（真实调用已验证）+ R1 + ⑥ + ⑥b + C + ⑧ 补齐模块（1+2 Agent 编排已实现）+ ⑨ 演示打磨 + ⑦ 整晚服务（模拟时钟）+ D 演示打包（云端部分）— 见 `git log`
+当前基线：B + ⑤（真实调用已验证）+ R1 + ⑥ + ⑥b + C + ⑧ 补齐模块（1+2 Agent 编排已实现）+ ⑨ 演示打磨 + ⑦ 整晚服务（模拟时钟）+ D 演示打包（云端部分）+ 本轮稳定性与接入预留 — 见 `git log`
 
 ## 0. 项目背景与现状速览（给评审或新接手的 AI）
 
@@ -34,10 +34,11 @@
 | ⑥ | 模拟室温事件 → 一次自动调整：事件接口、冷却 30 秒、上限 3 次、单服务单调整、停止后忽略、规则调整（±1°C，偏好 ±3°C 内）、模型调整跟随服务模式并受偏离上限约束；App 注入按钮与调整次数；Mock 同步 | `backend/tests/test_events.py`（10 项）；端到端 `mock-event`、`http-event` |
 | ⑨ | 一键“准备演示”（重置 → 林悦 · 舒适优先 · 设备 80/26/100 · 清空对话 · 关证据面板 · 回对话页）；“场景”页“1+2 Agent 如何协作”说明卡（有计划时展示真实协作过程）；信息提示 3 秒淡出；空态大图标；README 演示启动命令；`docs/demo-script.md` 3 分钟讲稿 | `apps/mobile/tests/notices.test.ts`；端到端 `http-prepare-demo` |
 | ⑦ | 整晚服务：休息计划附带 5 步整晚安排（Space Execution Agent 规则生成、Harness 预检、随计划确认）；模拟时钟推进接口 `POST /api/services/{id}/clock/advance`；每步最多执行一次（锁内认领 + 单服务单推进）；停止取消剩余步骤；最后一步后服务 `completed`；App 运行条“快进 / 自动播放整晚”、计划卡整晚安排、空间页整晚时间线、场景“起床渐进唤醒”改为已实现 | `backend/tests/test_night_service.py`（10 项）、`apps/mobile/tests/night.test.ts`；端到端 `http-night`、`mock-night`、`http-night-stop-phone` |
+| 稳定性与接口预留 | 自动时钟与环境调整互斥；停止期间慢规划返回的计划失效；设备全失败为 `failed`；模拟入睡、三档起床时间；真实设备 / 语音协议预留；能源研究绘图使用迁入后的权重路径 | 后端 112 项测试；`adapters/protocol.py`、`adapters/voice.py`、`docs/team-workflow.md`、`docs/demo-freeze.md` |
 | D（云端） | 三段网页版录屏脚本（每帧字幕标注来源）；主张证据表生成脚本（23 条，Markdown + PDF）；`eas.json` 开发版配置、`expo-dev-client`、包名、iOS 本地网络设置；平板安装与真机验收清单 | `apps/mobile/e2e/record_demo.py`、`scripts/build_evidence.py`、`docs/evidence.md`、`docs/device-build.md` |
 | 文档 | 本交接文档、README、architecture、acceptance、status、ui-polish；产品界面方向（第 12 节） | `587d7aa`、`8525718`、`c58a29f` |
 
-检查基线：后端 108 项 pytest、前端 30 项测试 + 类型检查、契约一致性、干净副本 CI 模拟、网页端到端 19/19（`apps/mobile/e2e/run_e2e.py`，模型路径连本地桩）。本机默认 Python 3.9 不满足项目的 Python 3.10+ 前提；以 Python 3.12 跑干净副本已通过。
+检查基线：后端 112 项 pytest、前端 30 项测试 + 类型检查、契约一致性；历史干净副本 CI 模拟与网页端到端为 19/19（本轮未因界面改动重新录制）。本机默认 Python 3.9 不满足项目的 Python 3.10+ 前提；以 Python 3.12 运行测试通过。
 
 ### 0.3 未完成（按第 8 节顺序）
 
@@ -103,8 +104,8 @@ Expo App：对话 / 空间 / 场景 / 我的（计划来源开关：规则 / 模
   → 状态回读与活动记录
   → App 更新
 
-服务运行中：模拟室温事件 → 检查（服务 / 单调整 / 上限 / 冷却）→ 规划调整（跟随服务模式）
-  → 同一执行器 → 回读 → 记录；停止后事件一律忽略
+服务运行中：模拟入睡 → 首个夜间步骤；模拟室温事件 → 检查（服务 / 自动操作互斥 / 上限 / 冷却）→ 规划调整（跟随服务模式）
+  → 同一执行器 → 回读 → 记录；停止后事件一律忽略。夜间时钟与环境调整不会并发写设备。
 ```
 
 场景范围只有 Home Living 的“我想休息”。当前没有数据库、真实认证、真实传感器、SpaceMind 或真实设备接入；事件只有模拟室温一种；在线能源建议是规则，MATD3 仅作为固定日的只读离线仿真展示。模型调用已用真实 DeepSeek 密钥验证过一次（deepseek-flash，2035 ms）；延迟为单次样本。
@@ -179,6 +180,9 @@ e8ffb61 feat: step 3 clickable rest-flow prototype with front-end mock
 - API 不可达时，App 显示失败和状态可能过期，不偷偷回退到 Mock 成功。
 - 数据仅在进程内存中保存，后端重启或演示重置会清空。
 - 模拟事件只作用于正在运行的服务；没有服务、上一次调整未结束、达到 3 次上限、30 秒冷却中都会忽略并写明原因；停止后事件一律忽略。
+- 同一服务的自动操作互斥：夜间步骤执行中，环境事件忽略；环境调整中，时钟不推进。停止期间开始的慢规划返回后，计划必须是 `invalidated`，不能重新启动服务。
+- 夜间步骤设备动作全失败时服务是 `failed`，不能标为 `completed`；仅全部步骤成功才完成。
+- “模拟已入睡”是明确演示事件，不是传感器；起床时间只允许 06:30 / 07:00 / 07:30。
 - 事件调整跟随服务的计划模式；只对有变化的设备生成动作；调整次数在执行前计数。
 - 演示 PIN 只防误切换：不签发令牌，后续请求不据此授权，任何接口都不返回 PIN。访客使用空间默认设置。
 - 设备指令确认后执行，不创建休息服务；停止服务会让未确认的设备指令失效。
@@ -201,6 +205,7 @@ POST /api/plans/rest
 POST /api/plans/{planId}/confirm
 POST /api/services/{serviceId}/stop
 POST /api/services/{serviceId}/clock/advance  # 模拟时钟推进整晚安排（minutes 为空 = 下一步）
+POST /api/services/{serviceId}/sleep          # 明确的模拟入睡信号，不是传感器
 POST /api/spaces/{spaceId}/events      # 模拟环境事件（source=simulated）
 GET  /api/spaces/{spaceId}/activity
 POST /api/demo/reset
@@ -301,18 +306,20 @@ git status --short
 
 ## 9. 下一位 AI 的当前任务：A 真机验收 + D 的设备部分（需要用户的平板）
 
-前置：⑦、⑧、⑨ 与 D 的云端部分已完成。**不再新增后端能力。** 开始前先问用户手上有哪种平板、是否有 Expo 账号 / Apple 开发者账号。
+前置：⑦、⑧、⑨ 与 D 的云端部分已完成。本轮稳定性、模拟入睡、起床时间与接入协议已完成；除真机问题外不再新增后端能力。开始前先问用户手上有哪种平板、是否有 Expo 账号 / Apple 开发者账号。
 
 ### 有平板时
 
 - 按 `docs/device-build.md` 先用 Expo Go 跑通，再做 EAS 开发版（Android 出 APK；iPad 需登记设备）。
 - 逐项完成 `docs/device-build.md` 的真机验收清单，结果写进 `docs/status.md`（通过、问题、截图位置）。
+- 特别验证模拟入睡只执行一次、三档起床时间与计划末步一致、后端不可达时不显示假成功。
 - 按 `docs/demo-script.md` 在平板上录屏（屏幕录制），替换或补充网页版录屏；在 `scripts/build_evidence.py` 里把“平板 App”一行改为实际状态并重新生成。
 
-### 没有平板时可做
+### 没有平板时可做（只做文档或测试修复，不扩范围）
 
 - P07 已迁入给定研究快照；如未来重新训练或复评，必须另建带时间戳的结果，不能覆盖 `data/provided-day-comparison.json` 或改写为实时控制。
 - 用户提供旧 HTML 前端后，只列清单，不迁移代码。
+- 团队要开始 GitHub 协作时，按 `docs/team-workflow.md` 由负责人创建远程并首次推送；AI 不得自行创建远程仓库或配置密钥。
 
 ### 停止条件
 

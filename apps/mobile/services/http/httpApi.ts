@@ -105,6 +105,8 @@ export function createHttpApi(options: HttpOptions): LivingMindApi {
       request<StopServiceResponse>('POST', `/api/services/${encodeURIComponent(serviceId)}/stop`, req),
     advanceClock: (serviceId, req) =>
       request<AdvanceClockResponse>('POST', `/api/services/${encodeURIComponent(serviceId)}/clock/advance`, req),
+    simulateSleep: (serviceId, req) =>
+      request<AdvanceClockResponse>('POST', `/api/services/${encodeURIComponent(serviceId)}/sleep`, req),
     // An event may trigger model re-planning, so it gets the plan timeout too.
     injectEvent: (spaceId, req) =>
       request<EventResult>('POST', `/api/spaces/${encodeURIComponent(spaceId)}/events`, req, planTimeoutMs),

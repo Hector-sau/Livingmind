@@ -186,6 +186,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/services/{service_id}/sleep": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Simulate Sleep
+         * @description Explicit simulated sleep signal for the pitch demo; not a real sensor integration.
+         */
+        post: operations["simulateSleep"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/services/{service_id}/stop": {
         parameters: {
             query?: never;
@@ -353,7 +373,7 @@ export interface components {
              * Kind
              * @enum {string}
              */
-            kind: "plan_created" | "plan_fallback" | "event_received" | "event_ignored" | "service_adjusted" | "plan_confirmed" | "plan_confirm_repeated" | "plan_rejected" | "action_executed" | "action_rejected" | "service_stopped" | "memory_updated" | "energy_mode_changed" | "demo_reset" | "clock_advanced" | "schedule_step_executed" | "schedule_cancelled" | "service_completed";
+            kind: "plan_created" | "plan_fallback" | "event_received" | "event_ignored" | "service_adjusted" | "plan_confirmed" | "plan_confirm_repeated" | "plan_rejected" | "action_executed" | "action_rejected" | "service_stopped" | "memory_updated" | "energy_mode_changed" | "demo_reset" | "clock_advanced" | "schedule_step_executed" | "schedule_cancelled" | "service_completed" | "service_failed";
             /** Message */
             message: string;
             /** Personid */
@@ -437,6 +457,8 @@ export interface components {
             mode?: ("rule" | "model") | null;
             /** Text */
             text: string;
+            /** Waketime */
+            wakeTime?: ("06:30" | "07:00" | "07:30") | null;
         };
         /** AssistantReply */
         AssistantReply: {
@@ -504,6 +526,8 @@ export interface components {
             mode?: ("rule" | "model") | null;
             /** Utterance */
             utterance: string;
+            /** Waketime */
+            wakeTime?: ("06:30" | "07:00" | "07:30") | null;
         };
         /**
          * DemoAccount
@@ -860,6 +884,11 @@ export interface components {
             utterance: string;
             /** Version */
             version: number;
+            /**
+             * Waketime
+             * @description Requested simulated wake time; ignored by direct device commands
+             */
+            wakeTime?: ("06:30" | "07:00" | "07:30") | null;
         };
         /**
          * PlanGeneration
@@ -1050,6 +1079,11 @@ export interface components {
             schedule: components["schemas"]["ScheduledStep"][];
             /** Serviceid */
             serviceId: string;
+            /**
+             * Sleepdetectedat
+             * @description Set only when the demo's explicit simulated-sleep event was used
+             */
+            sleepDetectedAt?: string | null;
             /** Spaceid */
             spaceId: string;
             /**
@@ -1061,9 +1095,16 @@ export interface components {
              * Status
              * @enum {string}
              */
-            status: "active" | "stopped" | "completed";
+            status: "active" | "stopped" | "completed" | "failed";
             /** Stoppedat */
             stoppedAt: string | null;
+            /**
+             * Waketime
+             * @description Requested simulated wake time for this service
+             * @default 07:00
+             * @enum {string}
+             */
+            wakeTime: "06:30" | "07:00" | "07:30";
         };
         /** SetEnergyModeRequest */
         SetEnergyModeRequest: {
@@ -1073,6 +1114,13 @@ export interface components {
              * @enum {string}
              */
             mode: "comfort_first" | "eco";
+        };
+        /**
+         * SimulateSleepRequest
+         * @description Explicit demo sleep signal; this is not a physical sensor integration.
+         */
+        SimulateSleepRequest: {
+            context: components["schemas"]["RequestContext"];
         };
         /** Space */
         Space: {
@@ -1776,6 +1824,77 @@ export interface operations {
         requestBody: {
             content: {
                 "application/json": components["schemas"]["AdvanceClockRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdvanceClockResponse"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    simulateSleep: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                service_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SimulateSleepRequest"];
             };
         };
         responses: {

@@ -23,9 +23,10 @@ interface Props {
   onInjectEvent: (roomTempC: number) => void;
   clockLoading: boolean;
   onAdvance: () => void;
+  onSimulateSleep: () => void;
 }
 
-export function ServiceCard({ service, persons, loading, disabled, onStop, acTargetTempC, eventLoading, onInjectEvent, clockLoading, onAdvance }: Props) {
+export function ServiceCard({ service, persons, loading, disabled, onStop, acTargetTempC, eventLoading, onInjectEvent, clockLoading, onAdvance, onSimulateSleep }: Props) {
   if (!service) {
     return (
       <Card title="休息服务" icon="moon-outline">
@@ -35,6 +36,7 @@ export function ServiceCard({ service, persons, loading, disabled, onStop, acTar
   }
   const active = service.status === 'active';
   const completed = service.status === 'completed';
+  const failed = service.status === 'failed';
   const next = nextPendingStep(service);
   const who = persons.find((p) => p.personId === service.personId)?.name ?? service.personId;
   return (
@@ -48,21 +50,31 @@ export function ServiceCard({ service, persons, loading, disabled, onStop, acTar
             <Text style={styles.liveText}>运行中</Text>
           </View>
         ) : (
-          <Pill label={completed ? '已完成' : '已停止'} tone={completed ? 'green' : 'muted'} />
+          <Pill label={completed ? '已完成' : failed ? '执行失败' : '已停止'} tone={completed ? 'green' : failed ? 'red' : 'muted'} />
         )
       }
     >
       <Text style={styles.body}>
         {who} · 实际时间 {formatTime(service.startedAt).slice(0, 5)} 开始
-        {service.stoppedAt ? ` · ${formatTime(service.stoppedAt).slice(0, 5)} ${completed ? '结束' : '停止'}` : ''}
+        {service.stoppedAt ? ` · ${formatTime(service.stoppedAt).slice(0, 5)} ${completed ? '结束' : failed ? '失败' : '停止'}` : ''}
       </Text>
       <Text style={styles.muted}>
-        自动调整 {service.adjustments} 次{service.lastAdjustedAt ? ` · 最近 ${formatTime(service.lastAdjustedAt)}` : ''}
+        自动调整 {service.adjustments} 次{service.lastAdjustedAt ? ` · 最近 ${formatTime(service.lastAdjustedAt)}` : ''} · 模拟起床 {service.wakeTime}
       </Text>
       <NightTimeline steps={service.schedule} clock={service.nightClock} />
       {active ? (
         <>
           <View style={styles.actions}>
+            {next ? (
+              <Button
+                label={service.sleepDetectedAt ? '已模拟入睡' : '模拟已入睡'}
+                icon="moon-outline"
+                variant="secondary"
+                onPress={onSimulateSleep}
+                disabled={disabled || !!service.sleepDetectedAt || next.phase !== 'sleep'}
+                testID="simulate-sleep"
+              />
+            ) : null}
             {next ? (
               <Button
                 label={`快进到 ${next.at}`}
@@ -91,7 +103,7 @@ export function ServiceCard({ service, persons, loading, disabled, onStop, acTar
         </>
       ) : (
         <Text style={styles.muted}>
-          {completed ? '唤醒完成，整晚服务已结束，设备保持当前状态。' : '已停止。此前生成的计划已失效，需要重新生成。'}
+          {completed ? '唤醒完成，整晚服务已结束，设备保持当前状态。' : service.status === 'failed' ? '整晚安排执行失败，设备保持当前状态。' : '已停止。此前生成的计划已失效，需要重新生成。'}
         </Text>
       )}
     </Card>

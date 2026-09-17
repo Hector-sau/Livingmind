@@ -22,8 +22,8 @@ plot_product_demo.py
     已通过 train.py 完成训练，并保存 actor 模型。
 """
 
-import os
 import random
+from pathlib import Path
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -43,6 +43,8 @@ OUTPUT_DIR = "demo_figures"
 MODEL_ENV_NAME = "HomeEnergy"
 ALGORITHM_NAME = "MATD3"
 ACTION_DIM = 3
+RESEARCH_DIR = Path(__file__).resolve().parent
+MODEL_PATH = RESEARCH_DIR.parent / "artifacts" / "model" / "MATD3_actor_number_3_epiosde_3000_agent_0.pth"
 
 # 为保证不同电脑上的图片风格基本统一。
 plt.rcParams.update({
@@ -115,26 +117,11 @@ def load_trained_agent(args, device):
     """加载 main.py 训练并保存的 MATD3 actor 网络。"""
     agent = MATD3(args, agent_id=0, device=device)
 
-    # 这里与 MATD3.save_model() 的命名规则保持一致。
-    model_path = (
-        "./model/{}/"
-        "{}_actor_number_{}_epiosde_{}_agent_0.pth"
-    ).format(
-        MODEL_ENV_NAME,
-        ALGORITHM_NAME,
-        ACTION_DIM,
-        args.max_episodes,
-    )
-
-    if not os.path.exists(model_path):
+    if not MODEL_PATH.exists():
         raise FileNotFoundError(
-            "\n找不到已训练模型：\n{}\n\n"
-            "请确认：\n"
-            "1) 已运行 main.py 完成训练；\n"
-            "2) main.py 的 max_episodes 与本文件一致（当前为 {}）；\n"
-            "3) 模型实际保存路径是否为 model/HomeEnergy/；\n"
-            "4) 如果你的模型来自其他训练轮次，请在 Arguments 中修改 max_episodes。"
-            .format(model_path, args.max_episodes)
+            "\n找不到随 LivingMind 研究快照提供的模型：\n{}\n\n"
+            "请确认 artifacts/model/ 中的给定权重没有被移动。\n"
+            "本脚本仅用于读取既有结果，不会重新训练或改写模型。".format(MODEL_PATH)
         )
 
     agent.load_model(
@@ -143,6 +130,7 @@ def load_trained_agent(args, device):
         ACTION_DIM,
         args.max_episodes,
         0,
+        model_path=MODEL_PATH,
     )
     agent.actor.eval()
     return agent

@@ -51,4 +51,5 @@ export const ACTIVITY_KIND_LABEL: Record<ActivityKind, string> = {
   schedule_step_executed: '整晚步骤',
   schedule_cancelled: '步骤取消',
   service_completed: '服务完成',
+  service_failed: '服务失败',
 };

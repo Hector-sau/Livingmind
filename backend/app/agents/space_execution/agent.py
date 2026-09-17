@@ -4,7 +4,7 @@ import re
 from dataclasses import dataclass, field
 from typing import Callable, Optional
 
-from app.contracts import Capability, DeviceAction, DeviceState, RestPreference, ScheduledStep
+from app.contracts import Capability, DeviceAction, DeviceState, RestPreference, ScheduledStep, WakeTime
 from app.rules.night_rule import night_plan
 from app.rules.rest_rule import actions_from_settings
 
@@ -83,11 +83,16 @@ class SpaceExecutionAgent:
     # ---- overnight schedule (step 7, rule) ----
 
     def night_schedule(
-        self, target: RestPreference, preference: RestPreference, capabilities: list[Capability], new_id: NewId
+        self,
+        target: RestPreference,
+        preference: RestPreference,
+        capabilities: list[Capability],
+        new_id: NewId,
+        wake_time: WakeTime = "07:00",
     ) -> list[ScheduledStep]:
         supported = self.supported(capabilities)
         steps: list[ScheduledStep] = []
-        for spec in night_plan(target, preference, self._night_light_max):
+        for spec in night_plan(target, preference, self._night_light_max, wake_time):
             actions = [
                 DeviceAction(
                     action_id=new_id("act"),

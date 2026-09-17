@@ -44,6 +44,7 @@ export function SpaceScreen({ flow, showEvidence }: { flow: RestFlow; showEviden
             onStop={() => void actions.stop()}
             clockLoading={state.busy === 'clock'}
             onAdvance={() => void actions.advanceClock(null)}
+            onSimulateSleep={() => void actions.simulateSleep()}
             acTargetTempC={state.deviceState?.acTargetTempC ?? null}
             eventLoading={state.busy === 'event'}
             onInjectEvent={(t) => void actions.injectEvent(t)}

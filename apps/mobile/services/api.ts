@@ -2,6 +2,7 @@ import type {
   ActivityResponse,
   AdvanceClockRequest,
   AdvanceClockResponse,
+  SimulateSleepRequest,
   AssistantMessageRequest,
   AssistantReply,
   EnergyMode,
@@ -46,6 +47,8 @@ export interface LivingMindApi {
   stopService(serviceId: string, req: StopServiceRequest): Promise<StopServiceResponse>;
   /** Simulated night clock (demo only). minutes=null jumps to the next pending step. */
   advanceClock(serviceId: string, req: AdvanceClockRequest): Promise<AdvanceClockResponse>;
+  /** Explicit pitch-demo sleep signal; not a real sensor event. */
+  simulateSleep(serviceId: string, req: SimulateSleepRequest): Promise<AdvanceClockResponse>;
   /** Simulated environment event (demo only). May lead to one automatic adjustment. */
   injectEvent(spaceId: string, req: InjectEventRequest): Promise<EventResult>;
   getActivity(spaceId: string, limit?: number): Promise<ActivityResponse>;

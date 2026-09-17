@@ -14,18 +14,20 @@ interface Props {
   planner: PlannerInfo;
   apiMode: 'mock' | 'http';
   onModeChange: (mode: PlannerMode) => void;
-  onSend: (text: string) => void;
+  onSend: (text: string, wakeTime: '06:30' | '07:00' | '07:30') => void;
   onVoice: () => void;
 }
 
 const QUICK = ['我想休息', '我想休息，有点热', '想早点睡，灯再暗一点'];
+const WAKE_TIMES = ['06:30', '07:00', '07:30'] as const;
 
 export function Composer({ disabled, sending, mode, planner, apiMode, onModeChange, onSend, onVoice }: Props) {
   const [text, setText] = useState('');
+  const [wakeTime, setWakeTime] = useState<(typeof WAKE_TIMES)[number]>('07:00');
   const send = (value: string) => {
     const v = value.trim();
     if (!v || disabled) return;
-    onSend(v);
+    onSend(v, wakeTime);
     setText('');
   };
   return (
@@ -44,6 +46,22 @@ export function Composer({ disabled, sending, mode, planner, apiMode, onModeChan
           </Pressable>
         ))}
       </ScrollView>
+      <View style={styles.wakeRow}>
+        <Text style={styles.wakeLabel}>模拟起床</Text>
+        {WAKE_TIMES.map((time) => (
+          <Pressable
+            key={time}
+            onPress={() => setWakeTime(time)}
+            disabled={disabled}
+            accessibilityRole="radio"
+            accessibilityState={{ selected: wakeTime === time }}
+            testID={`wake-time-${time}`}
+            style={[styles.wakeOption, wakeTime === time && styles.wakeOptionSelected]}
+          >
+            <Text style={[styles.wakeText, wakeTime === time && styles.wakeTextSelected]}>{time}</Text>
+          </Pressable>
+        ))}
+      </View>
       <View style={styles.bar}>
         <Pressable
           style={styles.mic}
@@ -92,6 +110,12 @@ const styles = StyleSheet.create({
     borderTopColor: colors.border,
   },
   chips: { flexDirection: 'row', gap: space.sm },
+  wakeRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  wakeLabel: { fontSize: font.caption, color: colors.muted, fontWeight: '700', marginRight: 2 },
+  wakeOption: { paddingHorizontal: 10, paddingVertical: 5, borderRadius: radius.pill, backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border },
+  wakeOptionSelected: { backgroundColor: colors.homeTint, borderColor: colors.blue },
+  wakeText: { fontSize: font.caption, color: colors.muted, fontWeight: '700' },
+  wakeTextSelected: { color: colors.blue },
   chip: {
     flexDirection: 'row',
     alignItems: 'center',

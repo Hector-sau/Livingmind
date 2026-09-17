@@ -38,9 +38,9 @@ export function ChatScreen({ api, flow, messages, dispatch }: Props) {
   const system = (text: string, tone: 'info' | 'success' | 'warning' | 'error') =>
     push({ kind: 'system', id: messageId(), text, tone, at: now() });
 
-  const send = async (text: string) => {
+  const send = async (text: string, wakeTime: '06:30' | '07:00' | '07:30') => {
     push({ kind: 'user', id: messageId(), text, at: now() });
-    const res = await actions.sendMessage(text);
+    const res = await actions.sendMessage(text, wakeTime);
     if (!res.ok) return system(`没能处理：${res.error.message}`, res.error.connectivity ? 'warning' : 'error');
     const reply = res.value;
     if (reply.plan) push({ kind: 'plan', id: messageId(), plan: reply.plan, at: now() });
@@ -76,6 +76,12 @@ export function ChatScreen({ api, flow, messages, dispatch }: Props) {
     }
     advanceMessages(res.value).forEach((m) => system(m.text, m.tone));
     if (res.value.service.status !== 'active') setAutoPlay(false);
+  };
+
+  const simulateSleep = async () => {
+    const res = await actions.simulateSleep();
+    if (!res.ok) return system(`模拟入睡失败：${res.error.message}`, res.error.connectivity ? 'warning' : 'error');
+    system(res.value.note ?? '已模拟入睡', 'success');
   };
 
   // Auto-play: one simulated step every few seconds while the service is active.
@@ -117,6 +123,7 @@ export function ChatScreen({ api, flow, messages, dispatch }: Props) {
             clockLoading={state.busy === 'clock'}
             autoPlay={autoPlay}
             onAdvance={() => void advance()}
+            onSimulateSleep={() => void simulateSleep()}
             onToggleAuto={() => setAutoPlay((v) => !v)}
           />
         </View>
@@ -180,6 +187,7 @@ export function ChatScreen({ api, flow, messages, dispatch }: Props) {
           clockLoading={state.busy === 'clock'}
           autoPlay={autoPlay}
           onAdvance={() => void advance()}
+          onSimulateSleep={() => void simulateSleep()}
           onToggleAuto={() => setAutoPlay((v) => !v)}
         />
         <DevicePanel

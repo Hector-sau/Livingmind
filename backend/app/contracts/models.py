@@ -25,6 +25,7 @@ __all__ = [
     "ScheduleStepStatus",
     "AdvanceClockRequest",
     "AdvanceClockResponse",
+    "SimulateSleepRequest",
     "ActionResult",
     "AgentName",
     "AgentStep",
@@ -66,6 +67,7 @@ __all__ = [
     "PlanSource",
     "PlanStatus",
     "ServiceStatus",
+    "WakeTime",
     "DeviceType",
     "DeviceCommand",
     "ActionOutcome",
@@ -90,7 +92,10 @@ PlanSource = Literal["rule", "model", "rule_fallback", "frontend_mock"]
 PlannerMode = Literal["rule", "model"]
 PlanStatus = Literal["proposed", "executed", "expired", "invalidated"]
 # completed = the overnight schedule finished (wake-up done); stopped = the user stopped it.
-ServiceStatus = Literal["active", "stopped", "completed"]
+ServiceStatus = Literal["active", "stopped", "completed", "failed"]
+# The demo offers a small validated wake-time choice. Arbitrary calendar scheduling
+# remains a later capability, rather than a misleading claim in the first release.
+WakeTime = Literal["06:30", "07:00", "07:30"]
 SchedulePhase = Literal["sleep", "deep", "wake"]
 ScheduleStepStatus = Literal["pending", "running", "done", "cancelled"]
 DeviceType = Literal["light", "ac", "curtain"]
@@ -115,6 +120,7 @@ ActivityKind = Literal[
     "schedule_step_executed",
     "schedule_cancelled",
     "service_completed",
+    "service_failed",
 ]
 ActivitySource = Literal[
     "user", "rule_engine", "experience_agent", "executor", "virtual_device", "system", "simulated_event", "simulated_clock", "frontend_mock"
@@ -353,6 +359,9 @@ class Plan(Contract):
     trace: list[AgentStep] = Field(default_factory=list)
     energy: Optional[EnergyAdvice] = None
     schedule: list[ScheduledStep] = Field(description="Overnight schedule confirmed together with a rest plan; empty otherwise")
+    wake_time: Optional[WakeTime] = Field(
+        default=None, description="Requested simulated wake time; ignored by direct device commands"
+    )
 
 
 class Service(Contract):
@@ -370,6 +379,10 @@ class Service(Contract):
     night_clock: str = Field(description="Simulated local time of the overnight schedule, HH:MM")
     night_offset_min: int = Field(description="Simulated minutes since the night start")
     schedule: list[ScheduledStep]
+    wake_time: WakeTime = Field(default="07:00", description="Requested simulated wake time for this service")
+    sleep_detected_at: Optional[datetime] = Field(
+        default=None, description="Set only when the demo's explicit simulated-sleep event was used"
+    )
 
 
 class ActionResult(Contract):
@@ -402,6 +415,7 @@ class CreateRestPlanRequest(Contract):
     context: RequestContext
     utterance: str = Field(min_length=1, max_length=200)
     mode: Optional[PlannerMode] = Field(default=None, description="null = server default")
+    wake_time: Optional[WakeTime] = None
 
 
 class ConfirmPlanRequest(Contract):
@@ -418,6 +432,12 @@ class AdvanceClockRequest(Contract):
 
     context: RequestContext
     minutes: Optional[int] = Field(default=None, ge=1, le=720)
+
+
+class SimulateSleepRequest(Contract):
+    """Explicit demo sleep signal; this is not a physical sensor integration."""
+
+    context: RequestContext
 
 
 class UnlockPersonRequest(Contract):
@@ -437,6 +457,7 @@ class AssistantMessageRequest(Contract):
     context: RequestContext
     text: str = Field(min_length=1, max_length=200)
     mode: Optional[PlannerMode] = None
+    wake_time: Optional[WakeTime] = None
 
 
 class UpdatePreferenceRequest(Contract):

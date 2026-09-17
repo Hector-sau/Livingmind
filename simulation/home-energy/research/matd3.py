@@ -4,6 +4,7 @@ import numpy as np
 import copy
 from networks import Actor, Critic_MATD3
 import os
+from pathlib import Path
 
 
 class MATD3(object):
@@ -96,10 +97,19 @@ class MATD3(object):
         #           "./model/{}/{}_critic_number_{}_episode_{}_agent_{}.pth".format(env_name, algorithm, number,
         #                                                                         int(total_episodes), agent_id))
 
-    def load_model(self, env_name, algorithm, number, total_episodes, agent_id):
-        self.actor.load_state_dict(torch.load(
-            "./model/{}/{}_actor_number_{}_epiosde_{}_agent_{}.pth".format(env_name, algorithm, number,
-                                                                         int(total_episodes), agent_id)))
+    def load_model(self, env_name, algorithm, number, total_episodes, agent_id, model_path=None):
+        """Load a supplied actor checkpoint.
+
+        ``model_path`` lets the LivingMind research snapshot load its committed
+        artifact without recreating the original training-directory layout.
+        The legacy default stays available for historical training workflows.
+        """
+        path = Path(model_path) if model_path is not None else Path(
+            "./model/{}/{}_actor_number_{}_epiosde_{}_agent_{}.pth".format(
+                env_name, algorithm, number, int(total_episodes), agent_id
+            )
+        )
+        self.actor.load_state_dict(torch.load(path, map_location=self.device))
         self.actor_target = copy.deepcopy(self.actor)
         #self.critic.load_state_dict(torch.load(
         #    "./model/{}/{}_critic_number_{}_episode_{}_agent_{}.pth".format(env_name, algorithm, number,

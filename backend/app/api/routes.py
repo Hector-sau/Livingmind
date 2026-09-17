@@ -11,6 +11,7 @@ from app.contracts import (
     AssistantReply,
     MemoryView,
     OfflineEnergySimulation,
+    SimulateSleepRequest,
     RequestContext,
     SetEnergyModeRequest,
     Space,
@@ -61,7 +62,7 @@ def get_device_state(space_id: str, account_id: str = Query(alias="accountId"), 
 @router.post("/assistant/messages", response_model=AssistantReply, operation_id="sendMessage", tags=["assistant"])
 def send_message(body: AssistantMessageRequest, svc: RestService = Svc) -> AssistantReply:
     """Main Agent entry: routes the message and returns a plan (to confirm) or a short answer."""
-    return svc.handle_message(body.context, body.text, body.mode)
+    return svc.handle_message(body.context, body.text, body.mode, wake_time=body.wake_time or "07:00")
 
 
 @router.get("/memory", response_model=MemoryView, operation_id="getMemory", tags=["memory"])
@@ -100,7 +101,7 @@ def get_offline_energy_simulation(
 
 @router.post("/plans/rest", response_model=Plan, operation_id="createRestPlan", tags=["plans"])
 def create_rest_plan(body: CreateRestPlanRequest, svc: RestService = Svc) -> Plan:
-    return svc.create_rest_plan(body.context, body.utterance, body.mode)
+    return svc.create_rest_plan(body.context, body.utterance, body.mode, body.wake_time or "07:00")
 
 
 @router.post("/plans/{plan_id}/confirm", response_model=ConfirmPlanResponse, operation_id="confirmPlan", tags=["plans"])
@@ -124,6 +125,17 @@ def stop_service(service_id: str, body: StopServiceRequest, svc: RestService = S
 def advance_clock(service_id: str, body: AdvanceClockRequest, svc: RestService = Svc) -> AdvanceClockResponse:
     """Simulated night clock (demo only). minutes=null jumps to the next pending step; each step runs once."""
     return svc.advance_clock(service_id, body.context, body.minutes)
+
+
+@router.post(
+    "/services/{service_id}/sleep",
+    response_model=AdvanceClockResponse,
+    operation_id="simulateSleep",
+    tags=["services"],
+)
+def simulate_sleep(service_id: str, body: SimulateSleepRequest, svc: RestService = Svc) -> AdvanceClockResponse:
+    """Explicit simulated sleep signal for the pitch demo; not a real sensor integration."""
+    return svc.simulate_sleep(service_id, body.context)
 
 
 @router.post(

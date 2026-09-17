@@ -18,6 +18,7 @@ interface Props {
   clockLoading: boolean;
   autoPlay: boolean;
   onAdvance: () => void;
+  onSimulateSleep: () => void;
   onToggleAuto: () => void;
 }
 
@@ -33,6 +34,7 @@ export function ServiceStrip({
   clockLoading,
   autoPlay,
   onAdvance,
+  onSimulateSleep,
   onToggleAuto,
 }: Props) {
   if (!service || service.status !== 'active') return null;
@@ -71,6 +73,17 @@ export function ServiceStrip({
                 loading={eventLoading}
                 disabled={busy}
                 testID="inject-event"
+              />
+            ) : null}
+            {next ? (
+              <Button
+                label={service.sleepDetectedAt ? '已模拟入睡' : '模拟已入睡'}
+                icon="moon-outline"
+                variant="secondary"
+                compact
+                onPress={onSimulateSleep}
+                disabled={busy || !!service.sleepDetectedAt || next.phase !== 'sleep'}
+                testID="simulate-sleep"
               />
             ) : null}
             {next ? (

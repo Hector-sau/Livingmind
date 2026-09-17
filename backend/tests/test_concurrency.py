@@ -2,6 +2,7 @@
 
 import threading
 
+import pytest
 from fastapi.testclient import TestClient
 
 from app.adapters.virtual.devices import VirtualDeviceAdapter
@@ -110,3 +111,37 @@ def test_stop_preempts_over_http_with_threadpool():
 
     kinds = [i["kind"] for i in client.get(f"/api/spaces/{SPACE}/activity", params={"accountId": "demo-account"}).json()["items"]]
     assert kinds.count("action_executed") == 1 and kinds.count("action_rejected") == 2
+
+
+def test_plan_started_before_stop_is_invalidated_when_slow_planning_returns():
+    """A delayed agent response must not create a fresh confirmable plan after stop."""
+    svc = RestService(clock=FakeClock())
+    from app.contracts import RequestContext
+
+    rc = RequestContext(**ctx())
+    running_plan = svc.create_rest_plan(rc, "我想休息")
+    running = svc.confirm_plan(running_plan.plan_id, rc, running_plan.version).service
+    assert running is not None
+
+    original = svc._agent.handle
+    started, release = threading.Event(), threading.Event()
+
+    def delayed(*args, **kwargs):
+        started.set()
+        assert release.wait(timeout=5), "test did not release planner"
+        return original(*args, **kwargs)
+
+    svc._agent.handle = delayed
+    outcome = {}
+    t = threading.Thread(target=lambda: outcome.setdefault("plan", svc.create_rest_plan(rc, "我想休息")))
+    t.start()
+    assert started.wait(timeout=5)
+    svc.stop_service(running.service_id, rc)
+    release.set()
+    t.join(timeout=5)
+
+    stale = outcome["plan"]
+    assert stale.status == "invalidated"
+    with pytest.raises(Exception) as exc:
+        svc.confirm_plan(stale.plan_id, rc, stale.version)
+    assert getattr(exc.value, "code", None) == "PLAN_INVALIDATED"

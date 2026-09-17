@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from typing import Callable, Optional
 
-from app.adapters.virtual.devices import VirtualDeviceAdapter
+from app.adapters.protocol import DeviceAdapter
 from app.contracts import ActionResult, DeviceAction
 
 # (device, command) -> (min, max, integer_only)
@@ -36,7 +36,7 @@ def validate_action(action: DeviceAction) -> Optional[str]:
 
 
 class Executor:
-    def __init__(self, adapter: VirtualDeviceAdapter):
+    def __init__(self, adapter: DeviceAdapter):
         self._adapter = adapter
 
     def run(self, actions: list[DeviceAction], guard: Guard, on_result: OnResult) -> list[ActionResult]:
