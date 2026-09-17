@@ -1,6 +1,7 @@
 import { StyleSheet, Text, View } from 'react-native';
 
 import { Card } from '../../components/Card';
+import { EmptyState } from '../../components/EmptyState';
 import { Pill, type PillTone } from '../../components/Pill';
 import type { ActivityRecord } from '../../services/types';
 import { colors, font, space } from '../../theme/tokens';
@@ -24,7 +25,7 @@ export function ActivityList({ items }: { items: ActivityRecord[] }) {
     <Card title="证据面板 · 原始记录" icon="document-text-outline">
       <Text style={styles.hint}>后端或本地模拟实际写入的记录，最新在上；用于评审与技术讲解。</Text>
       {items.length === 0 ? (
-        <Text style={styles.empty}>暂无记录。</Text>
+        <EmptyState compact icon="document-text-outline" title="暂无记录" hint="发送需求、确认计划或注入事件后，这里会出现原始记录。" />
       ) : (
         items.map((item, i) => (
           <View key={item.activityId} style={styles.row}>

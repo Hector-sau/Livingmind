@@ -381,6 +381,61 @@ def scenario_energy_memory(page: Page) -> None:
     assert page.get_by_test_id("pref-ac-value").inner_text().strip() == "22°C", "陈川 sees only his own preference"
 
 
+def api_get(page: Page, path: str) -> dict:
+    res = page.request.get(f"{API}/api{path}")
+    assert res.ok, res.status
+    return res.json()
+
+
+def scenario_prepare_demo(page: Page) -> None:
+    """One tap before presenting: any messy state goes back to 林悦 · comfort first · initial devices · empty chat."""
+    open_app(page, f"http://localhost:{HTTP_PORT}/")
+    tab(page, "scenes")
+    page.get_by_test_id("agent-explainer").wait_for()
+    assert page.get_by_test_id("explainer-trace").count() == 0
+    page.get_by_test_id("explainer-open-chat").click()
+    page.get_by_test_id("chat-empty").wait_for()
+
+    # Make a mess: other person, eco mode, a confirmed service, evidence on.
+    switch_person(page, "person-chen", "1357", "陈川")
+    page.get_by_test_id("evidence-switch").click()
+    tab(page, "space")
+    page.get_by_test_id("energy-mode-eco").click()
+    page.get_by_text("节能模式：高峰电价时", exact=False).wait_for()
+    tab(page, "chat")
+    set_mode(page, "rule")
+    send(page, "我想休息")
+    page.get_by_test_id("confirm-plan").click()
+    page.get_by_test_id("service-strip").wait_for()
+    assert page.get_by_test_id("chat-empty").count() == 0
+    tab(page, "scenes")
+    page.get_by_test_id("explainer-trace").wait_for()
+    page.get_by_test_id("trace-toggle").click()
+    assert "Experience Agent" in page.get_by_test_id("trace-panel").inner_text()
+    shot(page, "scenes-explainer")
+    assert api_get(page, "/spaces/space-home-bedroom/devices?accountId=demo-account")["lightBrightness"] != 80
+
+    tab(page, "me")
+    page.get_by_test_id("prepare-demo").click()
+    wait_person(page, "林悦")
+    page.get_by_test_id("chat-empty").wait_for()
+    page.get_by_text("演示已准备好", exact=False).wait_for()
+    assert page.get_by_test_id("plan-message").count() == 0
+    assert page.get_by_test_id("service-strip").count() == 0
+    devices = api_get(page, "/spaces/space-home-bedroom/devices?accountId=demo-account")
+    assert (devices["lightBrightness"], devices["acTargetTempC"], devices["curtainOpenPercent"]) == (80, 26, 100), devices
+    space = api_get(page, "/bootstrap?accountId=demo-account")["spaces"][0]
+    assert space["energyMode"] == "comfort_first", space
+    assert "80%" in body(page)
+    shot(page, "prepare-demo")
+    # Info notices fade on their own after 3 s.
+    page.wait_for_timeout(3600)
+    assert page.get_by_text("演示已准备好", exact=False).count() == 0
+    tab(page, "space")
+    assert "舒适优先：只给出节能建议" in body(page)
+    assert page.get_by_test_id("evidence-panel-space").count() == 0, "evidence is hidden again"
+
+
 def scenario_real_model(page: Page) -> None:
     """Real provider: a model plan (or a clearly labelled fallback) appears, then confirm and stop."""
     open_app(page, f"http://localhost:{HTTP_PORT}/")
@@ -503,6 +558,12 @@ def main() -> int:
                 scenario_energy_memory(page)
 
             run("http-energy-memory", http_energy_memory)
+
+            def http_prepare_demo(page):
+                reset_backend()
+                scenario_prepare_demo(page)
+
+            run("http-prepare-demo", http_prepare_demo)
 
             if args.real_model:
                 def real_model(page):

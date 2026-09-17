@@ -1,6 +1,8 @@
 import { useEffect, useRef } from 'react';
 import { ScrollView, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 
+import { EmptyState } from '../../components/EmptyState';
+import { FadeIn } from '../../components/motion';
 import type { LivingMindApi } from '../../services';
 import { colors, font, space, SPLIT_BREAKPOINT } from '../../theme/tokens';
 import { DevicePanel } from '../devices/DevicePanel';
@@ -91,6 +93,16 @@ export function ChatScreen({ api, flow, messages, dispatch }: Props) {
       ) : null}
       <ScrollView ref={scroller} contentContainerStyle={styles.messages} keyboardShouldPersistTaps="handled">
         <AssistantText text={greeting(person?.name ?? '', person?.isGuest ?? false)} />
+        {messages.length === 0 && state.busy !== 'plan' ? (
+          <FadeIn>
+            <EmptyState
+              icon="chatbubbles-outline"
+              title="从一句话开始"
+              hint="比如“我想休息一下”“把空调调到 24 度”，或点下方的快捷短语。"
+              testID="chat-empty"
+            />
+          </FadeIn>
+        ) : null}
         {messages.map((m) => (
           <MessageView
             key={m.id}

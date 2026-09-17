@@ -2,6 +2,7 @@ import { StyleSheet, Text, View } from 'react-native';
 
 import { Button } from '../../components/Button';
 import { Card } from '../../components/Card';
+import { EmptyState } from '../../components/EmptyState';
 import { DeviceIcon, type DeviceKind } from '../../components/Icon';
 import { AnimatedBar } from '../../components/motion';
 import { Pill } from '../../components/Pill';
@@ -51,7 +52,7 @@ export function DevicePanel({ state, stale, loading, disabled, onRefresh, vertic
     >
       {stale ? <Text style={styles.stale}>无法确认最新状态：以下数值可能已过期。</Text> : null}
       {!state ? (
-        <Text style={styles.muted}>暂无设备数据。</Text>
+        <EmptyState compact icon="home-outline" title="暂无设备数据" />
       ) : (
         <>
           <View style={[vertical ? styles.column : styles.grid, stale && styles.dim]}>

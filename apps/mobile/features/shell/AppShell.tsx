@@ -1,5 +1,5 @@
 import { LinearGradient } from 'expo-linear-gradient';
-import { useReducer, useState } from 'react';
+import { useEffect, useReducer, useState } from 'react';
 import { Image, Pressable, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 
 import { Avatar } from '../../components/Avatar';
@@ -14,6 +14,7 @@ import { MeScreen } from '../me/MeScreen';
 import { useRestFlow } from '../rest/useRestFlow';
 import { ScenesScreen } from '../scenes/ScenesScreen';
 import { SpaceScreen } from '../space/SpaceScreen';
+import { autoDismissDelay } from './notices';
 
 const LOGO = require('../../assets/logo-horizontal.png');
 
@@ -34,6 +35,25 @@ export function AppShell({ api, backendLabel }: { api: LivingMindApi; backendLab
   const [showEvidence, setShowEvidence] = useState(false);
   const [conversations, dispatch] = useReducer(conversationReducer, {});
   const spaceName = state.data?.spaces.find((s) => s.spaceId === state.data?.defaultSpaceId)?.name;
+
+  // Info notices fade on their own; warnings and errors stay until dismissed.
+  const dismissInfo = actions.dismissInfo;
+  useEffect(() => {
+    const delay = autoDismissDelay(state.info ? 'info' : null);
+    if (delay === null) return;
+    const timer = setTimeout(dismissInfo, delay);
+    return () => clearTimeout(timer);
+  }, [state.info, dismissInfo]);
+
+  /** One tap before presenting: fresh data, 林悦, comfort first, empty chats, chat tab. */
+  const prepareDemo = async () => {
+    const res = await actions.resetDemo(false, '演示已准备好：林悦 · 舒适优先 · 设备回到初始状态');
+    if (res.ok) {
+      dispatch({ type: 'clearAll' });
+      setShowEvidence(false);
+      setTab('chat');
+    }
+  };
 
   const header = (
     <View style={styles.header}>
@@ -124,9 +144,15 @@ export function AppShell({ api, backendLabel }: { api: LivingMindApi; backendLab
     ) : tab === 'space' ? (
       <SpaceScreen flow={flow} showEvidence={showEvidence} />
     ) : tab === 'scenes' ? (
-      <ScenesScreen flow={flow} />
+      <ScenesScreen flow={flow} onOpenChat={() => setTab('chat')} />
     ) : (
-      <MeScreen api={api} flow={flow} showEvidence={showEvidence} onToggleEvidence={setShowEvidence} />
+      <MeScreen
+        api={api}
+        flow={flow}
+        showEvidence={showEvidence}
+        onToggleEvidence={setShowEvidence}
+        onPrepareDemo={prepareDemo}
+      />
     );
 
   const notices =

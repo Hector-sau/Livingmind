@@ -1,6 +1,6 @@
 # 实现状态
 
-更新：2026-09-17 · 第一批（步骤 0–4）完成；B 并发修正完成；⑤ Experience Agent **已完成并验证真实调用**（2026-09-17 在用户 Mac 上运行 `scripts/try_model.py`，deepseek-flash，2035 ms）。评审修正 R1 完成；⑥ 一次事件调整完成；⑥b 对话外壳完成；C 视觉整理完成；⑧ 补齐模块完成（1+2 Agent 编排已实现）。⑦ 未做（可选），⑨、D 未开始。真机验收仍未做。
+更新：2026-09-17 · 第一批（步骤 0–4）完成；B 并发修正完成；⑤ Experience Agent **已完成并验证真实调用**（2026-09-17 在用户 Mac 上运行 `scripts/try_model.py`，deepseek-flash，2035 ms）。评审修正 R1 完成；⑥ 一次事件调整完成；⑥b 对话外壳完成；C 视觉整理完成；⑧ 补齐模块完成（1+2 Agent 编排已实现）。⑨ 演示打磨完成。⑦ 未做（可选），D 未开始。真机验收仍未做。
 
 ## 已实现
 
@@ -36,12 +36,16 @@
 | ⑥b：演示 PIN 切换人物（`POST /api/persons/{id}/unlock`，不是认证）、访客模式（空间默认设置）、只显示本人偏好、证据面板开关 | `backend/app/services/rest_service.py`、`apps/mobile/features/me/` | `tests/test_people_and_scenes.py`；端到端 `*-pin-evidence`、`http-guest-scenes` |
 | ⑥b：场景库（`GET /api/scenes`，状态如实）与人话时间线 | `backend/app/demo/seed.py`、`apps/mobile/features/scenes/` | `test_scene_library_status_is_honest`；`tests/conversation.test.ts` |
 | ⑥b：演示与测试数据重新设计（3 位成员 + 访客、场景库、事件序列、15 条 Experience Agent 评测用例与打分） | `backend/app/demo/seed.py`、`backend/evals/`、`docs/test-data.md` | `tests/test_eval_cases.py` |
-| C：天蓝色明亮主题、LivingMind Logo（头部、App 图标、启动图、AI 头像）、统一图标、渐变按钮、柔和阴影、入场/呼吸/数值条动画（尊重减弱动态效果）、骨架屏 | `apps/mobile/theme/`、`components/`、`features/**`、`assets/` | 端到端 12/12；截图见 `apps/mobile/e2e/.out/screens/`（本地生成，不入库） |
+| C：天蓝色明亮主题、LivingMind Logo（头部、App 图标、启动图、AI 头像）、统一图标、渐变按钮、柔和阴影、入场/呼吸/数值条动画（尊重减弱动态效果）、骨架屏 | `apps/mobile/theme/`、`components/`、`features/**`、`assets/` | 端到端 12/12（C 当时）；截图见 `apps/mobile/e2e/.out/screens/`（本地生成，不入库） |
 | ⑧：主 Agent（规则路由 + 编排 + 协作轨迹）；完整分支 记忆 → Experience → 能源 → Space Execution → Harness；简化分支（设备指令）；状态查询与范围外回答 | `backend/app/agents/orchestrator/`、`POST /api/assistant/messages` | `tests/test_agents.py`；端到端 `mock-agents`、`http-agents` |
 | ⑧：Space Execution Agent（设备能力、夜间灯光上限、动作生成、中文设备指令解析） | `backend/app/agents/space_execution/` | 同上（解析 6 例、能力缺失、规则限幅） |
 | ⑧：人物记忆（本人偏好读取与编辑、空间规则；共享列表不含偏好） | `backend/app/memory/`、`GET /api/memory`、`PUT /api/memory/preference`；“我的”页编辑 | 同上；端到端 `http-energy-memory` |
 | ⑧：能源智能（舒适范围、分时电价、估算负荷档位、舒适优先 / 节能模式） | `backend/app/energy/`、`PUT /api/spaces/{id}/energy-mode`；计划卡与空间页 | 同上 |
 | ⑧：Harness 规划预检；协作过程展示（计划卡“查看协作过程”） | `backend/app/harness/policy.py`、`apps/mobile/features/agents/TraceView.tsx` | 同上 |
+| ⑨：一键“准备演示”（重置数据 → 林悦 · 舒适优先 · 设备初始 80/26/100 · 清空对话 · 关闭证据面板 · 回到对话页） | `apps/mobile/features/shell/AppShell.tsx`、`features/me/MeScreen.tsx`、`useRestFlow.resetDemo` | 端到端 `http-prepare-demo` |
+| ⑨：“场景”页“1+2 Agent 如何协作”说明卡（措辞与交接文档 0.4 一致；有计划时展示真实协作过程，否则引导去对话） | `apps/mobile/features/scenes/ScenesScreen.tsx` | 同上 |
+| ⑨：信息类提示 3 秒自动淡出（警告、错误常驻）；空态改为大图标 + 引导语（对话、服务、设备、证据、场景时间线） | `features/shell/notices.ts`、`components/EmptyState.tsx` | `tests/notices.test.ts`；端到端 `http-prepare-demo` |
+| ⑨：3 分钟演示讲稿 | `docs/demo-script.md` | — |
 | 真实模型端到端脚本（后端：5 句话 → 计划 → 确认 → 回读 → 停止，延迟统计；浏览器：`--real-model`） | `backend/scripts/e2e_real_model.py`（含 `--eval`）、`apps/mobile/e2e/run_e2e.py --real-model` | 已用本地桩空跑通过；真实模型运行为**可选项**（开发环境无法访问 api.deepseek.com，需在用户 Mac 终端运行） |
 
 ## 步骤 4 的 7 项验证
@@ -93,7 +97,7 @@
 
 ## 未开始
 
-⑦ 整晚服务（可选） · ⑨ 补齐入口细节 · D 演示打包 · A 真机验收（有 iPad 时）
+⑦ 整晚服务（可选） · D 演示打包 · A 真机验收（有 iPad 时） · 旧 HTML 前端清单（用户尚未提供旧文件）
 
 ## 下一步接口
 

@@ -19,6 +19,7 @@ interface Props {
   flow: RestFlow;
   showEvidence: boolean;
   onToggleEvidence: (v: boolean) => void;
+  onPrepareDemo: () => void;
 }
 
 interface Stepper {
@@ -85,7 +86,7 @@ function PrefTile({
   );
 }
 
-export function MeScreen({ api, flow, showEvidence, onToggleEvidence }: Props) {
+export function MeScreen({ api, flow, showEvidence, onToggleEvidence, onPrepareDemo }: Props) {
   const { state, person, activeService, actions } = flow;
   const [target, setTarget] = useState<Person | null>(null);
   const [pin, setPin] = useState('');
@@ -263,7 +264,23 @@ export function MeScreen({ api, flow, showEvidence, onToggleEvidence }: Props) {
         <Text style={styles.hint}>
           当前连接：{api.mode === 'mock' ? '前端模拟模式（没有后端、没有模型）' : '后端模式'} · 所有设备均为虚拟设备
         </Text>
-        <Button label="重置演示数据" icon="refresh-outline" variant="ghost" onPress={actions.resetDemo} loading={state.busy === 'reset'} disabled={state.busy !== null} />
+        <Button
+          label="准备演示"
+          icon="play-circle-outline"
+          onPress={onPrepareDemo}
+          loading={state.busy === 'reset'}
+          disabled={state.busy !== null}
+          testID="prepare-demo"
+        />
+        <Text style={styles.hint}>一键回到演示起点：重置数据、切回林悦、舒适优先、清空对话，并跳到对话页。</Text>
+        <Button
+          label="只重置数据"
+          icon="refresh-outline"
+          variant="ghost"
+          onPress={() => void actions.resetDemo()}
+          loading={state.busy === 'reset'}
+          disabled={state.busy !== null}
+        />
       </Card>
 
       {showEvidence ? (

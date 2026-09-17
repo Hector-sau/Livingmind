@@ -2,6 +2,7 @@ import { StyleSheet, Text, View } from 'react-native';
 
 import { Button } from '../../components/Button';
 import { Card } from '../../components/Card';
+import { EmptyState } from '../../components/EmptyState';
 import { PulseDot } from '../../components/motion';
 import { Pill } from '../../components/Pill';
 import type { Person, Service } from '../../services/types';
@@ -24,7 +25,7 @@ export function ServiceCard({ service, persons, loading, disabled, onStop, acTar
   if (!service) {
     return (
       <Card title="休息服务" icon="moon-outline">
-        <Text style={styles.muted}>暂无服务。在对话里确认计划后开始。</Text>
+        <EmptyState compact icon="moon-outline" title="暂无服务" hint="在对话里确认计划后开始。" />
       </Card>
     );
   }

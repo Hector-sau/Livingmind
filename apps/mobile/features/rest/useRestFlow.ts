@@ -343,12 +343,13 @@ export function useRestFlow(api: LivingMindApi) {
     }
   }, [api, fail, loadActivity, patch]);
 
-  const resetDemo = useCallback(async (): Promise<Outcome<true>> => {
+  /** Reset demo data. With keepPerson=false the first member (林悦) becomes active again. */
+  const resetDemo = useCallback(async (keepPerson = true, info = '演示数据已重置'): Promise<Outcome<true>> => {
     patch({ busy: 'reset', error: null, info: null });
     try {
       const data = await api.resetDemo();
-      applyBootstrap(data, true);
-      patch({ busy: null, info: '演示数据已重置' });
+      applyBootstrap(data, keepPerson);
+      patch({ busy: null, info, mode: data.planner.defaultMode });
       const ctx = context();
       if (ctx) api.getMemory(ctx).then((memory) => patch({ memory })).catch(() => undefined);
       await loadActivity(data.defaultSpaceId);
