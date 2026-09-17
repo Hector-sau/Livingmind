@@ -1,0 +1,83 @@
+# LivingMind App
+
+平板优先、手机兼容的 LivingMind 原型：一个 Expo 原生 App + 一个模块化 FastAPI 后端。
+
+当前范围（第一批）：**最小骨架 → 可点击原型 → 无模型后端闭环**，场景只有 Home Living 的“我想休息”。
+实际完成情况以 [docs/status.md](docs/status.md) 为准；验收标准见 [docs/acceptance.md](docs/acceptance.md)。
+
+## 三条架构边界
+
+1. **页面不直接控制设备**：页面只调用 `apps/mobile/services/` 的接口；从模拟切到真实 API 不改页面。
+2. **Agent 不绕过执行器**：规则计划和（以后的）模型计划都经过同一个执行器检查、执行、回读。
+3. **模拟逻辑集中存放**：前端模拟在 `apps/mobile/services/mock/`，后端虚拟设备在 `backend/app/adapters/virtual/`，种子数据在 `backend/app/demo/`。
+
+## 当前做什么 / 不做什么
+
+| 当前做 | 暂不做（后续批次） |
+|---|---|
+| 人物选择、休息计划、确认、设备状态、停止、服务动态 | 大模型调用、多 Agent 协作 |
+| 固定规则计划 + 有状态虚拟设备 + 统一执行器 | 整晚定时服务、事件触发调整 |
+| 内存存储（重启即重置） | 数据库、正式登录、WebSocket、向量库 |
+| 演示身份（demo account） | 真实设备 / SpaceMind / 音箱接入 |
+
+## 目录
+
+```text
+apps/mobile/          Expo 原生 App（iPad / Android 平板优先）
+backend/app/          FastAPI 后端（契约、规则、执行器、虚拟设备、服务状态）
+backend/tests/        后端测试
+packages/api-client/  由后端契约生成的 TypeScript 类型（不要手改生成文件）
+scripts/              跨端脚本（类型生成）
+docs/                 架构、验收、状态
+.github/              PR 模板与 CI
+```
+
+## 快速启动
+
+环境：Node.js 20+，Python 3.10+。
+
+### 1. 后端
+
+```bash
+cd backend
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -r requirements-dev.txt
+uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+```
+
+打开 http://localhost:8000/health 应返回 `{"status":"ok"}`；接口文档在 http://localhost:8000/docs 。
+
+### 2. App
+
+```bash
+cd apps/mobile
+npm install
+cp .env.example .env        # 按需修改
+npx expo start
+```
+
+- **模拟模式**：`.env` 里不设置 `EXPO_PUBLIC_API_BASE_URL`，App 使用前端模拟接口，界面顶部显示“前端模拟模式”。
+- **后端模式**：设置 `EXPO_PUBLIC_API_BASE_URL=http://<Mac 的局域网 IP>:8000`。平板上不能用 `localhost`（那是平板自己）。查 Mac IP：`ipconfig getifaddr en0`。
+- 在 iPad 上用 Expo Go 扫码预览；在 Mac 上按 `Shift + i` 选 iPad 模拟器（需要 Xcode）；按 `w` 用浏览器粗看布局。
+
+### 3. 重新生成接口类型
+
+后端契约改动后运行（需先完成后端 venv 安装）：
+
+```bash
+./scripts/gen-api.sh
+```
+
+## 检查命令
+
+```bash
+cd backend && pytest                      # 后端测试
+cd apps/mobile && npx tsc --noEmit        # 前端类型检查
+./scripts/gen-api.sh && git diff --exit-code packages/api-client   # 契约一致性
+```
+
+## 安全说明
+
+- 演示后端**没有正式认证**，只在本机或可信局域网运行，不要部署到公网。
+- 密钥只放后端环境变量；App 与 Git 中不得出现密钥。本批次不需要任何密钥。

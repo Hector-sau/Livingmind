@@ -1,0 +1,53 @@
+# 架构与目录（第一批实现视角）
+
+定稿方案见 `../架构评审/LivingMind-架构评审与迁移步骤-v0.2.md`。本文件只记录**代码里实际怎么分**，以及哪些位置是后续预留。
+
+## 请求链路（步骤 4 起）
+
+```text
+App 页面 → services/api（http 实现）→ FastAPI 路由
+  → 校验演示身份（account / person / space）
+  → 规则计划 rules/rest_rule.py（不改设备）
+  → 用户确认 → 执行器 harness/executor.py（白名单、参数范围、服务是否仍有效）
+  → 虚拟设备 adapters/virtual/devices.py（真实维护状态）
+  → 回读设备状态 → 写活动记录 → 返回 App
+```
+
+## 模块职责
+
+| 位置 | 职责 | 状态 |
+|---|---|---|
+| `apps/mobile/features/` | 按业务划分的页面内容：home（人物）、rest（需求/计划/确认/停止）、devices、activity | 第一批实现 |
+| `apps/mobile/components/`、`theme/` | 基础组件与设计 token（颜色取自演示设计规范） | 第一批实现 |
+| `apps/mobile/services/` | `api.ts` 接口定义；`http/` 真实 API；`mock/` 前端模拟 | 第一批实现 |
+| `backend/app/contracts/` | Pydantic 数据契约，是前端类型的唯一来源 | 第一批实现 |
+| `backend/app/api/` | HTTP 路由与统一错误格式 | 第一批实现 |
+| `backend/app/rules/` | 固定休息规则（无模型） | 第一批实现 |
+| `backend/app/harness/` | 统一执行器与检查规则 | 第一批最小版 |
+| `backend/app/services/` | 服务生命周期（active / stopped）、确认幂等、停止失效 | 第一批实现 |
+| `backend/app/adapters/virtual/` | 有状态虚拟灯光、空调、窗帘 | 第一批实现 |
+| `backend/app/repositories/` | 内存存储（重启重置） | 第一批实现 |
+| `backend/app/demo/` | 种子人物、空间、演示账户 | 第一批实现 |
+| `packages/api-client/` | 由 OpenAPI 生成的 TS 类型 | 第一批实现 |
+| `backend/app/agents/` | Experience / 主 Agent / 执行 Agent | **未创建**，第二批 ⑤ 起 |
+| `backend/app/memory/`、`energy/` | 人物记忆、能源规则 | **未创建**，第二批 ⑧ |
+| 事件与定时器、SpaceMind / 语音 Adapter | 持续服务与真实接入 | **未创建**，第二批 ⑥⑦ 及以后 |
+
+按“只建当前需要的模块”原则，未实现的模块不建空目录。
+
+## 身份说明
+
+- 当前只有**演示身份**：固定演示账户 `demo-account`，其成员关系在 `backend/app/demo/seed.py`。
+- App 里的“选择人物”只是切换上下文；后端会检查该人物、空间是否属于演示账户，但这**不是登录授权**。
+- 正式认证属于后续批次；在此之前后端不得部署到公网。
+
+## 关键规则（后端强制，不只靠界面按钮）
+
+1. 创建计划不改变设备。
+2. 同一计划重复确认不会重复执行（按计划状态幂等返回）。
+3. 同一空间同时只允许一个活跃休息服务。
+4. 停止会让该空间此前生成的计划全部失效（空间“代次” epoch +1）；执行器在**每个动作前**检查服务仍为 active 且代次一致。
+5. 停止保持设备当前状态，不自动恢复。
+6. 计划 10 分钟后过期。
+7. 所有设备写入经过执行器：工具白名单 + 参数范围。
+8. 数据存在内存里，后端重启即重置；`POST /api/demo/reset` 可手动重置。

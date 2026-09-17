@@ -1,0 +1,31 @@
+# macOS
+.DS_Store
+
+# Node
+node_modules/
+.expo/
+dist/
+web-build/
+*.tsbuildinfo
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+.pytest_cache/
+.ruff_cache/
+
+# Secrets / local env (never commit)
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p8
+*.p12
+*.jks
+*.mobileprovision
+
+# Generated native folders (Expo prebuild)
+apps/mobile/ios/
+apps/mobile/android/
