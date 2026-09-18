@@ -67,6 +67,8 @@ class _Trace:
 
 
 class Orchestrator:
+    """Rule router plus the stages. The LangGraph path (app/graph) calls the same methods."""
+
     def __init__(
         self,
         planner: Planner,
@@ -109,27 +111,49 @@ class Orchestrator:
             return self._rest(trace, person_id, space_id, text, mode, adapter, energy_mode, new_id, wake_time)
         if intent == "device_command":
             return self._command(trace, person_id, space_id, text, mode, adapter, new_id)
-        state = adapter.read_state()
         if intent == "status":
-            t = time.monotonic()
-            answer = (
-                f"卧室现在：灯光 {state.light_brightness}%，空调设定 {state.ac_target_temp_c:g}°C，"
-                f"窗帘开度 {state.curtain_open_percent}%（虚拟设备读数）。"
-            )
-            trace.add("space_execution", "读取设备状态", "只读，不生成动作", "rule", t)
-            return AssistantReply(kind="answer", intent=intent, text=answer, plan=None, trace=trace.steps)
+            return self.status_reply(trace, adapter)
+        return self.other_reply(trace)
+
+    def status_reply(self, trace, adapter: DeviceAdapter) -> AssistantReply:
+        state = adapter.read_state()
+        t = time.monotonic()
+        answer = (
+            f"卧室现在：灯光 {state.light_brightness}%，空调设定 {state.ac_target_temp_c:g}°C，"
+            f"窗帘开度 {state.curtain_open_percent}%（虚拟设备读数）。"
+        )
+        trace.add("space_execution", "读取设备状态", "只读，不生成动作", "rule", t)
+        return AssistantReply(kind="answer", intent="status", text=answer, plan=None, trace=trace.steps)
+
+    def other_reply(self, trace) -> AssistantReply:
         answer = "我目前负责休息相关的空间服务：可以说“我想休息”，或者直接说“把灯关了”“空调调到 24 度”。"
-        return AssistantReply(kind="answer", intent=intent, text=answer, plan=None, trace=trace.steps)
+        return AssistantReply(kind="answer", intent="other", text=answer, plan=None, trace=trace.steps)
 
     # ---- full branch: memory -> experience -> energy -> space execution -> harness ----
 
     def _rest(self, trace, person_id, space_id, text, mode, adapter, energy_mode, new_id, wake_time: WakeTime) -> AssistantReply:
+        """Legacy sequential composition of the same stages the graph nodes call."""
+        ctx = self.stage_memory(trace, person_id, space_id)
+        state = adapter.read_state()
+        exp = self.stage_experience(trace, ctx, text, state, mode)
+        advice, target = self.stage_energy(trace, exp, energy_mode)
+        actions, schedule, exec_notes = self.stage_execution(trace, target, ctx, adapter, new_id, wake_time)
+        actions, schedule, problems = self.stage_harness(trace, actions, schedule, exp)
+        plan = self.build_rest_plan(
+            trace, person_id, space_id, text, exp, advice, actions, schedule, exec_notes, wake_time, new_id
+        )
+        return AssistantReply(kind="plan", intent="rest", text=exp.summary, plan=plan, trace=trace.steps)
+
+    # ---- stages: one per graph node, shared by both orchestration paths ----
+
+    def stage_memory(self, trace, person_id: str, space_id: str):
         t = time.monotonic()
         ctx = self.memory.context_for(person_id, space_id)
         who = "访客（空间默认设置）" if ctx.person.is_guest else f"{ctx.person.name} 的休息偏好（仅本人）"
         trace.add("memory", "读取上下文", f"{who} + 空间规则 {len(ctx.shared_rules)} 条", "rule", t)
+        return ctx
 
-        state = adapter.read_state()
+    def stage_experience(self, trace, ctx, text: str, state, mode) -> ExperienceOutcome:
         t = time.monotonic()
         exp: ExperienceOutcome = self.planner.plan(ctx.person, text, state, mode)
         s = exp.settings
@@ -137,7 +161,10 @@ class Orchestrator:
         if exp.fallback_reason:
             exp_detail += f"；模型未采用：{exp.fallback_reason}"
         trace.add("experience", "生成体验目标", exp_detail, exp.source, t, ok=exp.fallback_reason is None)
+        return exp
 
+    def stage_energy(self, trace, exp: ExperienceOutcome, energy_mode):
+        s = exp.settings
         t = time.monotonic()
         advice = self.energy.advise(s, energy_mode, self._clock())
         target = s.model_copy(update={"ac_target_temp_c": advice.recommended_ac_c}) if advice.applied else s
@@ -149,7 +176,9 @@ class Orchestrator:
             f" · 估算负荷 {advice.load_kw_before:g}→{advice.load_kw_after:g} kW（{TIER_LABEL[advice.tier_after]}档）"
         )
         trace.add("energy", "能源策略", energy_detail, "rule", t)
+        return advice, target
 
+    def stage_execution(self, trace, target, ctx, adapter, new_id, wake_time: WakeTime):
         t = time.monotonic()
         caps = adapter.list_capabilities()
         actions, exec_notes = self.space.rest_actions(target, caps, new_id)
@@ -162,7 +191,9 @@ class Orchestrator:
             "rule",
             t,
         )
+        return actions, schedule, exec_notes
 
+    def stage_harness(self, trace, actions, schedule, exp: ExperienceOutcome):
         t = time.monotonic()
         actions, problems = precheck(actions)
         for step in schedule:
@@ -178,7 +209,12 @@ class Orchestrator:
             t,
             ok=not problems,
         )
+        return actions, schedule, problems
 
+    def build_rest_plan(
+        self, trace, person_id, space_id, text, exp: ExperienceOutcome, advice, actions, schedule, exec_notes,
+        wake_time, new_id: NewId,
+    ) -> Plan:
         notes = list(exp.notes) + exec_notes
         if advice.applied:
             notes.append(
@@ -209,7 +245,7 @@ class Orchestrator:
             schedule=schedule,
             wake_time=wake_time,
         )
-        return AssistantReply(kind="plan", intent="rest", text=exp.summary, plan=plan, trace=trace.steps)
+        return plan
 
     # ---- simplified branch: direct device command ----
 

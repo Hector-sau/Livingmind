@@ -132,6 +132,18 @@
 
 未做：跨实例协调（多 API 实例同时写）仍依赖单进程锁 + 数据库约束，要到 T4 才补 Redis；设备状态仍在内存虚拟适配器里（它模拟硬件，不是业务事实）。
 
+## T3 LangGraph 规划图（规划分支已完成）
+
+| 项 | 位置 | 证据 |
+|---|---|---|
+| 编排器拆成阶段方法（记忆 / 体验 / 能源 / 执行 / Harness / 组装计划），legacy 与 graph 共用，不复制规则 | `backend/app/agents/orchestrator/agent.py` | 拆分后原有测试全部通过 |
+| LangGraph `StateGraph`：路由 + 四条分支；依赖（设备适配器、id 生成器）不进入状态，因此 checkpoint 可序列化 | `backend/app/graph/builder.py`、`state.py` | `tests/test_graph_orchestrator.py`（8 项） |
+| 开关 `LIVINGMIND_ORCHESTRATOR=legacy\|langgraph`；图路径不执行设备，仍需确认 | `backend/app/config.py`、`app/graph/runtime.py` | 图路径下整套测试通过；`test_graph_plans_without_touching_devices` |
+| 等价定义与对照器（忽略 id / 时间戳 / 耗时，比意图、摘要、动作、整晚安排、能源、节点顺序） | `backend/app/graph/compare.py`、`scripts/compare_orchestrators.py` | 5 组输入全部等价；跨 3 位人物 × 3 句话的等价测试 |
+| checkpoint：无数据库用内存 saver，有数据库用 `PostgresSaver` 自建表 | `app/graph/runtime.py` | 图 + PostgreSQL 组合下 133 项测试通过；数据库中出现 `checkpoints` 等表 |
+
+未做：事件调整仍走 legacy 单阶段；图只覆盖规划，不覆盖执行（执行属于 Harness 与执行器）。
+
 ## 未开始
 
 A 真机验收（有 iPad 时） · D 的设备部分（EAS 开发版构建、平板录屏） · 旧 HTML 前端清单（用户尚未提供旧文件）

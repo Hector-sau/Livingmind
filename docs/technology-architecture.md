@@ -536,6 +536,8 @@ kafka healthy ────┘                │
 
 ### 阶段 C：LangGraph 规划图
 
+状态：**已完成（规划分支）**。编排器拆成阶段方法，legacy 与 graph 两条路径调用同一批方法；图只负责路由、顺序和状态。`LIVINGMIND_ORCHESTRATOR=langgraph` 时整套测试再跑一遍全部通过，且与 PostgreSQL 存储组合也通过；`scripts/compare_orchestrators.py` 对 5 组输入比对等价。事件调整仍走 legacy 单阶段（包成图不增加可观察的步骤，已在代码注释与文档写明）。checkpoint 在配了数据库时由 `PostgresSaver` 自建表（`checkpoints` 等），与业务表分开。
+
 - 用 Graph 节点包装现有类，不复制业务规则。
 - 使用 PostgreSQL checkpointer。
 - 保留 `LIVINGMIND_ORCHESTRATOR=legacy|langgraph` 开关做结果对照。

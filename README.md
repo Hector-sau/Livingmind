@@ -135,6 +135,19 @@ LIVINGMIND_TEST_DATABASE_URL=postgresql+psycopg://...@127.0.0.1:5432/livingmind 
 LIVINGMIND_TEST_STORE=sql LIVINGMIND_TEST_DATABASE_URL=postgresql+psycopg://...@127.0.0.1:5432/livingmind .venv/bin/pytest
 ```
 
+### 2c. 编排方式（T3，可选）
+
+默认走原来的顺序编排。设 `LIVINGMIND_ORCHESTRATOR=langgraph` 后，同样的阶段以 LangGraph 图运行，多了节点轨迹和 checkpoint（配了数据库就存 PostgreSQL，否则存内存）：
+
+```bash
+cd backend
+LIVINGMIND_ORCHESTRATOR=langgraph .venv/bin/uvicorn app.main:app --port 8000
+.venv/bin/python scripts/compare_orchestrators.py       # 两条路径生成的计划是否等价
+LIVINGMIND_ORCHESTRATOR=langgraph .venv/bin/pytest      # 整套测试走图路径再跑一遍
+```
+
+设备执行不在图里：图只产出计划，确认后仍由 Harness 与执行器写设备。
+
 ### 3. 重新生成接口类型
 
 后端契约改动后运行（需先完成后端 venv 安装）：

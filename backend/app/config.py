@@ -19,6 +19,12 @@ CORS_ORIGINS = _csv(os.getenv("LIVINGMIND_CORS_ORIGINS", "http://localhost:8081,
 DATABASE_URL = os.getenv("LIVINGMIND_DATABASE_URL", "").strip()
 
 
+# ---- orchestration (T3) ----
+# "legacy": the sequential main Agent (default). "langgraph": the same stages run as a
+# LangGraph StateGraph with checkpoints. Both must produce equivalent plans.
+ORCHESTRATOR = os.getenv("LIVINGMIND_ORCHESTRATOR", "legacy").strip() or "legacy"
+
+
 # ---- planner / Experience Agent ----
 # "rule": never call a model. "model": call the configured provider, fall back to rules on failure.
 PLANNER_DEFAULT_MODE = os.getenv("LIVINGMIND_PLANNER_MODE", "rule")

@@ -96,7 +96,7 @@ class RestService:
         }
         self._memory = MemoryService(clock, preferences or default_preference_repository())
         self._energy_modes: dict[str, EnergyMode] = {s.space_id: s.energy_mode for s in seed.SPACES}
-        self._agent = Orchestrator(
+        self._legacy_agent = Orchestrator(
             planner=self._planner,
             memory=self._memory,
             energy=EnergyIntelligence(
@@ -105,6 +105,12 @@ class RestService:
             space_execution=SpaceExecutionAgent(seed.NIGHT_LIGHT_MAX),
             clock=clock,
         )
+        self._agent = self._legacy_agent
+        if config.ORCHESTRATOR == "langgraph":
+            # Same stages, run as a graph with checkpoints (T3). Device execution stays here.
+            from app.graph.runtime import GraphOrchestrator
+
+            self._agent = GraphOrchestrator(self._legacy_agent, lambda space_id: self._devices[space_id])
 
     # ---- identity (demo only, not authentication) ----
 
