@@ -2,3 +2,12 @@ fastapi>=0.115,<1.0
 uvicorn[standard]>=0.30
 pydantic>=2.7,<3
 httpx>=0.27
+# T2 persistence. Optional at runtime: without LIVINGMIND_DATABASE_URL nothing connects.
+sqlalchemy>=2.0,<3
+alembic>=1.13
+psycopg[binary]>=3.1
+# T3 orchestration. Only imported when LIVINGMIND_ORCHESTRATOR=langgraph.
+langgraph>=1.0,<2
+langgraph-checkpoint-postgres>=3,<4
+# T4 coordination. Only used when LIVINGMIND_REDIS_URL is set; absence degrades to PostgreSQL.
+redis>=5,<7

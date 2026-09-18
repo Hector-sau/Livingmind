@@ -105,6 +105,70 @@
 - 规则模式下输入文字只记录，不做语义理解。模型模式已验证一次真实调用；延迟只有单次样本。
 - CI 配置写好了，但还没有在 GitHub 上跑过。
 
+## T1 Docker 基线（配置就绪，待宿主机验证）
+
+| 项 | 位置 | 状态 |
+|---|---|---|
+| 后端镜像（Python 3.12、多阶段、非 root、依赖版本锁定） | `backend/Dockerfile`、`backend/constraints.txt`、`backend/.dockerignore` | 已入库；镜像构建待在 Docker Desktop 上执行 |
+| Compose（只含 api，端口绑 `127.0.0.1`，健康检查用 python 而非 curl） | `compose.yaml` | 已入库；`docker compose config` 解析通过 |
+| 一键验证脚本（构建 → 容器内测试 → 健康检查 → 宿主机走完休息闭环 → 关闭） | `scripts/verify-t1.sh` | HTTP 闭环部分已在本机后端上跑通；Docker 部分待验证 |
+| 锁定版本在 Python 3.12 上的可用性 | `backend/constraints.txt` | 已验证：安装成功，全部后端测试在 3.12 上通过 |
+
+未验证：`docker compose build/up`、容器内测试、镜像大小与非 root 的实际结果。开发容器没有 Docker 守护进程，必须在用户的 Mac 上执行。
+
+## T2 PostgreSQL 持久化（单实例已完成）
+
+| 项 | 位置 | 证据 |
+|---|---|---|
+| 同步数据库栈：SQLAlchemy 2 + psycopg 3 + Alembic；`LIVINGMIND_DATABASE_URL` 为空时完全走内存，行为不变 | `backend/app/db/`、`backend/alembic/`、`backend/app/config.py` | 未配数据库时原有测试全部不变；配上数据库后新增专项测试一起通过 |
+| 人物偏好持久化：Repository 协议 + 内存实现 + SQL 实现；种子只在缺行时写入，不覆盖用户编辑 | `backend/app/memory/repository.py`、`app/memory/service.py` | `tests/test_persistence.py`：同一套契约测试跑内存与 PostgreSQL 两种实现 |
+| 重启后偏好仍在；演示重置回到种子值；接口层在配置数据库时自动使用 SQL 实现 | `RestService(preferences=...)`、`default_preference_repository()` | 同上（真实 PostgreSQL 16 上运行） |
+| 迁移 `0001_person_preferences`（含数值范围 CHECK 约束） | `backend/alembic/versions/` | `alembic upgrade head` 在 PostgreSQL 16 上执行通过 |
+| Compose 增加 `postgres` 与一次性 `migrate` 服务，API 等迁移成功后再启动 | `compose.yaml` | `docker compose config` 解析通过；**构建与启动待宿主机验证** |
+| 业务事实落库：计划、服务、整晚步骤、动作结果、活动记录、空间代次、进行中标记 | `backend/app/repositories/store.py`（协议 + 内存实现）、`sql_store.py`、`alembic/versions/0002_business_facts.py` | 整套测试换存储再跑一遍：`LIVINGMIND_TEST_STORE=sql` 下 125 项通过；不配数据库时 117 项通过、8 项跳过 |
+| 数据库层约束：每空间只有一个 active 服务（部分唯一索引）；夜间步骤 `UPDATE … WHERE status='pending' RETURNING` 只认领一次 | 同上 | `tests/test_persistence.py`：绕过服务层直接插入第二个 active 服务被数据库拒绝；两个连接并发认领，每步只被认领一次 |
+| 重启恢复：新进程能读到运行中的服务、整晚步骤状态、活动记录，并能继续停止 | 同上 | `test_plans_services_steps_and_activity_survive_a_restart` |
+| 网页端到端在两种存储下各跑一遍 | `apps/mobile/e2e/run_e2e.py` | 内存模式 20/20；后端接 PostgreSQL 再跑一遍同样 20/20 |
+
+未做：跨实例协调（多 API 实例同时写）仍依赖单进程锁 + 数据库约束，要到 T4 才补 Redis；设备状态仍在内存虚拟适配器里（它模拟硬件，不是业务事实）。
+
+## T3 LangGraph 规划图（规划分支已完成）
+
+| 项 | 位置 | 证据 |
+|---|---|---|
+| 编排器拆成阶段方法（记忆 / 体验 / 能源 / 执行 / Harness / 组装计划），legacy 与 graph 共用，不复制规则 | `backend/app/agents/orchestrator/agent.py` | 拆分后原有测试全部通过 |
+| LangGraph `StateGraph`：路由 + 四条分支；依赖（设备适配器、id 生成器）不进入状态，因此 checkpoint 可序列化 | `backend/app/graph/builder.py`、`state.py` | `tests/test_graph_orchestrator.py`（8 项） |
+| 开关 `LIVINGMIND_ORCHESTRATOR=legacy\|langgraph`；图路径不执行设备，仍需确认 | `backend/app/config.py`、`app/graph/runtime.py` | 图路径下整套测试通过；`test_graph_plans_without_touching_devices` |
+| 等价定义与对照器（忽略 id / 时间戳 / 耗时，比意图、摘要、动作、整晚安排、能源、节点顺序） | `backend/app/graph/compare.py`、`scripts/compare_orchestrators.py` | 5 组输入全部等价；跨 3 位人物 × 3 句话的等价测试 |
+| checkpoint：无数据库用内存 saver，有数据库用 `PostgresSaver` 自建表 | `app/graph/runtime.py` | 图 + PostgreSQL 组合下 133 项测试通过；数据库中出现 `checkpoints` 等表 |
+
+未做：事件调整仍走 legacy 单阶段；图只覆盖规划，不覆盖执行（执行属于 Harness 与执行器）。
+
+## T4 Redis 协调（已完成）
+
+| 项 | 位置 | 证据 |
+|---|---|---|
+| 空间执行锁：随机 token + 30 秒 TTL，释放时用 Lua 校验 token，只删自己的锁 | `backend/app/cache/locks.py`、`keys.py` | `tests/test_cache_coordination.py`：持有者唯一、别人的锁不会被误删、TTL 存在 |
+| 第二个 API 实例在空间被驱动时收到 `SPACE_BUSY`，释放后同一计划仍可确认 | `app/services/rest_service.py::confirm_plan`、`advance_clock` | 同上 |
+| 事件冷却的快速判断：Redis 键带 TTL，删掉它也不会绕过规则（服务行仍是权威） | `app/cache/cooldown.py` | 同上 |
+| 降级：未配置 Redis、或配了但连不上，都不影响主流程 | `app/cache/client.py` | `test_without_redis_...`、`test_unreachable_redis_degrades_instead_of_failing` |
+| 与其他两层组合运行 | — | PostgreSQL + LangGraph + Redis 同时开启，139 项后端测试通过 |
+
+未做：设备状态缓存（会带来过期风险，收益为零）；幂等结果缓存（数据库已幂等）。
+
+## T5 Outbox 与事件总线（数据库队列实现已完成）
+
+| 项 | 位置 | 证据 |
+|---|---|---|
+| 事件信封（`event_id`、`schema_version`、`correlation_id`、`spaceId` 保序）与 10 种领域事件 | `backend/app/events/envelope.py` | `tests/test_outbox_events.py` |
+| 业务事实与 outbox 行同一事务提交；事务回滚则事件也不存在 | `app/repositories/sql_store.py::_write_events`、`app/services/rest_service.py` | `test_business_facts_and_events_commit_together`、`test_a_failed_transaction_leaves_no_event` |
+| Publisher：`FOR UPDATE SKIP LOCKED` 领取、至少一次投递、重复投递不产生重复行、失败退避、超限进死信不删除 | `app/events/outbox.py`、`workers/outbox_publisher.py` | `test_publisher_delivers_once_and_marks_rows`、`test_bus_outage_keeps_events_and_never_blocks_devices` |
+| Consumer（activity-projector）：按 `event_id` 去重、投影到 `service_projection`、同空间事件保序 | `workers/activity_projector.py` | `test_projection_is_idempotent_and_ordered` |
+| 总线停摆不影响设备执行与停止；活动记录仍由 API 同步写库 | 同上 | 同上 |
+| Compose 增加 `outbox-publisher` 与 `activity-projector` 两个 worker | `compose.yaml` | `docker compose config` 通过；**运行待宿主机验证** |
+
+未做：Kafka 实现（按用户决定，非必要不上常驻中间件；接口已留在 `EventPublisher`）。
+
 ## 未开始
 
 A 真机验收（有 iPad 时） · D 的设备部分（EAS 开发版构建、平板录屏） · 旧 HTML 前端清单（用户尚未提供旧文件）

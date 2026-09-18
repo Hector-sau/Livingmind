@@ -1,0 +1,104 @@
+# T1: API only. T2 adds PostgreSQL plus a one-shot migration step.
+# Redis and the event bus arrive in T4 and T5 — do not add services before the code uses them.
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: "${POSTGRES_USER:-livingmind}"
+      POSTGRES_PASSWORD: "${POSTGRES_PASSWORD:-livingmind}"
+      POSTGRES_DB: "${POSTGRES_DB:-livingmind}"
+    ports:
+      - "127.0.0.1:5432:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-livingmind} -d ${POSTGRES_DB:-livingmind}"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    # No persistence on purpose: everything in Redis here is short-lived and rebuildable.
+    command: ["redis-server", "--save", "", "--appendonly", "no"]
+    ports:
+      - "127.0.0.1:6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  # Runs once and exits; the API waits for it so it never starts against an old schema.
+  migrate:
+    build:
+      context: ./backend
+    image: livingmind-api:dev
+    command: ["alembic", "upgrade", "head"]
+    environment:
+      LIVINGMIND_DATABASE_URL: "${LIVINGMIND_DATABASE_URL:-postgresql+psycopg://livingmind:livingmind@postgres:5432/livingmind}"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: "no"
+
+  api:
+    build:
+      context: ./backend
+    image: livingmind-api:dev
+    # Bound to the loopback interface on purpose: this demo backend has no real
+    # authentication, so it must not be reachable from the network by default.
+    # For tablet testing on a trusted LAN, run with HOST_BIND=0.0.0.0.
+    ports:
+      - "${HOST_BIND:-127.0.0.1}:8000:8000"
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
+    environment:
+      LIVINGMIND_DATABASE_URL: "${LIVINGMIND_DATABASE_URL:-postgresql+psycopg://livingmind:livingmind@postgres:5432/livingmind}"
+      LIVINGMIND_REDIS_URL: "${LIVINGMIND_REDIS_URL:-redis://redis:6379/0}"
+      LIVINGMIND_ORCHESTRATOR: "${LIVINGMIND_ORCHESTRATOR:-legacy}"
+      # Peak-tariff hour, so energy advice is identical at every demo.
+      LIVINGMIND_DEMO_LOCAL_HOUR: "20"
+      LIVINGMIND_PLANNER_MODE: "${LIVINGMIND_PLANNER_MODE:-rule}"
+      LIVINGMIND_CORS_ORIGINS: "${LIVINGMIND_CORS_ORIGINS:-http://localhost:8081,http://127.0.0.1:8081}"
+      # Model mode only: pass the key at run time, e.g.
+      #   DEEPSEEK_API_KEY=... docker compose up api
+      DEEPSEEK_API_KEY: "${DEEPSEEK_API_KEY:-}"
+      DEEPSEEK_BASE_URL: "${DEEPSEEK_BASE_URL:-}"
+      DEEPSEEK_MODEL: "${DEEPSEEK_MODEL:-}"
+    healthcheck:
+      # python instead of curl: the slim image ships no curl on purpose.
+      test: ["CMD", "python", "-c", "import urllib.request;urllib.request.urlopen('http://127.0.0.1:8000/health').read()"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 5s
+
+  # T5: the bus is a PostgreSQL table by default, so these are two small Python processes.
+  outbox-publisher:
+    build:
+      context: ./backend
+    image: livingmind-api:dev
+    command: ["python", "-m", "workers.outbox_publisher"]
+    environment:
+      LIVINGMIND_DATABASE_URL: "${LIVINGMIND_DATABASE_URL:-postgresql+psycopg://livingmind:livingmind@postgres:5432/livingmind}"
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+
+  activity-projector:
+    build:
+      context: ./backend
+    image: livingmind-api:dev
+    command: ["python", "-m", "workers.activity_projector"]
+    environment:
+      LIVINGMIND_DATABASE_URL: "${LIVINGMIND_DATABASE_URL:-postgresql+psycopg://livingmind:livingmind@postgres:5432/livingmind}"
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+
+volumes:
+  postgres-data:

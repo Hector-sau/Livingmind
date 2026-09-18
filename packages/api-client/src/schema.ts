@@ -647,7 +647,7 @@ export interface components {
              * Code
              * @enum {string}
              */
-            code: "NOT_EDITABLE" | "VALIDATION_ERROR" | "NOT_FOUND" | "FORBIDDEN_CONTEXT" | "PLAN_EXPIRED" | "PLAN_INVALIDATED" | "PLAN_VERSION_MISMATCH" | "SERVICE_ALREADY_ACTIVE" | "SERVICE_NOT_ACTIVE" | "PIN_INVALID" | "INTERNAL_ERROR";
+            code: "NOT_EDITABLE" | "VALIDATION_ERROR" | "NOT_FOUND" | "FORBIDDEN_CONTEXT" | "PLAN_EXPIRED" | "PLAN_INVALIDATED" | "PLAN_VERSION_MISMATCH" | "SERVICE_ALREADY_ACTIVE" | "SERVICE_NOT_ACTIVE" | "SPACE_BUSY" | "PIN_INVALID" | "INTERNAL_ERROR";
             /** Details */
             details: {
                 [key: string]: unknown;

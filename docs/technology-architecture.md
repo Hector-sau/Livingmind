@@ -509,6 +509,8 @@ kafka healthy ────┘                │
 
 ### 阶段 A：Docker 基线
 
+状态：配置已入库（`backend/Dockerfile`、`backend/.dockerignore`、`backend/constraints.txt`、`compose.yaml`、`scripts/verify-t1.sh`），**等待在装有 Docker Desktop 的机器上执行 `scripts/verify-t1.sh` 后才能记为已实现**。开发容器内无 Docker 守护进程，构建与启动无法在那里验证；已验证的部分是：锁定版本在 Python 3.12 上安装成功且全部后端测试通过、compose 文件解析通过、脚本的 HTTP 闭环部分通过。
+
 - 为 FastAPI 添加 Dockerfile。
 - Compose 先只启动 `api`，不放入尚未被代码使用的装饰性基础设施。
 - 容器内运行现有后端测试（数量以 `docs/status.md` 为准，不在文档里写死）。
@@ -520,6 +522,10 @@ kafka healthy ────┘                │
 
 ### 阶段 B：PostgreSQL 持久化
 
+状态：**已完成（单实例）**。B1 基础设施与人物偏好、B2 计划 / 服务 / 整晚步骤 / 动作结果 / 活动记录都已落库，`LIVINGMIND_DATABASE_URL` 为空时行为与以前完全一致。整套测试可以换存储实现再跑一遍（`LIVINGMIND_TEST_STORE=sql`），在真实 PostgreSQL 16 上全部通过。并发仍由单进程锁 + 数据库约束共同保证；**跨实例协调属于 T4**。Compose 的 `postgres` 与 `migrate` 服务已写好但待宿主机验证。
+
+落地细节与本文 4.2.1 的对照：每空间一个 active 服务 = `services.active_space_id` 上的唯一索引；夜间步骤只执行一次 = `UPDATE scheduled_steps … WHERE status='pending' RETURNING`；进行中的工作 = `service_flags` 行；代次 = `space_state.epoch`，停止与重置只增不减。存储层对两种实现都返回**副本**，所以“改了不存”会在内存实现里同样失败，不会出现只在内存下侥幸正确的代码路径。
+
 - 在 Compose 中加入 `postgres`，由健康检查约束 API 启动与迁移流程。
 - 引入 SQLAlchemy 与 Alembic。
 - 先迁移人物偏好、计划、服务、动作结果和活动记录。
@@ -530,6 +536,8 @@ kafka healthy ────┘                │
 
 ### 阶段 C：LangGraph 规划图
 
+状态：**已完成（规划分支）**。编排器拆成阶段方法，legacy 与 graph 两条路径调用同一批方法；图只负责路由、顺序和状态。`LIVINGMIND_ORCHESTRATOR=langgraph` 时整套测试再跑一遍全部通过，且与 PostgreSQL 存储组合也通过；`scripts/compare_orchestrators.py` 对 5 组输入比对等价。事件调整仍走 legacy 单阶段（包成图不增加可观察的步骤，已在代码注释与文档写明）。checkpoint 在配了数据库时由 `PostgresSaver` 自建表（`checkpoints` 等），与业务表分开。
+
 - 用 Graph 节点包装现有类，不复制业务规则。
 - 使用 PostgreSQL checkpointer。
 - 保留 `LIVINGMIND_ORCHESTRATOR=legacy|langgraph` 开关做结果对照。
@@ -539,6 +547,8 @@ kafka healthy ────┘                │
 
 ### 阶段 D：Redis 协调
 
+状态：**已完成（空间锁 + 冷却快速判断）**。锁带随机 token 与 30 秒 TTL，只删自己的锁；Redis 未配置或连不上时锁自动退化为无操作，流程照走数据库路径。第二个实例在空间被驱动时收到 `SPACE_BUSY`。未做：设备状态缓存（当前设备读取就在内存里，缓存只会带来过期风险）、幂等结果缓存（数据库层已经幂等）。
+
 - 加入冷却、短期幂等缓存和空间锁。
 - PostgreSQL 约束仍为最终防线。
 - 增加 Redis 断开时的降级测试。
@@ -546,6 +556,8 @@ kafka healthy ────┘                │
 完成条件：多 API 实例下同一空间仍只有一个 active service；Redis 停止后核心流程仍可运行。
 
 ### 阶段 E：Outbox 与事件总线（Kafka 可选）
+
+状态：**已完成（数据库队列实现）**。业务事实与 outbox 行在同一事务提交；publisher 用 `FOR UPDATE SKIP LOCKED` 领取、失败退避重试、超过次数进入死信但不删除；consumer（activity-projector）用 `consumer_receipts` 去重并投影到 `service_projection`。App 显示的活动记录仍由 API 同步写库，不依赖投影。**Kafka 实现故意没写**：目前没有 broker 可验证，仓库里放一个未验证的发布器比不放更糟；接口是 `EventPublisher`，将来补一个实现即可（message key = spaceId）。
 
 - 建 `outbox_events`、`consumer_receipts` migration。
 - 实现 `EventPublisher` 协议 + 数据库队列实现 + Outbox Publisher + 一个真实 Consumer：`activity-projector`。

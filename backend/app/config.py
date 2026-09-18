@@ -13,6 +13,24 @@ APP_VERSION = "0.1.0"
 CORS_ORIGINS = _csv(os.getenv("LIVINGMIND_CORS_ORIGINS", "http://localhost:8081,http://127.0.0.1:8081"))
 
 
+# ---- persistence (T2) ----
+# Empty = the demo runs fully in memory (default). Set to a PostgreSQL URL to persist
+# business facts, e.g. postgresql+psycopg://livingmind:...@127.0.0.1:5432/livingmind
+DATABASE_URL = os.getenv("LIVINGMIND_DATABASE_URL", "").strip()
+
+
+# ---- cache / coordination (T4) ----
+# Empty = no Redis. Redis only shortens races and speeds up checks; PostgreSQL stays
+# authoritative and every cache call degrades silently when Redis is unreachable.
+REDIS_URL = os.getenv("LIVINGMIND_REDIS_URL", "").strip()
+
+
+# ---- orchestration (T3) ----
+# "legacy": the sequential main Agent (default). "langgraph": the same stages run as a
+# LangGraph StateGraph with checkpoints. Both must produce equivalent plans.
+ORCHESTRATOR = os.getenv("LIVINGMIND_ORCHESTRATOR", "legacy").strip() or "legacy"
+
+
 # ---- planner / Experience Agent ----
 # "rule": never call a model. "model": call the configured provider, fall back to rules on failure.
 PLANNER_DEFAULT_MODE = os.getenv("LIVINGMIND_PLANNER_MODE", "rule")
