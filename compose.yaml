@@ -8,7 +8,7 @@ services:
       POSTGRES_PASSWORD: "${POSTGRES_PASSWORD:-livingmind}"
       POSTGRES_DB: "${POSTGRES_DB:-livingmind}"
     ports:
-      - "127.0.0.1:5432:5432"
+      - "127.0.0.1:${POSTGRES_HOST_PORT:-5432}:5432"
     volumes:
       - postgres-data:/var/lib/postgresql/data
     healthcheck:
@@ -22,7 +22,7 @@ services:
     # No persistence on purpose: everything in Redis here is short-lived and rebuildable.
     command: ["redis-server", "--save", "", "--appendonly", "no"]
     ports:
-      - "127.0.0.1:6379:6379"
+      - "127.0.0.1:${REDIS_HOST_PORT:-6379}:6379"
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 5s
@@ -46,6 +46,10 @@ services:
     build:
       context: ./backend
     image: livingmind-api:dev
+    # The API serves only these two read-only evidence JSON files; research code,
+    # environments and model weights stay outside the runtime container.
+    volumes:
+      - ./simulation/home-energy/data:/simulation/home-energy/data:ro
     # Bound to the loopback interface on purpose: this demo backend has no real
     # authentication, so it must not be reachable from the network by default.
     # For tablet testing on a trusted LAN, run with HOST_BIND=0.0.0.0.

@@ -5,7 +5,7 @@
 当前分支：`main`  
 第一批实现基线提交：`99b1138 feat: step 4 rule-based backend loop, executor, virtual devices, CI`  
 演示稳定基线：`5cd8eeb fix: freeze stable demo lifecycle`
-当前基线：B + ⑤（真实调用已验证）+ R1 + ⑥ + ⑥b + C + ⑧ 补齐模块（1+2 Agent 编排已实现）+ ⑨ 演示打磨 + ⑦ 整晚服务（模拟时钟）+ D 演示打包（云端部分）+ 稳定性与接入预留 + **T1–T5 工程化升级（T1 待宿主机验证，T2–T5 已用真实 PostgreSQL / Redis 验证）**。方案见 `docs/technology-architecture.md`，逐项证据见 `docs/status.md`。
+当前基线：B + ⑤（真实调用已验证）+ R1 + ⑥ + ⑥b + C + ⑧ 补齐模块（1+2 Agent 编排已实现）+ ⑨ 演示打磨 + ⑦ 整晚服务（模拟时钟）+ D 演示打包（云端部分）+ 稳定性与接入预留 + **T1–T5 工程化升级均已完成；T1已在用户Mac用Docker Desktop验证**。方案见 `docs/technology-architecture.md`，逐项证据见 `docs/status.md`。
 
 ## 0. 项目背景与现状速览（给评审或新接手的 AI）
 
@@ -37,22 +37,22 @@
 | ⑦ | 整晚服务：休息计划附带 5 步整晚安排（Space Execution Agent 规则生成、Harness 预检、随计划确认）；模拟时钟推进接口 `POST /api/services/{id}/clock/advance`；每步最多执行一次（锁内认领 + 单服务单推进）；停止取消剩余步骤；只有每步全部设备动作成功才 `completed`；App 运行条“模拟已入睡 / 快进 / 自动播放整晚”、计划卡整晚安排、空间页整晚时间线、场景“起床渐进唤醒”改为已实现 | `backend/tests/test_night_service.py`（15 项）、`apps/mobile/tests/night.test.ts`；端到端 `http-night`、`mock-night`、`http-night-stop-phone` |
 | 稳定性与接口预留 | 自动时钟与环境调整互斥；调整等待时仍可停止且迟到响应不回写；重置通过服务代次和设备代次隔离旧任务；设备回读异常结果化；模拟入睡、三档起床时间；真实设备 / 语音协议预留；能源研究绘图使用迁入后的权重路径 | 后端 115 项测试；端到端 `http-stop-during-event`；`adapters/protocol.py`、`adapters/voice.py`、`docs/team-workflow.md`、`docs/demo-freeze.md` |
 | D（云端） | 三段网页版录屏脚本（每帧字幕标注来源）；主张证据表生成脚本（23 条，Markdown + PDF）；`eas.json` 开发版配置、`expo-dev-client`、包名、iOS 本地网络设置；平板安装与真机验收清单 | `apps/mobile/e2e/record_demo.py`、`scripts/build_evidence.py`、`docs/evidence.md`、`docs/device-build.md` |
-| 工程化升级设计 | 明确 LangGraph、PostgreSQL、Redis、事件总线、Docker 的职责、边界、目标数据流、数据表 / Redis Key / 事件通道、Outbox 一致性方案、并发语义到数据库的映射、分阶段验收和面试问答；**只是设计完成，不代表这些组件已接入** | `docs/technology-architecture.md` |
+| 工程化升级 | 明确并实现 LangGraph、PostgreSQL、Redis、数据库 Outbox 事件总线与 Docker 的职责、边界和关键数据流；表结构、Redis Key、并发语义与验收证据均有对应代码 | `docs/technology-architecture.md`、`docs/status.md` |
 | 项目指标指南 | 聚焦面试最常见的响应效率、Redis缓存、稳定性规模与能源效果；提供DeepSeek 45次延迟基线和Redis缓存前后对比方案，其他模块以机制与测试事实说明；**尚未运行新的性能评测** | `docs/project-metrics.md` |
-| T1 Docker 基线 | 后端镜像（Python 3.12、多阶段、非 root、依赖锁 `constraints.txt`）、`compose.yaml`（端口绑 127.0.0.1）、`scripts/verify-t1.sh` | 锁定版本在 3.12 上安装并跑通测试；`docker compose config` 通过；**镜像构建与启动尚未验证**（开发容器无 Docker 守护进程） |
+| T1 Docker 基线 | 后端镜像（Python 3.12、多阶段、非root、依赖锁）、可配置宿主端口、能源JSON只读挂载、失败自动清理的`verify-t1.sh` | 用户Mac实测：镜像构建；127通过/18跳过；PostgreSQL迁移；Redis/API healthy；用户`livingmind`；镜像无`.env`；宿主机休息闭环通过；镜像96,471,430 bytes |
 | T2 PostgreSQL 持久化 | 同步栈 SQLAlchemy 2 + psycopg3 + Alembic；`Store` 协议 + 内存/SQL 两种实现（都返回副本，强制“改完必须存”）；偏好、计划、服务、整晚步骤、动作结果、活动记录、空间代次、进行中标记全部落库；数据库约束：每空间一个 active 服务（部分唯一索引）、夜间步骤 `UPDATE … WHERE status='pending' RETURNING` 只认领一次 | 同一套测试换存储再跑一遍（`LIVINGMIND_TEST_STORE=sql`）；重启恢复、并发认领、绕过服务层插入第二个 active 被数据库拒绝；网页端到端在两种存储下各 20/20 |
 | T3 LangGraph 规划图 | 编排器拆成阶段方法，legacy 与 graph 共用同一批方法；`StateGraph` 路由 + 四分支；依赖不进状态因此 checkpoint 可序列化；`LIVINGMIND_ORCHESTRATOR=legacy\|langgraph`；等价定义与对照脚本 | `LIVINGMIND_ORCHESTRATOR=langgraph` 下整套测试通过；`scripts/compare_orchestrators.py` 5 组输入全部等价；配数据库时 `PostgresSaver` 自建 checkpoint 表 |
 | T4 Redis 协调 | 空间执行锁（随机 token + 30 秒 TTL + Lua 校验释放）、事件冷却快速判断；未配置或连不上自动退化 | 唯一持有者、别人的锁不误删、TTL、第二实例收到 `SPACE_BUSY`、删掉冷却键也绕不过规则、Redis 连不上主流程照常 |
 | T5 Outbox 与事件总线 | 事件信封；业务事实与 outbox 同事务；publisher（SKIP LOCKED / 重试 / 死信不删）；consumer（`consumer_receipts` 去重 → `service_projection`）；总线默认是 PostgreSQL 表 | `tests/test_outbox_events.py`：同事务提交、回滚不留事件、至少一次且不重复、总线停摆不挡设备、重复投递靠回执保护、同空间保序 |
 | 文档 | 本交接文档、README、architecture、acceptance、status、ui-polish；产品界面方向（第 12 节） | `587d7aa`、`8525718`、`c58a29f` |
 
-检查基线（数量以 `docs/status.md` 为准）。最近一次在开发容器内：默认组合（内存 + legacy，无 Redis）后端 127 通过 / 18 跳过；全栈组合（PostgreSQL + LangGraph + Redis）后端 145 通过；前端 31 项 + 类型检查通过；网页端到端 20/20（内存后端与 PostgreSQL 后端各一遍）；`./scripts/gen-api.sh` 后契约无 diff。未执行：`docker compose build/up`、真机安装、GitHub 托管 CI（含调整等待时停止与迟到响应隔离）；iOS / Android JS 与 Hermes 导出成功。真机安装与 GitHub 托管 CI 尚未执行。本机默认 Python 3.9 不满足项目的 Python 3.10+ 前提；以 Python 3.12 运行测试通过。
+检查基线（数量以`docs/status.md`为准）：默认组合（内存 + legacy，无Redis）后端127通过/18跳过；全栈组合（PostgreSQL + LangGraph + Redis）后端145通过；前端31项+类型检查通过；网页端到端20/20（内存后端与PostgreSQL后端各一遍）；契约无diff。T1于2026-09-18在用户Mac完整通过`./scripts/verify-t1.sh`。尚未执行：真机安装、GitHub托管CI、容器后端上的网页端到端和两个T5 worker的Compose常驻验证；iOS/Android JS与Hermes导出成功。
 
 ### 0.3 未完成（按第 8 节顺序）
 
 | 项 | 状态 | 说明 |
 |---|---|---|
-| T1 Docker 基线 | **配置完成，待宿主机验证** | 下一位 Agent 的第一件事：请用户在装 Docker Desktop 的机器上跑 `./scripts/verify-t1.sh`，通过后才改成已实现 |
+| T1 Docker 基线 | **已完成并通过宿主机验证** | Docker 29.6.2 / Compose 5.3.1；完整证据见`docs/status.md`与本机`dist/t1-verify.log` |
 | T2 PostgreSQL 持久化 | **已完成（单实例）** | 跨实例并发靠 T4 的锁 + 数据库约束；设备状态仍在内存虚拟适配器里（模拟硬件，不是业务事实） |
 | T3 LangGraph 规划图 | **已完成（规划分支）** | 事件调整仍走 legacy 单阶段；图不执行设备 |
 | T4 Redis 协调 | **已完成** | 未做设备状态缓存与幂等结果缓存，原因见 `docs/status.md` |
@@ -101,7 +101,7 @@ cd backend && set -a && source .env && set +a && .venv/bin/python scripts/e2e_re
 
 第一批步骤 0–4、B 并发修正、⑤ Experience Agent（含一次真实 DeepSeek 调用验证）、R1 评审修正、⑥ 一次事件调整、⑥b 对话外壳、C 视觉整理、⑧ 补齐模块、⑨ 演示打磨和⑦ 整晚服务已完成。用户目前没有 iPad，真机验收（A）推迟到有设备时。
 
-用户已确认在**不重写现有演示链路**的前提下，把项目分阶段演进为可真实运行、可在面试中解释的工程架构：Docker → PostgreSQL → LangGraph → Redis → Outbox + 事件总线 → 集成冻结。详细职责和验收见 `docs/technology-architecture.md`。截至演示稳定基线 `5cd8eeb`，这些组件均尚未实现；不得把目标架构写成当前能力。下一位 Agent 一次只执行 T1–T6 中的一步，保留现有路径和测试作为回归基线。
+用户已确认在**不重写现有演示链路**的前提下，把项目分阶段演进为可真实运行、可在面试中解释的工程架构：Docker → PostgreSQL → LangGraph → Redis → Outbox + 事件总线 → 集成冻结。T1–T5均已实现并有测试证据，T1也已完成用户Mac宿主机验证；T6集成冻结尚未开始。详细职责和验收见`docs/technology-architecture.md`。下一位Agent只执行T6，不扩展业务范围，并保留现有路径和测试作为回归基线。
 
 当前产品是一条可工作的纵向链路，规划阶段可选规则或模型：
 
@@ -339,17 +339,20 @@ git status --short
 
 不能因为建立了目录或类名，就宣称相应 Agent 已经实现。功能声明必须对应真实调用轨迹和测试。
 
-## 9. 下一位 AI 的当前任务：T1 宿主机验证 → T6 集成与冻结
+## 9. 下一位 AI 的当前任务：T6 集成与冻结
 
-前置：T2–T5 已在开发容器内用真实 PostgreSQL 16 与 Redis 验证；T1 的镜像构建从未跑过。这一轮**不新增业务范围**，只做验证、集成与如实收敛。
+前置：T1–T5均已完成。T1已在用户Mac的Docker 29.6.2 / Compose 5.3.1上完成宿主机验证；T2–T5已在开发容器内用真实PostgreSQL 16与Redis验证。这一轮**不新增业务范围**，只做集成、故障验证与如实冻结。
 
-### 9.1 先做：T1 验证（需要装有 Docker Desktop 的机器）
+### 9.1 T1 已完成的宿主机证据
 
 相关文件：`backend/Dockerfile`、`backend/.dockerignore`、`backend/constraints.txt`、`compose.yaml`、`scripts/verify-t1.sh`。
 
-1. 请用户在 Mac 终端运行 `./scripts/verify-t1.sh`，把输出贴回来（日志同时写入 `dist/t1-verify.log`）。脚本依次做：`compose config` → 构建镜像 → 容器内跑后端测试 → 启动并等健康检查 → 从宿主机走一遍“计划 → 确认 → 设备变 15% → 停止 → 重置” → 关闭。
-2. 失败就改配置让用户重跑。**跑通之前，文档里一律写“待宿主机验证”，不得写“已实现”。**
-3. 跑通后再验证全栈编排：`docker compose up -d`（postgres → migrate → api，外加 outbox-publisher、activity-projector），确认健康检查通过、迁移执行、worker 正常轮询。
+1. `docker compose config`、镜像构建和容器内默认模式测试通过（127通过/18跳过）。
+2. PostgreSQL健康检查、一次性migration、Redis健康检查、API healthy均通过。
+3. 镜像以`livingmind`非root用户运行，镜像内`.env`数量为0，大小96,471,430 bytes。
+4. 宿主机走通“计划 → 确认 → 灯光回读15% → 停止 → 重置”，脚本最后关闭Compose栈。
+5. 修正了Redis版本锁冲突、测试环境变量污染、能源JSON只读挂载和宿主端口冲突；脚本失败时会自动清理。
+6. 本机日志：`dist/t1-verify.log`（Git忽略）。T5两个worker尚未随Compose常驻验证，留在T6。
 
 ### 9.2 再做：T6 集成与冻结
 
@@ -430,7 +433,7 @@ cd ../apps/mobile && npm run typecheck && npm test && python e2e/run_e2e.py
 
 可直接给下一位 AI 的指令：
 
-> 请先阅读仓库根目录 `AGENT-HANDOFF.md`（尤其第 0.2、0.3、9 节），再依次阅读 `docs/technology-architecture.md`、`docs/status.md`、`README.md`、`docs/project-metrics.md`、`docs/acceptance.md`、`docs/architecture.md`。保留现有实现和提交历史。先用第 9.3 节的命令重跑三种组合的基线（默认 / PostgreSQL / 全栈），确认与 `docs/status.md` 一致。本轮任务：先请用户在装有 Docker Desktop 的机器上执行 `./scripts/verify-t1.sh` 并贴回输出（开发容器里没有 Docker 守护进程，构建无法自测），跑通后再做 T6 集成与冻结；不要新增业务范围，不要写 Kafka 实现，不要重构 Agent / Harness / Executor。描述能力时遵守 0.4 与 `docs/project-metrics.md` 的如实口径：只有实际跑过的才写“已实现”，容器相关结论在用户跑通前一律写“待宿主机验证”。完成后更新 README、`docs/status.md`、`docs/technology-architecture.md` 和本文件，提交一次聚焦 commit 并停止；不要创建远程、推送或部署。
+> 请先阅读仓库根目录`AGENT-HANDOFF.md`（尤其第0.2、0.3、9节），再依次阅读`docs/technology-architecture.md`、`docs/status.md`、`README.md`、`docs/project-metrics.md`、`docs/acceptance.md`、`docs/architecture.md`。保留现有实现和提交历史。T1–T5已完成，当前只执行第9.2节的T6集成与冻结：验证完整Compose栈与两个worker、迁移升级/回退、CI三种组合、容器后端网页端到端、证据表和最终文档。不要新增业务范围，不要写Kafka实现，不要重构Agent/Harness/Executor。描述能力时遵守0.4与`docs/project-metrics.md`的如实口径；只有实际跑过的才写“已实现”。完成后更新README、`docs/status.md`、`docs/technology-architecture.md`和本文件，提交一次聚焦commit并停止；不要创建远程、推送或部署。
 
 ## 12. 产品界面方向（用户已确认，2026-09-17）
 

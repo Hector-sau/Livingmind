@@ -52,7 +52,7 @@ Docker Compose：在开发机和 CI 中统一启动 API、数据库、缓存和 
 6. 所有消费者按 `event_id` 幂等，不能假设消息绝不会重复。
 7. Expo 原生开发继续在 Mac 运行；Docker 主要承载后端和基础设施。
 8. 后端保持**同步**技术栈（同步路由 + 同步驱动 + 线程池）。要改成异步必须整条链路一起改，单独立项，不在 T1–T6 内混做。
-9. 本文出现的目录树、表名和 Key 都是**建议结构，尚未创建**；实施时以实际代码为准并回来更新本文。
+9. 本文中标为“已实现”的目录、表名和 Key 已落到代码；标为“待实现”的内容仍是设计目标，最终以代码与验证记录为准。
 
 ## 2. 当前实现与目标实现
 
@@ -60,16 +60,16 @@ Docker Compose：在开发机和 CI 中统一启动 API、数据库、缓存和 
 |---|---|---|---|
 | 移动端 | Expo / React Native / TypeScript | 保持；连接容器化 API | 已实现 |
 | API | FastAPI + Pydantic | 保持；增加 lifespan 资源管理和基础设施健康检查 | 已实现，待扩展 |
-| Agent 编排 | Python 同进程顺序调用 | LangGraph `StateGraph` 包装现有模块 | 计划 |
+| Agent 编排 | legacy顺序编排与LangGraph `StateGraph` 两条可切换路径，共用阶段方法 | 保持等价对照与checkpoint恢复 | 已实现规划分支 |
 | Experience Agent | DeepSeek Provider；结构化输出；失败降级 | 作为 LangGraph 节点复用 | 已实现 |
-| 人物记忆 | `MemoryService` 进程内字典 | PostgreSQL 持久化；按人物隔离 | 演示版已实现，持久化计划中 |
-| 运行状态 | `MemoryStore` 进程内保存计划、服务和活动 | PostgreSQL Repository | 演示版已实现，持久化计划中 |
-| 并发控制 | Python 锁、space epoch、集合标记 | PostgreSQL 约束 + 行锁；Redis 做快速协调 | 已实现单实例，分布式计划中 |
+| 人物记忆 | `MemoryService` + 内存/SQL两种Repository，按人物与空间隔离 | 继续完善认证与权限边界 | PostgreSQL持久化已实现 |
+| 运行状态 | 内存/SQL两种Store；计划、服务、步骤、动作、活动与代次可落库 | 真实设备状态仍由Adapter负责 | PostgreSQL持久化已实现 |
+| 并发控制 | Python锁、PostgreSQL约束与行级认领、Redis空间锁/冷却 | 多API实例压测留到T6 | 已实现并验证降级 |
 | 设备 | 有状态虚拟 Adapter | 保持 Protocol，增加真实厂商 Adapter | 虚拟设备已实现 |
 | 能源 | 在线规则 + 离线固定日仿真 | 保持边界；事件进入 Kafka 分析流 | 已实现规则与只读展示 |
-| 异步事件 | 进程内活动记录 | PostgreSQL Outbox → 事件总线 → Consumer Projection（总线默认为数据库队列，Kafka 可选） | 计划 |
+| 异步事件 | PostgreSQL Transactional Outbox → 数据库队列 → 幂等Consumer Projection；活动仍同步写入 | Kafka仅保留可选接口 | 已实现数据库队列 |
 | 语音入口 | `adapters/voice.py` 只有接口定义，没有任何调用方 | 真实网关返回文本与来源后走同一 assistant 契约 | **仅接口预留，未实现** |
-| 容器化 | 无 | Dockerfile + Compose | 计划 |
+| 容器化 | Python 3.12多阶段非root镜像 + Compose | T6补CI与容器端到端 | T1宿主机验证通过 |
 | CI | pytest、TS、契约、Playwright | 增加容器集成测试和迁移检查 | 已实现基础版，待扩展 |
 
 ## 3. 1+2 Agent 与 LangGraph
@@ -509,10 +509,10 @@ kafka healthy ────┘                │
 
 ### 阶段 A：Docker 基线
 
-状态：配置已入库（`backend/Dockerfile`、`backend/.dockerignore`、`backend/constraints.txt`、`compose.yaml`、`scripts/verify-t1.sh`），**等待在装有 Docker Desktop 的机器上执行 `scripts/verify-t1.sh` 后才能记为已实现**。开发容器内无 Docker 守护进程，构建与启动无法在那里验证；已验证的部分是：锁定版本在 Python 3.12 上安装成功且全部后端测试通过、compose 文件解析通过、脚本的 HTTP 闭环部分通过。
+状态：**已完成并通过宿主机验证**。2026-09-18 在用户Mac的Docker 29.6.2 / Compose 5.3.1上运行`./scripts/verify-t1.sh`成功：镜像构建、容器内默认模式测试（127通过 / 18跳过）、PostgreSQL迁移、Redis与API健康检查、非root用户、镜像无`.env`以及宿主机“计划 → 确认 → 回读 → 停止 → 重置”闭环全部通过。运行时只读挂载两个能源结果JSON，不把研究代码和模型权重放入容器。
 
 - 为 FastAPI 添加 Dockerfile。
-- Compose 先只启动 `api`，不放入尚未被代码使用的装饰性基础设施。
+- T1 初始只容器化 `api`；T2–T5 完成后，Compose 再加入已被代码使用的 PostgreSQL、Redis、迁移和事件 Worker。
 - 容器内运行现有后端测试（数量以 `docs/status.md` 为准，不在文档里写死）。
 - Expo App 连接容器 API，完整闭环不变。
 
@@ -522,7 +522,7 @@ kafka healthy ────┘                │
 
 ### 阶段 B：PostgreSQL 持久化
 
-状态：**已完成（单实例）**。B1 基础设施与人物偏好、B2 计划 / 服务 / 整晚步骤 / 动作结果 / 活动记录都已落库，`LIVINGMIND_DATABASE_URL` 为空时行为与以前完全一致。整套测试可以换存储实现再跑一遍（`LIVINGMIND_TEST_STORE=sql`），在真实 PostgreSQL 16 上全部通过。并发仍由单进程锁 + 数据库约束共同保证；**跨实例协调属于 T4**。Compose 的 `postgres` 与 `migrate` 服务已写好但待宿主机验证。
+状态：**已完成（单实例）**。B1 基础设施与人物偏好、B2 计划 / 服务 / 整晚步骤 / 动作结果 / 活动记录都已落库，`LIVINGMIND_DATABASE_URL` 为空时行为与以前完全一致。整套测试可以换存储实现再跑一遍（`LIVINGMIND_TEST_STORE=sql`），在真实 PostgreSQL 16 上全部通过。并发由单进程锁、数据库约束和T4 Redis协调共同保证。Compose的`postgres`健康检查、一次性`migrate`以及迁移后API启动已在宿主机验证通过。
 
 落地细节与本文 4.2.1 的对照：每空间一个 active 服务 = `services.active_space_id` 上的唯一索引；夜间步骤只执行一次 = `UPDATE scheduled_steps … WHERE status='pending' RETURNING`；进行中的工作 = `service_flags` 行；代次 = `space_state.epoch`，停止与重置只增不减。存储层对两种实现都返回**副本**，所以“改了不存”会在内存实现里同样失败，不会出现只在内存下侥幸正确的代码路径。
 

@@ -105,16 +105,16 @@
 - 规则模式下输入文字只记录，不做语义理解。模型模式已验证一次真实调用；延迟只有单次样本。
 - CI 配置写好了，但还没有在 GitHub 上跑过。
 
-## T1 Docker 基线（配置就绪，待宿主机验证）
+## T1 Docker 基线（已完成并通过宿主机验证）
 
 | 项 | 位置 | 状态 |
 |---|---|---|
-| 后端镜像（Python 3.12、多阶段、非 root、依赖版本锁定） | `backend/Dockerfile`、`backend/constraints.txt`、`backend/.dockerignore` | 已入库；镜像构建待在 Docker Desktop 上执行 |
-| Compose（只含 api，端口绑 `127.0.0.1`，健康检查用 python 而非 curl） | `compose.yaml` | 已入库；`docker compose config` 解析通过 |
-| 一键验证脚本（构建 → 容器内测试 → 健康检查 → 宿主机走完休息闭环 → 关闭） | `scripts/verify-t1.sh` | HTTP 闭环部分已在本机后端上跑通；Docker 部分待验证 |
+| 后端镜像（Python 3.12、多阶段、非 root、依赖版本锁定） | `backend/Dockerfile`、`backend/constraints.txt`、`backend/.dockerignore` | Docker Desktop 实际构建通过；镜像 96,471,430 bytes；运行用户为 `livingmind`；镜像内 `.env` 数量为 0 |
+| Compose（PostgreSQL → migration → API，Redis 健康检查；端口只绑 `127.0.0.1`） | `compose.yaml` | `docker compose config`、依赖启动顺序、数据库迁移、Redis与API健康检查均通过；能源结果JSON以只读方式挂载 |
+| 一键验证脚本（构建 → 容器内测试 → 健康检查 → 宿主机走完休息闭环 → 关闭） | `scripts/verify-t1.sh` | 2026-09-18 在用户Mac完整通过；失败时自动清理容器；使用独立PostgreSQL/Redis宿主端口避免冲突 |
 | 锁定版本在 Python 3.12 上的可用性 | `backend/constraints.txt` | 已验证：安装成功，全部后端测试在 3.12 上通过 |
 
-未验证：`docker compose build/up`、容器内测试、镜像大小与非 root 的实际结果。开发容器没有 Docker 守护进程，必须在用户的 Mac 上执行。
+宿主机证据：Docker 29.6.2、Compose 5.3.1；容器内默认模式 127 通过 / 18 跳过；API `healthy`；宿主机完成“计划 → 确认 → 灯光回读15% → 停止 → 重置”；脚本结束后Compose栈已关闭。唯一警告是Starlette TestClient使用AnyIO旧别名，不影响结果。日志在本机忽略目录 `dist/t1-verify.log`。
 
 ## T2 PostgreSQL 持久化（单实例已完成）
 
@@ -124,7 +124,7 @@
 | 人物偏好持久化：Repository 协议 + 内存实现 + SQL 实现；种子只在缺行时写入，不覆盖用户编辑 | `backend/app/memory/repository.py`、`app/memory/service.py` | `tests/test_persistence.py`：同一套契约测试跑内存与 PostgreSQL 两种实现 |
 | 重启后偏好仍在；演示重置回到种子值；接口层在配置数据库时自动使用 SQL 实现 | `RestService(preferences=...)`、`default_preference_repository()` | 同上（真实 PostgreSQL 16 上运行） |
 | 迁移 `0001_person_preferences`（含数值范围 CHECK 约束） | `backend/alembic/versions/` | `alembic upgrade head` 在 PostgreSQL 16 上执行通过 |
-| Compose 增加 `postgres` 与一次性 `migrate` 服务，API 等迁移成功后再启动 | `compose.yaml` | `docker compose config` 解析通过；**构建与启动待宿主机验证** |
+| Compose 增加 `postgres` 与一次性 `migrate` 服务，API 等迁移成功后再启动 | `compose.yaml` | 宿主机验证通过：PostgreSQL健康后迁移成功退出，随后API启动并达到healthy |
 | 业务事实落库：计划、服务、整晚步骤、动作结果、活动记录、空间代次、进行中标记 | `backend/app/repositories/store.py`（协议 + 内存实现）、`sql_store.py`、`alembic/versions/0002_business_facts.py` | 整套测试换存储再跑一遍：`LIVINGMIND_TEST_STORE=sql` 下 125 项通过；不配数据库时 117 项通过、8 项跳过 |
 | 数据库层约束：每空间只有一个 active 服务（部分唯一索引）；夜间步骤 `UPDATE … WHERE status='pending' RETURNING` 只认领一次 | 同上 | `tests/test_persistence.py`：绕过服务层直接插入第二个 active 服务被数据库拒绝；两个连接并发认领，每步只被认领一次 |
 | 重启恢复：新进程能读到运行中的服务、整晚步骤状态、活动记录，并能继续停止 | 同上 | `test_plans_services_steps_and_activity_survive_a_restart` |

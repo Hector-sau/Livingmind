@@ -19,7 +19,19 @@ exec > >(tee -a "$LOG") 2>&1
 
 BASE_URL="${BASE_URL:-http://127.0.0.1:8000}"
 SKIP_DOCKER="${SKIP_DOCKER:-0}"
+# Verification uses dedicated host ports so an existing local PostgreSQL or
+# Redis does not make an otherwise isolated Compose check fail.
+POSTGRES_HOST_PORT="${POSTGRES_HOST_PORT:-55432}"
+REDIS_HOST_PORT="${REDIS_HOST_PORT:-56379}"
+export POSTGRES_HOST_PORT REDIS_HOST_PORT
 CTX='{"accountId":"demo-account","personId":"person-lin","spaceId":"space-home-bedroom"}'
+
+cleanup() {
+  if [ "$SKIP_DOCKER" != "1" ]; then
+    docker compose down >/dev/null 2>&1 || true
+  fi
+}
+trap cleanup EXIT
 
 step() { printf '\n=== %s ===\n' "$1"; }
 fail() { printf '\nFAILED: %s\n' "$1"; exit 1; }
@@ -42,7 +54,15 @@ if [ "$SKIP_DOCKER" != "1" ]; then
   docker compose build api
 
   step "backend tests inside the container"
-  docker compose run --rm --no-deps api pytest -q
+  # This stage proves the original in-memory/legacy baseline. The service's
+  # Compose defaults point at PostgreSQL, Redis and a fixed demo hour, so clear
+  # them explicitly while dependencies are intentionally disabled.
+  docker compose run --rm --no-deps \
+    -e LIVINGMIND_DATABASE_URL= \
+    -e LIVINGMIND_REDIS_URL= \
+    -e LIVINGMIND_ORCHESTRATOR=legacy \
+    -e LIVINGMIND_DEMO_LOCAL_HOUR= \
+    api pytest -q -p no:cacheprovider
 
   step "start api"
   docker compose up -d api
@@ -97,6 +117,7 @@ echo "demo data reset"
 if [ "$SKIP_DOCKER" != "1" ]; then
   step "stop"
   docker compose down
+  trap - EXIT
 fi
 
 step "result"

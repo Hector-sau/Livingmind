@@ -87,8 +87,7 @@ cd backend && set -a && source .env && set +a
 装了 Docker Desktop 时可以不建虚拟环境：
 
 ```bash
-docker compose build api
-docker compose run --rm api pytest      # 在容器里跑后端测试
+./scripts/verify-t1.sh                  # 推荐：构建、测试、健康检查、完整闭环并自动关闭
 docker compose up -d api                # http://127.0.0.1:8000
 docker compose down
 ```
@@ -96,8 +95,10 @@ docker compose down
 - 端口默认只绑本机。平板要连时用 `HOST_BIND=0.0.0.0 docker compose up -d api`，且只在可信网络这样做。
 - 演示时段固定在 `compose.yaml` 里（晚 8 点）。模型模式的密钥在运行时传入：`DEEPSEEK_API_KEY=... docker compose up api`，不会进镜像。
 - 依赖版本锁在 `backend/constraints.txt`；镜像用 Python 3.12，以非 root 用户运行。
-- 数据库（T2，可选）：`docker compose up -d` 会先起 PostgreSQL、跑迁移，再起 API；不想用数据库就只起 `api` 并把 `LIVINGMIND_DATABASE_URL` 留空。
-- 一键验证：`./scripts/verify-t1.sh`（构建、容器内测试、健康检查、从宿主机走一遍休息闭环，日志写到 `dist/t1-verify.log`）。
+- API 只读挂载能源模块的两个结果 JSON；研究代码、环境和模型权重不会进入运行容器。
+- PostgreSQL / Redis 的宿主端口可用 `POSTGRES_HOST_PORT` / `REDIS_HOST_PORT` 覆盖；验证脚本默认用 `55432` / `56379`，避免与本机服务冲突。
+- Compose 默认使用 PostgreSQL：启动 `api` 时会先起数据库并执行迁移。只想跑内存模式时，请用本地 Python 启动后端，或参考 `scripts/verify-t1.sh` 中的 `docker compose run --no-deps` 测试命令；不要仅靠留空 Compose 环境变量切换。
+- 一键验证已于 2026-09-18 在 Docker Desktop 29.6.2 / Compose 5.3.1 上通过；日志写到本机 `dist/t1-verify.log`。
 
 ### 2. App
 
