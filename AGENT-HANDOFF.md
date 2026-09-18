@@ -404,6 +404,57 @@ docker compose down
 
 不写 Kafka 实现，不把设备状态放 Redis，不让 LangGraph 绕过 Harness / Executor，不把本地 CI 配置描述成 GitHub 已运行，不把接口预留描述成已接入，不在真实回读对齐前把 `deviceStateReconciled` 改成 `true`。
 
+## 9.4 当前暂停点（2026-09-18，用户主动暂停）
+
+仓库状态：本地 `main = 4d296c9`，工作区干净，**未推送**（`origin/main = 5f241e5`，落后 1 个提交）。
+
+### 下一位 AI 的第一件事，二选一
+
+**A. 推送并观察 CI（推荐，5 分钟）**
+
+```bash
+cd livingmind-app
+git log --oneline -1          # 应为 4d296c9
+git push origin main          # 需用户确认后再执行
+```
+
+推送后在 GitHub Actions 观察 6 个 Job。`4d296c9` 改动了后端契约、存储层与文档，本地三套组合与端到端均已通过，预期全绿；若失败只修对应回归，不要顺手改别的。CI 通过后把 `docs/status.md`、`AGENT-HANDOFF.md` 第 0.2 节和 `docs/evidence.md` 里引用的运行号 `35333253707` 换成新的运行号（证据表改 `scripts/build_evidence.py` 后重新生成）。
+
+**B. 补一个澄清路径的浏览器场景（可选，约 30 分钟）**
+
+现状：澄清闭环有后端测试、前端 Mock 测试和可用的界面路径，但**没有**浏览器端到端场景。本轮起草过 `scenario_clarification`，前两步能过，最后一步卡住，已**回退**以保持仓库处于已验证的 20/20 状态。要接着做的话：
+
+- 断点：`send(page, "我不想休息，只想关灯")` 之后等 `设备指令：灯光关闭` 超时。已确认后端生成的摘要来自 `backend/app/agents/space_execution/agent.py` 的 `LABELS`：灯光是 `灯光亮度调到 {v}%`，`value=0` 时走 `灯光关闭`。需要先用 `page.inner_text("body")` 打印一次实际文案再断言，不要照抄猜测的字符串。
+- 参考现成写法：`scenario_agents`（同一文件，含设备指令分支与 `last_assistant`）。
+- 通过后在 `docs/status.md` E 专项一节和 `docs/acceptance.md` ⑥ 冻结清单里把端到端场景数从 20 改成 22。
+
+### 本轮已确认的事实（不必重做）
+
+| 项 | 结论 |
+|---|---|
+| 上一轮失败的 `Docker API + browser E2E` | 已由 `2af8042` 修复，`35333253707` 6/6 全绿 |
+| 另一位 AI 的中断改动 | 已全部验证并收进 `4d296c9`；其未提交状态在用户 Mac 上留有 `git stash stash@{0}`（`pre-E-sync backup`），确认无误后可自行清理 |
+| 三套后端组合 / 迁移 / 等价 / 前端 / 契约 / 端到端 | 均已在本轮实跑，数字见 `docs/acceptance.md` 的"⑥ 冻结清单" |
+
+### 复跑本轮全部检查的命令
+
+```bash
+# 后端三套组合（PostgreSQL 与 Redis 需本地起好）
+cd backend && .venv/bin/pytest -q
+LIVINGMIND_TEST_STORE=sql LIVINGMIND_TEST_DATABASE_URL=postgresql+psycopg://livingmind:livingmind@127.0.0.1:5432/livingmind .venv/bin/pytest -q
+LIVINGMIND_TEST_STORE=sql LIVINGMIND_TEST_DATABASE_URL=postgresql+psycopg://livingmind:livingmind@127.0.0.1:5432/livingmind \
+  LIVINGMIND_TEST_REDIS_URL=redis://127.0.0.1:6379/1 LIVINGMIND_ORCHESTRATOR=langgraph .venv/bin/pytest -q
+# 注意：LIVINGMIND_TEST_REDIS_URL 必须是非 0 号库，否则 conftest 直接拒绝
+# 迁移升降级
+LIVINGMIND_DATABASE_URL=postgresql+psycopg://...@127.0.0.1:5432/migcheck .venv/bin/alembic upgrade head
+LIVINGMIND_DATABASE_URL=... .venv/bin/alembic downgrade 0003 && ... upgrade head
+# 等价、前端、契约、端到端
+.venv/bin/python scripts/compare_orchestrators.py
+cd ../apps/mobile && npm run typecheck && npm test
+cd ../.. && ./scripts/gen-api.sh && git diff --exit-code -- packages/api-client
+python apps/mobile/e2e/run_e2e.py        # 约 4 分钟；加 --skip-build 可省去前两分钟的构建
+```
+
 ## 10. 禁止事项
 
 - 不整体重写现有 App 或 FastAPI 服务。
