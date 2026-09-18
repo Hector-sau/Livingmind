@@ -5,7 +5,7 @@
 当前分支：`main`  
 第一批实现基线提交：`99b1138 feat: step 4 rule-based backend loop, executor, virtual devices, CI`  
 演示稳定基线：`5cd8eeb fix: freeze stable demo lifecycle`
-当前基线：B + ⑤（真实调用已验证）+ R1 + ⑥ + ⑥b + C + ⑧ 补齐模块（1+2 Agent 编排已实现）+ ⑨ 演示打磨 + ⑦ 整晚服务（模拟时钟）+ D 演示打包（云端部分）+ 稳定性与接入预留。工程化升级方案已定稿但尚未实施，见 `docs/technology-architecture.md`。
+当前基线：B + ⑤（真实调用已验证）+ R1 + ⑥ + ⑥b + C + ⑧ 补齐模块（1+2 Agent 编排已实现）+ ⑨ 演示打磨 + ⑦ 整晚服务（模拟时钟）+ D 演示打包（云端部分）+ 稳定性与接入预留 + **T1–T5 工程化升级（T1 待宿主机验证，T2–T5 已用真实 PostgreSQL / Redis 验证）**。方案见 `docs/technology-architecture.md`，逐项证据见 `docs/status.md`。
 
 ## 0. 项目背景与现状速览（给评审或新接手的 AI）
 
@@ -39,20 +39,25 @@
 | D（云端） | 三段网页版录屏脚本（每帧字幕标注来源）；主张证据表生成脚本（23 条，Markdown + PDF）；`eas.json` 开发版配置、`expo-dev-client`、包名、iOS 本地网络设置；平板安装与真机验收清单 | `apps/mobile/e2e/record_demo.py`、`scripts/build_evidence.py`、`docs/evidence.md`、`docs/device-build.md` |
 | 工程化升级设计 | 明确 LangGraph、PostgreSQL、Redis、事件总线、Docker 的职责、边界、目标数据流、数据表 / Redis Key / 事件通道、Outbox 一致性方案、并发语义到数据库的映射、分阶段验收和面试问答；**只是设计完成，不代表这些组件已接入** | `docs/technology-architecture.md` |
 | 项目指标指南 | 聚焦面试最常见的响应效率、Redis缓存、稳定性规模与能源效果；提供DeepSeek 45次延迟基线和Redis缓存前后对比方案，其他模块以机制与测试事实说明；**尚未运行新的性能评测** | `docs/project-metrics.md` |
+| T1 Docker 基线 | 后端镜像（Python 3.12、多阶段、非 root、依赖锁 `constraints.txt`）、`compose.yaml`（端口绑 127.0.0.1）、`scripts/verify-t1.sh` | 锁定版本在 3.12 上安装并跑通测试；`docker compose config` 通过；**镜像构建与启动尚未验证**（开发容器无 Docker 守护进程） |
+| T2 PostgreSQL 持久化 | 同步栈 SQLAlchemy 2 + psycopg3 + Alembic；`Store` 协议 + 内存/SQL 两种实现（都返回副本，强制“改完必须存”）；偏好、计划、服务、整晚步骤、动作结果、活动记录、空间代次、进行中标记全部落库；数据库约束：每空间一个 active 服务（部分唯一索引）、夜间步骤 `UPDATE … WHERE status='pending' RETURNING` 只认领一次 | 同一套测试换存储再跑一遍（`LIVINGMIND_TEST_STORE=sql`）；重启恢复、并发认领、绕过服务层插入第二个 active 被数据库拒绝；网页端到端在两种存储下各 20/20 |
+| T3 LangGraph 规划图 | 编排器拆成阶段方法，legacy 与 graph 共用同一批方法；`StateGraph` 路由 + 四分支；依赖不进状态因此 checkpoint 可序列化；`LIVINGMIND_ORCHESTRATOR=legacy\|langgraph`；等价定义与对照脚本 | `LIVINGMIND_ORCHESTRATOR=langgraph` 下整套测试通过；`scripts/compare_orchestrators.py` 5 组输入全部等价；配数据库时 `PostgresSaver` 自建 checkpoint 表 |
+| T4 Redis 协调 | 空间执行锁（随机 token + 30 秒 TTL + Lua 校验释放）、事件冷却快速判断；未配置或连不上自动退化 | 唯一持有者、别人的锁不误删、TTL、第二实例收到 `SPACE_BUSY`、删掉冷却键也绕不过规则、Redis 连不上主流程照常 |
+| T5 Outbox 与事件总线 | 事件信封；业务事实与 outbox 同事务；publisher（SKIP LOCKED / 重试 / 死信不删）；consumer（`consumer_receipts` 去重 → `service_projection`）；总线默认是 PostgreSQL 表 | `tests/test_outbox_events.py`：同事务提交、回滚不留事件、至少一次且不重复、总线停摆不挡设备、重复投递靠回执保护、同空间保序 |
 | 文档 | 本交接文档、README、architecture、acceptance、status、ui-polish；产品界面方向（第 12 节） | `587d7aa`、`8525718`、`c58a29f` |
 
-检查基线：后端 pytest、前端测试 + 类型检查、契约一致性、网页端到端全通过（各项数量以 `docs/status.md` 为准，不在本文写死）；最近一次为后端 115、前端 31、端到端 20/20（含调整等待时停止与迟到响应隔离）；iOS / Android JS 与 Hermes 导出成功。真机安装与 GitHub 托管 CI 尚未执行。本机默认 Python 3.9 不满足项目的 Python 3.10+ 前提；以 Python 3.12 运行测试通过。
+检查基线（数量以 `docs/status.md` 为准）。最近一次在开发容器内：默认组合（内存 + legacy，无 Redis）后端 127 通过 / 18 跳过；全栈组合（PostgreSQL + LangGraph + Redis）后端 145 通过；前端 31 项 + 类型检查通过；网页端到端 20/20（内存后端与 PostgreSQL 后端各一遍）；`./scripts/gen-api.sh` 后契约无 diff。未执行：`docker compose build/up`、真机安装、GitHub 托管 CI（含调整等待时停止与迟到响应隔离）；iOS / Android JS 与 Hermes 导出成功。真机安装与 GitHub 托管 CI 尚未执行。本机默认 Python 3.9 不满足项目的 Python 3.10+ 前提；以 Python 3.12 运行测试通过。
 
 ### 0.3 未完成（按第 8 节顺序）
 
 | 项 | 状态 | 说明 |
 |---|---|---|
-| T1 Docker 基线 | 未开始 | FastAPI 容器化，Compose 先只启动真正被使用的 API；容器内复现既有测试和演示闭环 |
-| T2 PostgreSQL 持久化 | 未开始 | SQLAlchemy 2.x + Alembic；人物记忆、计划、服务、动作、活动和 Outbox 以数据库为事实来源 |
-| T3 LangGraph 规划图 | 未开始 | 包装既有 1+2 Agent 逻辑，使用 PostgreSQL checkpointer；保留 legacy / langgraph 双路径对照 |
-| T4 Redis 协调 | 未开始 | 跨实例短锁、冷却、短期幂等和缓存；PostgreSQL 约束仍是最终正确性保证 |
-| T5 Outbox + 事件总线 | 未开始 | 只传播已发生的领域事件，先做 Activity Projector；默认用 PostgreSQL 队列实现，Kafka 作为同一接口的可选实现（约 1 GB 内存，默认不启动）；活动记录仍同步写库 |
-| T6 集成与冻结 | 未开始 | Compose、迁移、健康检查、集成测试、CI 与完整端到端重新验收 |
+| T1 Docker 基线 | **配置完成，待宿主机验证** | 下一位 Agent 的第一件事：请用户在装 Docker Desktop 的机器上跑 `./scripts/verify-t1.sh`，通过后才改成已实现 |
+| T2 PostgreSQL 持久化 | **已完成（单实例）** | 跨实例并发靠 T4 的锁 + 数据库约束；设备状态仍在内存虚拟适配器里（模拟硬件，不是业务事实） |
+| T3 LangGraph 规划图 | **已完成（规划分支）** | 事件调整仍走 legacy 单阶段；图不执行设备 |
+| T4 Redis 协调 | **已完成** | 未做设备状态缓存与幂等结果缓存，原因见 `docs/status.md` |
+| T5 Outbox + 事件总线 | **已完成（数据库队列实现）** | Kafka 实现按用户决定不写：没有 broker 可验证；接口留在 `EventPublisher` |
+| T6 集成与冻结 | 未开始 | **当前任务**，见第 9 节 |
 | A 真机验收 | 未做 | 用户暂无 iPad；所有界面验证来自网页版，不能替代真机 |
 | 真实模型的多次延迟统计 | 已规划、未执行 | 用户已同意后续多次调用并做响应效率优化前后对比；当前仍只有2035 ms单次样本。方法和结果模板见 `docs/project-metrics.md`，不为每个模块制造百分比 |
 | C 视觉整理 | 已完成 | 未做项见 `docs/ui-polish.md` 顶部 |
@@ -334,42 +339,70 @@ git status --short
 
 不能因为建立了目录或类名，就宣称相应 Agent 已经实现。功能声明必须对应真实调用轨迹和测试。
 
-## 9. 下一位 AI 的当前任务：T1 Docker 基线
+## 9. 下一位 AI 的当前任务：T1 宿主机验证 → T6 集成与冻结
 
-前置：先阅读 `docs/technology-architecture.md`，确认当前仓库仍是内存实现；重新运行非容器基线。T1 只提高 FastAPI 的可复现启动能力，不改变业务逻辑、契约或 App 行为。
+前置：T2–T5 已在开发容器内用真实 PostgreSQL 16 与 Redis 验证；T1 的镜像构建从未跑过。这一轮**不新增业务范围**，只做验证、集成与如实收敛。
 
-### T1 允许修改
+### 9.1 先做：T1 验证（需要装有 Docker Desktop 的机器）
 
-- 新增后端多阶段 `Dockerfile` 和 `.dockerignore`；以非 root 用户运行。
-- 新增仓库根目录 `compose.yaml`，T1 只定义真正投入使用的 `api` 服务与健康检查。
-- 容器启动命令、端口和环境变量继续遵循现有 README；密钥通过运行时注入，不能复制进镜像。
-- 在容器内运行全部后端测试（数量以 `docs/status.md` 为准）；从宿主机验证 `/health`；用现有 App HTTP 模式或 API 测试验证闭环未变。
-- 更新 `README.md`、`docs/status.md`、`docs/technology-architecture.md` 和本文件，把 T1 从“计划”改为有证据的“已实现”。
+相关文件：`backend/Dockerfile`、`backend/.dockerignore`、`backend/constraints.txt`、`compose.yaml`、`scripts/verify-t1.sh`。
 
-### T1 不允许顺带做
+1. 请用户在 Mac 终端运行 `./scripts/verify-t1.sh`，把输出贴回来（日志同时写入 `dist/t1-verify.log`）。脚本依次做：`compose config` → 构建镜像 → 容器内跑后端测试 → 启动并等健康检查 → 从宿主机走一遍“计划 → 确认 → 设备变 15% → 停止 → 重置” → 关闭。
+2. 失败就改配置让用户重跑。**跑通之前，文档里一律写“待宿主机验证”，不得写“已实现”。**
+3. 跑通后再验证全栈编排：`docker compose up -d`（postgres → migrate → api，外加 outbox-publisher、activity-projector），确认健康检查通过、迁移执行、worker 正常轮询。
 
-- 不安装或配置 LangGraph、PostgreSQL、Redis、事件总线；它们分别属于 T2–T5。
-- 不重构 Agent、Memory、Harness 或 Executor。
-- 不新建远程仓库、不推送、不部署。
-- 不因 Docker 配置存在就宣称 T2–T5 已实现。
+### 9.2 再做：T6 集成与冻结
 
-### T1 验收命令和证据
+| 项 | 要求 |
+|---|---|
+| 一键启动 | `docker compose up -d` 起全栈；README 启动段落与实际一致 |
+| 迁移 | 全新数据库 `alembic upgrade head` 从 0001 走到 0003；再验证 `downgrade` 可回退 |
+| 集成测试 | CI 用 service containers 起 PostgreSQL 与 Redis，跑三种组合：默认、`LIVINGMIND_TEST_STORE=sql`、再加 `LIVINGMIND_ORCHESTRATOR=langgraph` |
+| 端到端 | 网页端到端在容器后端上再跑一遍 20/20 |
+| 证据表 | `scripts/build_evidence.py` 增补 T1–T6 的行，只写真实跑过的结论，重新生成 PDF |
+| 文档 | `README.md`、`docs/status.md`、`docs/technology-architecture.md`（阶段状态改成最终结论）、本文件 |
 
-- `docker compose config`
-- `docker compose build api`
-- `docker compose run --rm api pytest`
-- `docker compose up -d api` 后从宿主机请求 `/health`
-- `docker compose down` 后确认没有把数据库、缓存或消息队列数据伪装成已验证内容
+### 9.3 验证命令（开发容器内可直接跑，不需要 Docker）
 
-若本机 Docker Desktop 不可用，不要提交未验证的配置；记录准确错误并停下。T1 完成后一次聚焦提交并停止，等待用户确认再进入 T2。
+```bash
+pg_ctlcluster 16 main start; redis-server --daemonize yes --save '' --appendonly no
+cd backend
+LIVINGMIND_DATABASE_URL=postgresql+psycopg://livingmind:livingmind@127.0.0.1:5432/livingmind .venv/bin/alembic upgrade head
 
-### 平板待办仍保留
+.venv/bin/pytest                                     # 默认：内存存储 + legacy 编排
+LIVINGMIND_TEST_STORE=sql \
+  LIVINGMIND_TEST_DATABASE_URL=postgresql+psycopg://livingmind:livingmind@127.0.0.1:5432/livingmind \
+  LIVINGMIND_TEST_REDIS_URL=redis://127.0.0.1:6379/15 \
+  LIVINGMIND_ORCHESTRATOR=langgraph .venv/bin/pytest  # 全栈组合
+.venv/bin/python scripts/compare_orchestrators.py     # 两条编排路径是否等价
+cd ../apps/mobile && npm run typecheck && npm test && python e2e/run_e2e.py
+```
 
-有平板时按 `docs/device-build.md` 完成 A 真机验收和 D 的设备部分；这与 T1–T6 不互相冒充。团队要开始 GitHub 协作时，按 `docs/team-workflow.md` 由负责人创建远程并首次推送。
+### 9.4 这一轮明确不做
 
-### 停止条件
+- 不写 Kafka 实现（用户已决定：没有 broker 可验证前不写；接口留在 `EventPublisher`）。
+- 不把设备状态放进 Redis 缓存，不给已经幂等的接口再加缓存。
+- 不重构 Agent、Harness、Executor 的业务规则，不改契约（除非必须，改了要跑 `./scripts/gen-api.sh`）。
+- 不建远程仓库、不推送、不部署。
 
-完成 T1 后更新 `README.md`、`docs/status.md`、`docs/technology-architecture.md` 和本文件；一次聚焦 commit；停止并按第 11 节报告。
+### 9.5 代码现状速查
+
+| 位置 | 内容 |
+|---|---|
+| `backend/app/repositories/store.py` | 存储协议 + 内存实现（两种实现都返回副本，所以“改了不存”在内存下同样会失败） |
+| `backend/app/repositories/sql_store.py` | PostgreSQL 实现（关键列 + JSONB payload 混合） |
+| `backend/app/db/`、`backend/alembic/` | 引擎、ORM、三个迁移（0001 偏好 / 0002 业务事实 / 0003 事件） |
+| `backend/app/graph/` | LangGraph 状态、节点、运行时（checkpointer）、等价比较 |
+| `backend/app/cache/` | Redis 客户端、键、空间锁、冷却 |
+| `backend/app/events/`、`backend/workers/` | 事件信封、outbox、发布器协议与实现、publisher / projector 两个 worker |
+| `backend/tests/test_persistence.py`、`test_graph_orchestrator.py`、`test_cache_coordination.py`、`test_outbox_events.py` | 四项工程化能力的专项测试 |
+| 环境变量 | `LIVINGMIND_DATABASE_URL`、`LIVINGMIND_REDIS_URL`、`LIVINGMIND_ORCHESTRATOR`；**全部留空时行为与演示基线完全一致** |
+
+### 9.6 仍然待办（与本轮无关，需要用户参与）
+
+- A 真机验收与 D 的设备部分：需要 iPad 或安卓平板、Expo / Apple 账号，见 `docs/device-build.md`。
+- 汇报第 7 页的 MATD3 仿真证据：仿真代码已迁入 `simulation/home-energy/`，但复现与数字核对还没做。
+- 旧 HTML 前端清单：用户尚未提供旧文件。
 
 ## 10. 禁止事项
 
@@ -397,7 +430,7 @@ git status --short
 
 可直接给下一位 AI 的指令：
 
-> 请先阅读仓库根目录 `AGENT-HANDOFF.md`，再依次阅读 `README.md`、`docs/technology-architecture.md`、`docs/project-metrics.md`、`docs/status.md`、`docs/acceptance.md`、`docs/architecture.md`。保留现有实现和提交历史，重新运行后端测试、前端测试、类型与契约检查（数量以 `docs/status.md` 为准）。当前只执行 T1 Docker 基线：容器化 FastAPI、加入只含 API 的 Compose 服务、在容器内跑测试并验证健康检查；不要提前加入 PostgreSQL、LangGraph、Redis 或事件总线。达到第 9 节验收条件后更新四份文档、提交一次聚焦 commit 并停止。描述能力时遵守 0.4 和 `docs/project-metrics.md` 的如实口径；不要去掉来源标注，不要创建远程、推送或部署。
+> 请先阅读仓库根目录 `AGENT-HANDOFF.md`（尤其第 0.2、0.3、9 节），再依次阅读 `docs/technology-architecture.md`、`docs/status.md`、`README.md`、`docs/project-metrics.md`、`docs/acceptance.md`、`docs/architecture.md`。保留现有实现和提交历史。先用第 9.3 节的命令重跑三种组合的基线（默认 / PostgreSQL / 全栈），确认与 `docs/status.md` 一致。本轮任务：先请用户在装有 Docker Desktop 的机器上执行 `./scripts/verify-t1.sh` 并贴回输出（开发容器里没有 Docker 守护进程，构建无法自测），跑通后再做 T6 集成与冻结；不要新增业务范围，不要写 Kafka 实现，不要重构 Agent / Harness / Executor。描述能力时遵守 0.4 与 `docs/project-metrics.md` 的如实口径：只有实际跑过的才写“已实现”，容器相关结论在用户跑通前一律写“待宿主机验证”。完成后更新 README、`docs/status.md`、`docs/technology-architecture.md` 和本文件，提交一次聚焦 commit 并停止；不要创建远程、推送或部署。
 
 ## 12. 产品界面方向（用户已确认，2026-09-17）
 
