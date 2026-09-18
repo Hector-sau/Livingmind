@@ -105,6 +105,17 @@
 - 规则模式下输入文字只记录，不做语义理解。模型模式已验证一次真实调用；延迟只有单次样本。
 - CI 配置写好了，但还没有在 GitHub 上跑过。
 
+## T1 Docker 基线（配置就绪，待宿主机验证）
+
+| 项 | 位置 | 状态 |
+|---|---|---|
+| 后端镜像（Python 3.12、多阶段、非 root、依赖版本锁定） | `backend/Dockerfile`、`backend/constraints.txt`、`backend/.dockerignore` | 已入库；镜像构建待在 Docker Desktop 上执行 |
+| Compose（只含 api，端口绑 `127.0.0.1`，健康检查用 python 而非 curl） | `compose.yaml` | 已入库；`docker compose config` 解析通过 |
+| 一键验证脚本（构建 → 容器内测试 → 健康检查 → 宿主机走完休息闭环 → 关闭） | `scripts/verify-t1.sh` | HTTP 闭环部分已在本机后端上跑通；Docker 部分待验证 |
+| 锁定版本在 Python 3.12 上的可用性 | `backend/constraints.txt` | 已验证：安装成功，115 项后端测试通过 |
+
+未验证：`docker compose build/up`、容器内测试、镜像大小与非 root 的实际结果。开发容器没有 Docker 守护进程，必须在用户的 Mac 上执行。
+
 ## 未开始
 
 A 真机验收（有 iPad 时） · D 的设备部分（EAS 开发版构建、平板录屏） · 旧 HTML 前端清单（用户尚未提供旧文件）

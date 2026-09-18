@@ -1,0 +1,29 @@
+# T1: only the API. PostgreSQL, Redis and the event bus arrive in T2, T4 and T5 —
+# do not add services here before the code actually uses them.
+services:
+  api:
+    build:
+      context: ./backend
+    image: livingmind-api:dev
+    # Bound to the loopback interface on purpose: this demo backend has no real
+    # authentication, so it must not be reachable from the network by default.
+    # For tablet testing on a trusted LAN, run with HOST_BIND=0.0.0.0.
+    ports:
+      - "${HOST_BIND:-127.0.0.1}:8000:8000"
+    environment:
+      # Peak-tariff hour, so energy advice is identical at every demo.
+      LIVINGMIND_DEMO_LOCAL_HOUR: "20"
+      LIVINGMIND_PLANNER_MODE: "${LIVINGMIND_PLANNER_MODE:-rule}"
+      LIVINGMIND_CORS_ORIGINS: "${LIVINGMIND_CORS_ORIGINS:-http://localhost:8081,http://127.0.0.1:8081}"
+      # Model mode only: pass the key at run time, e.g.
+      #   DEEPSEEK_API_KEY=... docker compose up api
+      DEEPSEEK_API_KEY: "${DEEPSEEK_API_KEY:-}"
+      DEEPSEEK_BASE_URL: "${DEEPSEEK_BASE_URL:-}"
+      DEEPSEEK_MODEL: "${DEEPSEEK_MODEL:-}"
+    healthcheck:
+      # python instead of curl: the slim image ships no curl on purpose.
+      test: ["CMD", "python", "-c", "import urllib.request;urllib.request.urlopen('http://127.0.0.1:8000/health').read()"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 5s

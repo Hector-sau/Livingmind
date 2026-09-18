@@ -509,6 +509,8 @@ kafka healthy ────┘                │
 
 ### 阶段 A：Docker 基线
 
+状态：配置已入库（`backend/Dockerfile`、`backend/.dockerignore`、`backend/constraints.txt`、`compose.yaml`、`scripts/verify-t1.sh`），**等待在装有 Docker Desktop 的机器上执行 `scripts/verify-t1.sh` 后才能记为已实现**。开发容器内无 Docker 守护进程，构建与启动无法在那里验证；已验证的部分是：锁定版本在 Python 3.12 上安装成功且全部后端测试通过、compose 文件解析通过、脚本的 HTTP 闭环部分通过。
+
 - 为 FastAPI 添加 Dockerfile。
 - Compose 先只启动 `api`，不放入尚未被代码使用的装饰性基础设施。
 - 容器内运行现有后端测试（数量以 `docs/status.md` 为准，不在文档里写死）。

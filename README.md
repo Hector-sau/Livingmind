@@ -82,6 +82,22 @@ cd backend && set -a && source .env && set +a
 
 浏览器端到端也可以用真实模型：`cd apps/mobile && python e2e/run_e2e.py --real-model`。
 
+### 1b. 后端（Docker，可选）
+
+装了 Docker Desktop 时可以不建虚拟环境：
+
+```bash
+docker compose build api
+docker compose run --rm api pytest      # 在容器里跑后端测试
+docker compose up -d api                # http://127.0.0.1:8000
+docker compose down
+```
+
+- 端口默认只绑本机。平板要连时用 `HOST_BIND=0.0.0.0 docker compose up -d api`，且只在可信网络这样做。
+- 演示时段固定在 `compose.yaml` 里（晚 8 点）。模型模式的密钥在运行时传入：`DEEPSEEK_API_KEY=... docker compose up api`，不会进镜像。
+- 依赖版本锁在 `backend/constraints.txt`；镜像用 Python 3.12，以非 root 用户运行。
+- 一键验证：`./scripts/verify-t1.sh`（构建、容器内测试、健康检查、从宿主机走一遍休息闭环，日志写到 `dist/t1-verify.log`）。
+
 ### 2. App
 
 ```bash
