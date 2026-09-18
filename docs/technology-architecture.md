@@ -522,7 +522,9 @@ kafka healthy ────┘                │
 
 ### 阶段 B：PostgreSQL 持久化
 
-状态：**分两批**。B1 基础设施与人物偏好已完成（SQLAlchemy 2 同步栈、Alembic、Repository 协议与内存/SQL 两种实现、`LIVINGMIND_DATABASE_URL` 为空时行为完全不变），已用真实 PostgreSQL 16 跑通测试；B2 计划、服务、整晚步骤、动作结果与活动记录尚未迁移，仍在内存。Compose 的 `postgres` 与 `migrate` 服务已写好但待宿主机验证。
+状态：**已完成（单实例）**。B1 基础设施与人物偏好、B2 计划 / 服务 / 整晚步骤 / 动作结果 / 活动记录都已落库，`LIVINGMIND_DATABASE_URL` 为空时行为与以前完全一致。整套测试可以换存储实现再跑一遍（`LIVINGMIND_TEST_STORE=sql`），在真实 PostgreSQL 16 上全部通过。并发仍由单进程锁 + 数据库约束共同保证；**跨实例协调属于 T4**。Compose 的 `postgres` 与 `migrate` 服务已写好但待宿主机验证。
+
+落地细节与本文 4.2.1 的对照：每空间一个 active 服务 = `services.active_space_id` 上的唯一索引；夜间步骤只执行一次 = `UPDATE scheduled_steps … WHERE status='pending' RETURNING`；进行中的工作 = `service_flags` 行；代次 = `space_state.epoch`，停止与重置只增不减。存储层对两种实现都返回**副本**，所以“改了不存”会在内存实现里同样失败，不会出现只在内存下侥幸正确的代码路径。
 
 - 在 Compose 中加入 `postgres`，由健康检查约束 API 启动与迁移流程。
 - 引入 SQLAlchemy 与 Alembic。

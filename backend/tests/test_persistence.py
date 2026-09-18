@@ -142,3 +142,94 @@ def _ctx():
     from app.contracts import RequestContext
 
     return RequestContext(**{"accountId": "demo-account", "personId": "person-lin", "spaceId": "space-home-bedroom"})
+
+
+# ---- T2.2: plans, services, overnight steps and activity on PostgreSQL ----
+
+
+@pytest.fixture
+def sql_store(sql_repo):
+    """A migrated, empty business-fact store (reuses the migration from sql_repo)."""
+    from sqlalchemy import text
+
+    from app.db.session import engine
+    from app.repositories.sql_store import SqlStore
+
+    with engine().begin() as connection:
+        connection.execute(
+            text(
+                "TRUNCATE plans, services, scheduled_steps, service_flags, "
+                "activity_records, space_state RESTART IDENTITY"
+            )
+        )
+    return SqlStore()
+
+
+@needs_db
+def test_plans_services_steps_and_activity_survive_a_restart(sql_store):
+    clock = FakeClock()
+    service = RestService(clock=clock, store=sql_store, preferences=SqlPreferenceRepository())
+    plan = service.create_rest_plan(_ctx(), "我想休息")
+    confirmed = service.confirm_plan(plan.plan_id, _ctx(), plan.version)
+    service_id = confirmed.service.service_id
+    service.advance_clock(service_id, _ctx(), None)  # run the 23:00 step
+
+    # New process, same database.
+    from app.repositories.sql_store import SqlStore
+
+    restarted = RestService(clock=FakeClock(), store=SqlStore(), preferences=SqlPreferenceRepository())
+    recovered = restarted.bootstrap("demo-account").active_service
+    assert recovered is not None and recovered.service_id == service_id
+    assert recovered.night_clock == "23:00"
+    assert [s.status for s in recovered.schedule][:2] == ["done", "pending"]
+    kinds = [a.kind for a in restarted.activity("demo-account", "space-home-bedroom", 50)]
+    assert "plan_confirmed" in kinds and "schedule_step_executed" in kinds
+    # the recovered service can still be stopped by the new process
+    stopped = restarted.stop_service(service_id, _ctx())
+    assert stopped.service.status == "stopped"
+    assert all(s.status in ("done", "cancelled") for s in stopped.service.schedule)
+
+
+@needs_db
+def test_database_refuses_a_second_active_service_in_one_space(sql_store):
+    from sqlalchemy.exc import IntegrityError
+
+    service = RestService(clock=FakeClock(), store=sql_store, preferences=SqlPreferenceRepository())
+    plan = service.create_rest_plan(_ctx(), "我想休息")
+    first = service.confirm_plan(plan.plan_id, _ctx(), plan.version).service
+    assert first is not None
+
+    # Bypass the service layer on purpose: the constraint must hold in the database itself.
+    clone = first.model_copy(update={"service_id": "svc-duplicate"})
+    with pytest.raises(IntegrityError):
+        sql_store.save_service(clone)
+
+
+@needs_db
+def test_a_night_step_is_claimed_by_exactly_one_caller(sql_store):
+    import threading
+
+    from app.repositories.sql_store import SqlStore
+
+    service = RestService(clock=FakeClock(), store=sql_store, preferences=SqlPreferenceRepository())
+    plan = service.create_rest_plan(_ctx(), "我想休息")
+    started = service.confirm_plan(plan.plan_id, _ctx(), plan.version).service
+    step_ids = [s.step_id for s in started.schedule]
+
+    claims: list[list[str]] = []
+    barrier = threading.Barrier(2)
+
+    def claim() -> None:
+        store = SqlStore()  # its own connection, like a second API instance
+        barrier.wait(timeout=5)
+        claims.append(store.claim_steps(started.service_id, step_ids))
+
+    threads = [threading.Thread(target=claim) for _ in range(2)]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join(timeout=10)
+
+    claimed = [step for result in claims for step in result]
+    assert sorted(claimed) == sorted(step_ids)  # every step claimed
+    assert len(claimed) == len(set(claimed))  # and never twice

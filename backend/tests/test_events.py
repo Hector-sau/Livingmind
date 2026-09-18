@@ -39,6 +39,9 @@ def make(provider=None, default_mode="rule", cooldown=30, max_adj=3, adapter_cls
     )
     if adapter_cls:
         svc._devices[SPACE] = adapter_cls(SPACE, seed.INITIAL_DEVICE_STATE, clock)
+    # A test may build several independent backends. In SQL mode they share one database,
+    # so start each from an empty store, the way a fresh process would.
+    svc._store.clear()
     app = create_app()
     app.dependency_overrides[get_rest_service] = lambda: svc
     return TestClient(app), svc, clock

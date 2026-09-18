@@ -116,7 +116,7 @@ npx expo start
 
 ### 2b. 持久化（T2，可选）
 
-不配 `LIVINGMIND_DATABASE_URL` 时，后端和以前一样全部在内存里，重启即重置。配上 PostgreSQL 后，**人物偏好**会持久化（计划、服务、活动仍在内存，属于后续步骤）：
+不配 `LIVINGMIND_DATABASE_URL` 时，后端和以前一样全部在内存里，重启即重置。配上 PostgreSQL 后，人物偏好、计划、服务、整晚步骤、动作结果和活动记录都会持久化，重启后运行中的服务还能继续停止：
 
 ```bash
 cd backend
@@ -129,7 +129,10 @@ export LIVINGMIND_DATABASE_URL=postgresql+psycopg://livingmind:livingmind@127.0.
 
 ```bash
 cd backend
-LIVINGMIND_TEST_DATABASE_URL=postgresql+psycopg://livingmind:livingmind@127.0.0.1:5432/livingmind .venv/bin/pytest
+# 只加跑数据库专项测试
+LIVINGMIND_TEST_DATABASE_URL=postgresql+psycopg://...@127.0.0.1:5432/livingmind .venv/bin/pytest
+# 让整套测试都跑在 PostgreSQL 上（同一批用例，换一个存储实现）
+LIVINGMIND_TEST_STORE=sql LIVINGMIND_TEST_DATABASE_URL=postgresql+psycopg://...@127.0.0.1:5432/livingmind .venv/bin/pytest
 ```
 
 ### 3. 重新生成接口类型

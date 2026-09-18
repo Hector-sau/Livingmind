@@ -116,7 +116,7 @@
 
 未验证：`docker compose build/up`、容器内测试、镜像大小与非 root 的实际结果。开发容器没有 Docker 守护进程，必须在用户的 Mac 上执行。
 
-## T2 PostgreSQL 持久化（B1 已完成，B2 未开始）
+## T2 PostgreSQL 持久化（单实例已完成）
 
 | 项 | 位置 | 证据 |
 |---|---|---|
@@ -125,8 +125,11 @@
 | 重启后偏好仍在；演示重置回到种子值；接口层在配置数据库时自动使用 SQL 实现 | `RestService(preferences=...)`、`default_preference_repository()` | 同上（真实 PostgreSQL 16 上运行） |
 | 迁移 `0001_person_preferences`（含数值范围 CHECK 约束） | `backend/alembic/versions/` | `alembic upgrade head` 在 PostgreSQL 16 上执行通过 |
 | Compose 增加 `postgres` 与一次性 `migrate` 服务，API 等迁移成功后再启动 | `compose.yaml` | `docker compose config` 解析通过；**构建与启动待宿主机验证** |
+| 业务事实落库：计划、服务、整晚步骤、动作结果、活动记录、空间代次、进行中标记 | `backend/app/repositories/store.py`（协议 + 内存实现）、`sql_store.py`、`alembic/versions/0002_business_facts.py` | 整套测试换存储再跑一遍：`LIVINGMIND_TEST_STORE=sql` 下 125 项通过；不配数据库时 117 项通过、8 项跳过 |
+| 数据库层约束：每空间只有一个 active 服务（部分唯一索引）；夜间步骤 `UPDATE … WHERE status='pending' RETURNING` 只认领一次 | 同上 | `tests/test_persistence.py`：绕过服务层直接插入第二个 active 服务被数据库拒绝；两个连接并发认领，每步只被认领一次 |
+| 重启恢复：新进程能读到运行中的服务、整晚步骤状态、活动记录，并能继续停止 | 同上 | `test_plans_services_steps_and_activity_survive_a_restart` |
 
-未做（B2）：计划、服务、整晚步骤、动作结果、活动记录仍在进程内存；空间代次、步骤认领、冷却与调整计数也还没有数据库表达。
+未做：跨实例协调（多 API 实例同时写）仍依赖单进程锁 + 数据库约束，要到 T4 才补 Redis；设备状态仍在内存虚拟适配器里（它模拟硬件，不是业务事实）。
 
 ## 未开始
 

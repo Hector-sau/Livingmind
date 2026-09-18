@@ -187,7 +187,7 @@ def test_reset_clears_the_night():
     client.post("/api/demo/reset", params={"accountId": "demo-account"})
     boot = client.get("/api/bootstrap", params={"accountId": "demo-account"}).json()
     assert boot["activeService"] is None
-    assert svc_obj._store.advancing == set()
+    assert not svc_obj._store.has_flag(svc["serviceId"], "advancing")
 
 
 def test_reset_invalidates_an_overnight_write_already_in_flight():
