@@ -522,6 +522,8 @@ kafka healthy ────┘                │
 
 ### 阶段 B：PostgreSQL 持久化
 
+状态：**分两批**。B1 基础设施与人物偏好已完成（SQLAlchemy 2 同步栈、Alembic、Repository 协议与内存/SQL 两种实现、`LIVINGMIND_DATABASE_URL` 为空时行为完全不变），已用真实 PostgreSQL 16 跑通测试；B2 计划、服务、整晚步骤、动作结果与活动记录尚未迁移，仍在内存。Compose 的 `postgres` 与 `migrate` 服务已写好但待宿主机验证。
+
 - 在 Compose 中加入 `postgres`，由健康检查约束 API 启动与迁移流程。
 - 引入 SQLAlchemy 与 Alembic。
 - 先迁移人物偏好、计划、服务、动作结果和活动记录。

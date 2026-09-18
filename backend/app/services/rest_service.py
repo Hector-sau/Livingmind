@@ -56,10 +56,17 @@ from app.demo import seed
 from app.energy import EnergyIntelligence
 from app.energy.simulation import offline_energy_simulation
 from app.harness.executor import Executor
+from app.db.session import database_configured
 from app.memory import MemoryService
+from app.memory.repository import InMemoryPreferenceRepository, PreferenceRepository, SqlPreferenceRepository
 from app.repositories.memory_store import MemoryStore, PlanRecord
 from app.rules.night_rule import clock_label
 from app.services.planner import Planner, planner_from_config
+
+
+def default_preference_repository() -> PreferenceRepository:
+    """PostgreSQL when configured, otherwise the in-memory demo store."""
+    return SqlPreferenceRepository() if database_configured() else InMemoryPreferenceRepository()
 
 
 class RestService:
@@ -69,6 +76,7 @@ class RestService:
         planner: Optional[Planner] = None,
         event_cooldown_s: Optional[float] = None,
         event_max_adjustments: Optional[int] = None,
+        preferences: Optional[PreferenceRepository] = None,
     ):
         self._clock = clock
         self._cooldown = timedelta(seconds=config.EVENT_COOLDOWN_S if event_cooldown_s is None else event_cooldown_s)
@@ -79,7 +87,7 @@ class RestService:
         self._devices = {
             s.space_id: VirtualDeviceAdapter(s.space_id, seed.INITIAL_DEVICE_STATE, clock) for s in seed.SPACES
         }
-        self._memory = MemoryService(clock)
+        self._memory = MemoryService(clock, preferences or default_preference_repository())
         self._energy_modes: dict[str, EnergyMode] = {s.space_id: s.energy_mode for s in seed.SPACES}
         self._agent = Orchestrator(
             planner=self._planner,

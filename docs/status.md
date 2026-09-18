@@ -116,6 +116,18 @@
 
 未验证：`docker compose build/up`、容器内测试、镜像大小与非 root 的实际结果。开发容器没有 Docker 守护进程，必须在用户的 Mac 上执行。
 
+## T2 PostgreSQL 持久化（B1 已完成，B2 未开始）
+
+| 项 | 位置 | 证据 |
+|---|---|---|
+| 同步数据库栈：SQLAlchemy 2 + psycopg 3 + Alembic；`LIVINGMIND_DATABASE_URL` 为空时完全走内存，行为不变 | `backend/app/db/`、`backend/alembic/`、`backend/app/config.py` | 未配数据库时原有 115 项测试不变；配上后 122 项通过 |
+| 人物偏好持久化：Repository 协议 + 内存实现 + SQL 实现；种子只在缺行时写入，不覆盖用户编辑 | `backend/app/memory/repository.py`、`app/memory/service.py` | `tests/test_persistence.py`：同一套契约测试跑内存与 PostgreSQL 两种实现 |
+| 重启后偏好仍在；演示重置回到种子值；接口层在配置数据库时自动使用 SQL 实现 | `RestService(preferences=...)`、`default_preference_repository()` | 同上（真实 PostgreSQL 16 上运行） |
+| 迁移 `0001_person_preferences`（含数值范围 CHECK 约束） | `backend/alembic/versions/` | `alembic upgrade head` 在 PostgreSQL 16 上执行通过 |
+| Compose 增加 `postgres` 与一次性 `migrate` 服务，API 等迁移成功后再启动 | `compose.yaml` | `docker compose config` 解析通过；**构建与启动待宿主机验证** |
+
+未做（B2）：计划、服务、整晚步骤、动作结果、活动记录仍在进程内存；空间代次、步骤认领、冷却与调整计数也还没有数据库表达。
+
 ## 未开始
 
 A 真机验收（有 iPad 时） · D 的设备部分（EAS 开发版构建、平板录屏） · 旧 HTML 前端清单（用户尚未提供旧文件）

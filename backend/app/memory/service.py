@@ -8,6 +8,7 @@ from app.api.errors import ApiError
 from app.clock import Clock
 from app.contracts import MemoryView, Person, RestPreference, SpaceRule
 from app.demo import seed
+from app.memory.repository import InMemoryPreferenceRepository, PreferenceRepository
 
 
 @dataclass
@@ -20,21 +21,38 @@ class PersonContext:
 
 
 class MemoryService:
-    def __init__(self, clock: Clock):
+    """Preferences live in a repository, so the demo can run in memory or on PostgreSQL."""
+
+    def __init__(self, clock: Clock, repository: Optional[PreferenceRepository] = None):
         self._clock = clock
-        self.reset()
+        self._repo: PreferenceRepository = repository or InMemoryPreferenceRepository()
+        self.ensure_seeded()
+
+    def ensure_seeded(self) -> None:
+        """Write the seeded preferences for anyone who has none yet. Never overwrites an edit."""
+        for person in seed.PERSONS:
+            if person.rest_preference and self._repo.get(person.person_id) is None:
+                self._repo.put(person.person_id, person.rest_preference, None)
 
     def reset(self) -> None:
-        self._prefs: dict[str, RestPreference] = {
-            p.person_id: p.rest_preference.model_copy() for p in seed.PERSONS if p.rest_preference
-        }
-        self._updated: dict[str, datetime] = {}
+        self._repo.clear()
+        self.ensure_seeded()
 
     def _person(self, person_id: str) -> Person:
         return next(p for p in seed.PERSONS if p.person_id == person_id)
 
+    def _stored(self, person_id: str):
+        stored = self._repo.get(person_id)
+        if stored is None:  # a person known to the seed but missing from the store
+            person = self._person(person_id)
+            assert person.rest_preference is not None
+            self._repo.put(person_id, person.rest_preference, None)
+            stored = self._repo.get(person_id)
+            assert stored is not None
+        return stored
+
     def preference(self, person_id: str) -> RestPreference:
-        return self._prefs[person_id]
+        return self._stored(person_id).preference
 
     def context_for(self, person_id: str, space_id: str) -> PersonContext:
         pref = self.preference(person_id)
@@ -48,7 +66,7 @@ class MemoryService:
             is_guest=person.is_guest,
             preference=self.preference(person_id),
             editable=not person.is_guest,
-            updated_at=self._updated.get(person_id),
+            updated_at=self._stored(person_id).updated_at,
             shared_rules=list(seed.SPACE_RULES.get(space_id, [])),
         )
 
@@ -63,9 +81,8 @@ class MemoryService:
                 f"休息偏好的灯光不能超过 {seed.NIGHT_LIGHT_MAX}%（空间规则）",
                 {"field": "lightBrightness"},
             )
-        old = self._prefs[person_id]
-        self._prefs[person_id] = preference.model_copy()
-        self._updated[person_id] = self._clock()
+        old = self.preference(person_id)
+        self._repo.put(person_id, preference, self._clock())
         changes = []
         if old.light_brightness != preference.light_brightness:
             changes.append(f"灯光 {old.light_brightness}%→{preference.light_brightness}%")

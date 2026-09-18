@@ -13,6 +13,12 @@ APP_VERSION = "0.1.0"
 CORS_ORIGINS = _csv(os.getenv("LIVINGMIND_CORS_ORIGINS", "http://localhost:8081,http://127.0.0.1:8081"))
 
 
+# ---- persistence (T2) ----
+# Empty = the demo runs fully in memory (default). Set to a PostgreSQL URL to persist
+# business facts, e.g. postgresql+psycopg://livingmind:...@127.0.0.1:5432/livingmind
+DATABASE_URL = os.getenv("LIVINGMIND_DATABASE_URL", "").strip()
+
+
 # ---- planner / Experience Agent ----
 # "rule": never call a model. "model": call the configured provider, fall back to rules on failure.
 PLANNER_DEFAULT_MODE = os.getenv("LIVINGMIND_PLANNER_MODE", "rule")

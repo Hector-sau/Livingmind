@@ -25,6 +25,9 @@ COPY --chown=livingmind:livingmind evals ./evals
 COPY --chown=livingmind:livingmind scripts ./scripts
 COPY --chown=livingmind:livingmind tests ./tests
 COPY --chown=livingmind:livingmind pytest.ini ./pytest.ini
+# Migrations run from the same image (compose service "migrate").
+COPY --chown=livingmind:livingmind alembic.ini ./alembic.ini
+COPY --chown=livingmind:livingmind alembic ./alembic
 
 USER livingmind
 EXPOSE 8000

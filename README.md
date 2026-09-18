@@ -96,6 +96,7 @@ docker compose down
 - 端口默认只绑本机。平板要连时用 `HOST_BIND=0.0.0.0 docker compose up -d api`，且只在可信网络这样做。
 - 演示时段固定在 `compose.yaml` 里（晚 8 点）。模型模式的密钥在运行时传入：`DEEPSEEK_API_KEY=... docker compose up api`，不会进镜像。
 - 依赖版本锁在 `backend/constraints.txt`；镜像用 Python 3.12，以非 root 用户运行。
+- 数据库（T2，可选）：`docker compose up -d` 会先起 PostgreSQL、跑迁移，再起 API；不想用数据库就只起 `api` 并把 `LIVINGMIND_DATABASE_URL` 留空。
 - 一键验证：`./scripts/verify-t1.sh`（构建、容器内测试、健康检查、从宿主机走一遍休息闭环，日志写到 `dist/t1-verify.log`）。
 
 ### 2. App
@@ -112,6 +113,24 @@ npx expo start
 - 改了 `.env` 后要用 `npx expo start --clear` 重启，否则旧配置会被缓存。
 - 在 iPad 上用 Expo Go 扫码预览；在 Mac 上按 `Shift + i` 选 iPad 模拟器（需要 Xcode）；按 `w` 用浏览器粗看布局。
 - 装到平板（Expo Go 登录要求、开发版 EAS 构建、真机验收清单）见 [`docs/device-build.md`](docs/device-build.md)。**尚未在真机上跑过。**
+
+### 2b. 持久化（T2，可选）
+
+不配 `LIVINGMIND_DATABASE_URL` 时，后端和以前一样全部在内存里，重启即重置。配上 PostgreSQL 后，**人物偏好**会持久化（计划、服务、活动仍在内存，属于后续步骤）：
+
+```bash
+cd backend
+export LIVINGMIND_DATABASE_URL=postgresql+psycopg://livingmind:livingmind@127.0.0.1:5432/livingmind
+.venv/bin/alembic upgrade head     # 建表 / 升级
+.venv/bin/uvicorn app.main:app --port 8000
+```
+
+跑数据库相关测试（没配就自动跳过）：
+
+```bash
+cd backend
+LIVINGMIND_TEST_DATABASE_URL=postgresql+psycopg://livingmind:livingmind@127.0.0.1:5432/livingmind .venv/bin/pytest
+```
 
 ### 3. 重新生成接口类型
 
