@@ -424,6 +424,38 @@ def scenario_agents(page: Page, url: str, label: str) -> None:
     shot(page, f"{label}-agents-command")
 
 
+def scenario_clarification(page: Page, url: str, label: str) -> None:
+    """Ambiguous requests are clarified first and never become device actions before the answer."""
+    open_app(page, url)
+    set_mode(page, "rule")
+
+    # 1. Unclear reference: the assistant asks instead of acting.
+    send(page, "把那个调低一点")
+    question = last_assistant(page)
+    assert "灯" in question and "空调" in question, question
+    assert page.get_by_test_id("plan-message").count() == 0, "a clarification must not produce a plan"
+    assert page.get_by_test_id("result-card").count() == 0, "a clarification must not touch devices"
+    shot(page, f"{label}-clarify-question")
+
+    # 2. The follow-up resumes the original request in the same conversation.
+    send(page, "灯调到 20%")
+    page.get_by_text("设备指令：灯光亮度调到 20%", exact=False).first.wait_for()
+    page.get_by_test_id("confirm-plan").click()
+    page.get_by_test_id("result-card").wait_for()
+    assert "20%" in page.get_by_test_id("result-card").last.inner_text()
+
+    # 3. Conflicting device request is clarified, not guessed.
+    send(page, "先开灯再关灯")
+    assert "打开还是关闭" in last_assistant(page), last_assistant(page)
+    assert page.get_by_test_id("service-strip").count() == 0
+
+    # 4. Negated rest with an explicit command goes to the device branch, not the rest branch.
+    send(page, "我不想休息，只想关灯")
+    page.get_by_text("设备指令：灯光亮度调到 0%", exact=False).first.wait_for()
+    assert page.get_by_test_id("service-strip").count() == 0, "a negated rest request must not start a service"
+    shot(page, f"{label}-clarify-resolved")
+
+
 def scenario_energy_memory(page: Page) -> None:
     """Eco mode applies advice inside the comfort band; editing one's own preference changes the next plan."""
     open_app(page, f"http://localhost:{HTTP_PORT}/")
@@ -728,6 +760,13 @@ def main() -> int:
                 scenario_agents(page, f"http://localhost:{HTTP_PORT}/", "http")
 
             run("http-agents", http_agents)
+
+            def http_clarification(page):
+                reset_backend()
+                scenario_clarification(page, f"http://localhost:{HTTP_PORT}/", "http")
+
+            run("http-clarification", http_clarification)
+            run("mock-clarification", lambda page: scenario_clarification(page, f"http://localhost:{MOCK_PORT}/", "mock"))
 
             def http_energy_memory(page):
                 reset_backend()

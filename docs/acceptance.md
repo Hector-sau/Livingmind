@@ -70,7 +70,7 @@
 | 5 | Legacy / LangGraph 等价（5 组输入） | 全部等价 |
 | 6 | 前端类型检查（含 tests 子项目）与单元测试 | 无错 / 32 passed |
 | 7 | 契约一致性：重新生成 `openapi.json` 与 `schema.ts` | 与仓库内容逐字节一致 |
-| 8 | 网页端到端 20 场景 | 20/20 |
+| 8 | 网页端到端 22 场景（含 `http-clarification`、`mock-clarification`） | 22/22 |
 
 ### 本轮明确不做（需用户单独授权）
 

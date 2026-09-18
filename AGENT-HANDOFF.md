@@ -5,7 +5,7 @@
 当前分支：`main`  
 第一批实现基线提交：`99b1138 feat: step 4 rule-based backend loop, executor, virtual devices, CI`  
 演示稳定基线：`5cd8eeb fix: freeze stable demo lifecycle`
-当前基线：演示主链路、1+2 Agent、整晚服务、能源快照、稳定性收尾以及 **T1–T6 本地工程化冻结均已完成**。Docker Compose 全栈、Worker 事件链、迁移升降、三套后端组合与 Docker API Playwright 20/20 已在用户 Mac 验证。方案见 `docs/technology-architecture.md`，逐项证据见 `docs/status.md`。
+当前基线：演示主链路、1+2 Agent、整晚服务、能源快照、稳定性收尾以及 **T1–T6 本地工程化冻结均已完成**。Docker Compose 全栈、Worker 事件链、迁移升降、三套后端组合与 Docker API Playwright 端到端已在用户 Mac 验证（当前 22 个场景）。方案见 `docs/technology-architecture.md`，逐项证据见 `docs/status.md`。
 
 ## 0. 项目背景与现状速览（给评审或新接手的 AI）
 
@@ -45,10 +45,10 @@
 | T4 Redis 协调 | 空间执行锁（随机 token + 30 秒 TTL + Lua 校验释放）、事件冷却快速判断；未配置或连不上自动退化 | 唯一持有者、别人的锁不误删、TTL、第二实例收到 `SPACE_BUSY`、删掉冷却键也绕不过规则、Redis 连不上主流程照常 |
 | T5 Outbox 与事件总线 | 事件信封；业务事实与 outbox 同事务；publisher（SKIP LOCKED / 重试 / 死信不删）；consumer（`consumer_receipts` 去重 → `service_projection`）；总线默认是 PostgreSQL 表 | `tests/test_outbox_events.py`：同事务提交、回滚不留事件、至少一次且不重复、总线停摆不挡设备、重复投递靠回执保护、同空间保序 |
 | T6 本地集成冻结 | Compose 全栈、Worker 投递消费、迁移升降、三套后端 matrix、Docker API E2E、证据表和最终文档 | 127/141/145 后端组合；Outbox 7/7；Worker 重启无重复；Playwright 20/20；契约无 diff；PDF 逐页检查 |
-| E 一致性与可恢复性专项 | 文档口径校正；意图路由识别否定/设备冲突/指代不清；可恢复的多轮澄清（`conversationId` + `PendingClarification` 落库，账户/人物/空间/会话四重隔离，10 分钟过期，可取消）；启动恢复语义明确化并可查询（`GET /api/system/recovery`，结果未知的 `running` 步骤取消而非重放）；设备 V2 / 语音 / 传感器事件协议补齐为可实现接口 | 后端 136/19、150/5、154/1 三套组合；迁移 0003↔0004 升降级；`tests/test_recovery.py`、`tests/test_adapter_protocols.py`、`tests/test_agents.py` 澄清用例；前端 32/32；契约无 diff；端到端 20/20 |
+| E 一致性与可恢复性专项 | 文档口径校正；意图路由识别否定/设备冲突/指代不清；可恢复的多轮澄清（`conversationId` + `PendingClarification` 落库，账户/人物/空间/会话四重隔离，10 分钟过期，可取消）；启动恢复语义明确化并可查询（`GET /api/system/recovery`，结果未知的 `running` 步骤取消而非重放）；设备 V2 / 语音 / 传感器事件协议补齐为可实现接口 | 后端 136/19、150/5、154/1 三套组合；迁移 0003↔0004 升降级；`tests/test_recovery.py`、`tests/test_adapter_protocols.py`、`tests/test_agents.py` 澄清用例；前端 32/32；契约无 diff；端到端 22/22（新增 `http-clarification`、`mock-clarification`）|
 | 文档 | 本交接文档、README、architecture、acceptance、status、ui-polish；产品界面方向（第 12 节） | `587d7aa`、`8525718`、`c58a29f` |
 
-检查基线（数量以 `docs/status.md` 为准，下列为 E 专项后的最新值）：内存+legacy 136 通过 / 19 跳过；PostgreSQL+legacy 150 通过 / 5 跳过；PostgreSQL+Redis+LangGraph 154 通过 / 1 跳过；前端 32 项 + 类型检查；Legacy/LangGraph 5 组等价；网页端到端 20/20；契约重新生成无 diff；Alembic 0003↔0004 升降级通过。Compose 两个 Worker 常驻验证已完成。GitHub Actions 托管 CI 运行 `35333253707` 的 6 个 Job 全部通过（对应 `main@197037a`；E 专项提交后需重新观察一次 CI）。尚未执行：真机安装；iOS/Android JS 与 Hermes 导出成功。
+检查基线（数量以 `docs/status.md` 为准，下列为 E 专项后的最新值）：内存+legacy 136 通过 / 19 跳过；PostgreSQL+legacy 150 通过 / 5 跳过；PostgreSQL+Redis+LangGraph 154 通过 / 1 跳过；前端 32 项 + 类型检查；Legacy/LangGraph 5 组等价；网页端到端 22/22；契约重新生成无 diff；Alembic 0003↔0004 升降级通过。Compose 两个 Worker 常驻验证已完成。GitHub Actions 托管 CI 运行 `35333253707` 的 6 个 Job 全部通过（对应 `main@197037a`；E 专项提交后需重新观察一次 CI）。尚未执行：真机安装；iOS/Android JS 与 Hermes 导出成功。
 
 ### 0.3 当前状态与外部待办
 
@@ -404,37 +404,51 @@ docker compose down
 
 不写 Kafka 实现，不把设备状态放 Redis，不让 LangGraph 绕过 Harness / Executor，不把本地 CI 配置描述成 GitHub 已运行，不把接口预留描述成已接入，不在真实回读对齐前把 `deviceStateReconciled` 改成 `true`。
 
-## 9.4 当前暂停点（2026-09-18，用户主动暂停）
+## 9.4 当前暂停点（2026-09-19）
 
-仓库状态：本地 `main = 4d296c9`，工作区干净，**未推送**（`origin/main = 5f241e5`，落后 1 个提交）。
+仓库状态：本地 `main` 干净。E 专项 ①–⑥ 与澄清路径的浏览器端到端场景均已完成。
 
-### 下一位 AI 的第一件事，二选一
-
-**A. 推送并观察 CI（推荐，5 分钟）**
+### 下一位 AI 的第一件事：推送并观察 CI
 
 ```bash
 cd livingmind-app
-git log --oneline -1          # 应为 4d296c9
+git log --oneline -1
 git push origin main          # 需用户确认后再执行
 ```
 
-推送后在 GitHub Actions 观察 6 个 Job。`4d296c9` 改动了后端契约、存储层与文档，本地三套组合与端到端均已通过，预期全绿；若失败只修对应回归，不要顺手改别的。CI 通过后把 `docs/status.md`、`AGENT-HANDOFF.md` 第 0.2 节和 `docs/evidence.md` 里引用的运行号 `35333253707` 换成新的运行号（证据表改 `scripts/build_evidence.py` 后重新生成）。
+推送后在 GitHub Actions 观察 6 个 Job。本轮改动涉及后端契约、存储层、端到端脚本与文档，本地三套后端组合、迁移升降、等价、前端、契约与 22 个浏览器场景均已通过，预期全绿。CI 通过后要做两件事：
 
-**B. 补一个澄清路径的浏览器场景（可选，约 30 分钟）**
+1. 把文档里引用的旧运行号 `35333253707` 换成新的运行号（`docs/status.md`、本文件第 0.2 与 9.2 节、`docs/technology-architecture.md`；证据表改 `scripts/build_evidence.py` 后重新生成）。
+2. `container-e2e` 这个 Job 现在跑 22 个场景（原 20 个），确认它在容器环境里也全过；若 `http-clarification` 在 CI 上超时而本地通过，先看 `container-e2e-artifacts` 里的 `screens/FAILED-*.png`，不要直接放宽断言。
 
-现状：澄清闭环有后端测试、前端 Mock 测试和可用的界面路径，但**没有**浏览器端到端场景。本轮起草过 `scenario_clarification`，前两步能过，最后一步卡住，已**回退**以保持仓库处于已验证的 20/20 状态。要接着做的话：
-
-- 断点：`send(page, "我不想休息，只想关灯")` 之后等 `设备指令：灯光关闭` 超时。已确认后端生成的摘要来自 `backend/app/agents/space_execution/agent.py` 的 `LABELS`：灯光是 `灯光亮度调到 {v}%`，`value=0` 时走 `灯光关闭`。需要先用 `page.inner_text("body")` 打印一次实际文案再断言，不要照抄猜测的字符串。
-- 参考现成写法：`scenario_agents`（同一文件，含设备指令分支与 `last_assistant`）。
-- 通过后在 `docs/status.md` E 专项一节和 `docs/acceptance.md` ⑥ 冻结清单里把端到端场景数从 20 改成 22。
+若失败只修对应回归，不要顺手改别的。
 
 ### 本轮已确认的事实（不必重做）
 
 | 项 | 结论 |
 |---|---|
 | 上一轮失败的 `Docker API + browser E2E` | 已由 `2af8042` 修复，`35333253707` 6/6 全绿 |
-| 另一位 AI 的中断改动 | 已全部验证并收进 `4d296c9`；其未提交状态在用户 Mac 上留有 `git stash stash@{0}`（`pre-E-sync backup`），确认无误后可自行清理 |
-| 三套后端组合 / 迁移 / 等价 / 前端 / 契约 / 端到端 | 均已在本轮实跑，数字见 `docs/acceptance.md` 的"⑥ 冻结清单" |
+| 另一位 AI 的中断改动 | 已全部验证并收进 E 专项提交；其未提交状态在用户 Mac 上留有 `git stash stash@{0}`（`pre-E-sync backup`），确认无误后可自行清理 |
+| 三套后端组合 / 迁移 / 等价 / 前端 / 契约 / 端到端 | 均已实跑，数字见 `docs/acceptance.md` 的"⑥ 冻结清单" |
+| 澄清路径的端到端场景 | `scenario_clarification` 已写好并通过；断言里的设备指令文案来自 `backend/app/agents/space_execution/agent.py` 的 `LABELS`，改文案时这两个场景会一起红 |
+
+### 写端到端断言的教训（值得照做）
+
+新场景的文案断言不要凭印象写。先用后端直接打一遍，把真实文案打印出来再写进断言：
+
+```bash
+cd backend && .venv/bin/python -c "
+from fastapi.testclient import TestClient
+from app.main import create_app
+c = TestClient(create_app())
+b = c.get('/api/bootstrap', params={'accountId':'demo-account'}).json()
+ctx = {'accountId':'demo-account','personId':b['persons'][0]['personId'],'spaceId':b['spaces'][0]['spaceId']}
+r = c.post('/api/assistant/messages', json={'context':ctx,'text':'我不想休息，只想关灯','mode':'rule','conversationId':'probe'}).json()
+print(r['kind'], r['intent'], repr(r['text']))
+"
+```
+
+一次后端调用不到一秒，一次浏览器端到端要四分钟。本轮先猜"灯光关闭"跑了两轮才发现实际是"灯光亮度调到 0%"。
 
 ### 复跑本轮全部检查的命令
 
@@ -452,7 +466,7 @@ LIVINGMIND_DATABASE_URL=... .venv/bin/alembic downgrade 0003 && ... upgrade head
 .venv/bin/python scripts/compare_orchestrators.py
 cd ../apps/mobile && npm run typecheck && npm test
 cd ../.. && ./scripts/gen-api.sh && git diff --exit-code -- packages/api-client
-python apps/mobile/e2e/run_e2e.py        # 约 4 分钟；加 --skip-build 可省去前两分钟的构建
+python apps/mobile/e2e/run_e2e.py        # 22 个场景，约 4 分钟；加 --skip-build 可省去前两分钟的构建
 ```
 
 ## 10. 禁止事项

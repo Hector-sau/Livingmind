@@ -1,12 +1,12 @@
 # 汇报主张与证据对照表
 
-对照材料：`汇报演示/LivingMind_presentationV1（10 页）`。更新：2026-09-18。由 `scripts/build_evidence.py` 生成，改表请改脚本。
+对照材料：`汇报演示/LivingMind_presentationV1（10 页）`。更新：2026-09-19。由 `scripts/build_evidence.py` 生成，改表请改脚本。
 
 状态统计：已实现 19，部分实现 6，接口预留 3，未接入 1，未实现 1，外部数据 2，待验证 1，计划 1。
 
 | 页 | 主张 | 状态 | 原型实际情况 | 证据 | 来源标注 |
 |---|---|---|---|---|---|
-| P01 | 面向居住空间的主动体验 Agent：持续理解居住者，主动组织空间服务 | 部分实现 | 家庭卧室原型：一句话 → 计划 → 确认 → 室温事件调整 → 整晚服务。“持续理解”目前是读取本人偏好，不从行为中学习 | backend/app/services/rest_service.py；录屏 01–03；网页端到端 20/20 | 后端规则 · 虚拟设备 · 模拟事件 / 时钟 |
+| P01 | 面向居住空间的主动体验 Agent：持续理解居住者，主动组织空间服务 | 部分实现 | 家庭卧室原型：一句话 → 计划 → 确认 → 室温事件调整 → 整晚服务。“持续理解”目前是读取本人偏好，不从行为中学习 | backend/app/services/rest_service.py；录屏 01–03；网页端到端 22/22 | 后端规则 · 虚拟设备 · 模拟事件 / 时钟 |
 | P01 / P03 | Home Living 为核心，Smart Stay 为延展 | 部分实现 | 只实现家庭场景：1 个空间（家 · 主卧），3 位成员 + 访客；酒店场景没有实现 | backend/app/demo/seed.py；docs/test-data.md | 设计的模拟数据 |
 | P02 | 79% 重视互操作性；45% 仍主要用独立 App 控制设备 | 外部数据 | 只用于说明需求背景，不是原型证据 | 幻灯片标注：Deloitte 2023 Connected Consumer Study | 外部数据 |
 | P03 | 同一条服务闭环：理解 → 规划 → 执行 → 反馈 → 调整 | 已实现（家庭） | 主 Agent 编排并记录协作过程；执行后回读设备；室温事件触发重新规划 | backend/app/agents/orchestrator/agent.py；tests/test_agents.py（33 项）；tests/test_events.py（10 项） | 后端规则（模型可选） |
@@ -39,7 +39,7 @@
 | 工程证据 | LangGraph + Redis 协调 | 已实现 | legacy / LangGraph 可切换；checkpoint 存 PostgreSQL；Redis 提供 token+TTL 空间锁和冷却快速判断，断连时降级到数据库路径 | backend/app/graph/；backend/app/cache/；tests/test_graph_orchestrator.py；tests/test_cache_coordination.py | 真实 PostgreSQL 16 + Redis 7 测试 |
 | 工程证据 | Transactional Outbox 与幂等投影 | 已实现 | 业务事实和 Outbox 同事务；Publisher 重试/死信；Consumer 按 event_id 去重。Compose 实测 7/7 事件发布并消费，重启 Worker 后数量不变 | backend/app/events/；backend/workers/；tests/test_outbox_events.py；docs/status.md | PostgreSQL 数据库队列，非 Kafka |
 | 工程证据 | T6 完整集成回归 | 已实现 | 默认、PostgreSQL、PostgreSQL+Redis+LangGraph 三套后端组合通过；20 个浏览器场景全部连接 Docker API 通过；GitHub Actions 运行 35333253707 的 6 个 Job 全绿 | .github/workflows/ci.yml；apps/mobile/e2e/run_e2e.py；docs/status.md | 本地 Docker / Playwright + GitHub 托管运行 |
-| 工程证据 | E 一致性与可恢复性专项复跑 | 已实现 | 内存+legacy 136/19；PostgreSQL+legacy 150/5；PostgreSQL+Redis+LangGraph 154/1；Alembic 0003↔0004 升降级；legacy/LangGraph 5 组等价；前端 32 项 + 类型检查；契约重新生成逐字节一致；网页端到端 20/20 | docs/status.md（E 专项一节）；docs/acceptance.md；docs/agent-engineering-review.md | 2026-09-18 本轮实跑 |
+| 工程证据 | E 一致性与可恢复性专项复跑 | 已实现 | 内存+legacy 136/19；PostgreSQL+legacy 150/5；PostgreSQL+Redis+LangGraph 154/1；Alembic 0003↔0004 升降级；legacy/LangGraph 5 组等价；前端 32 项 + 类型检查；契约重新生成逐字节一致；网页端到端 22/22（含两个澄清场景） | docs/status.md（E 专项一节）；docs/acceptance.md；docs/agent-engineering-review.md | 2026-09-18 本轮实跑 |
 
 ## 录屏（网页版，`apps/mobile/e2e/record_demo.py` 生成）
 
@@ -61,7 +61,7 @@
 | Alembic 迁移 | 0001→0004；0003→0002→0003 与 0004→0003→0004 通过 | backend/alembic/ |
 | Outbox / Consumer Compose 链路 | 7/7 发布并消费；Worker 重启无重复 | backend/workers/ |
 | 前端逻辑测试 + 类型检查 | 32 项 | apps/mobile/tests/ |
-| 网页端到端（平板 / 手机，前端模拟 + Docker API） | 20/20 场景 | apps/mobile/e2e/run_e2e.py |
+| 网页端到端（平板 / 手机，前端模拟 + Docker API） | 22/22 场景 | apps/mobile/e2e/run_e2e.py |
 | 契约一致性（后端模型 → 前端类型） | 通过 | scripts/gen-api.sh |
 | GitHub Actions 三组合 + Docker E2E | 运行 35333253707：6/6 Job 通过 | .github/workflows/ci.yml |
 

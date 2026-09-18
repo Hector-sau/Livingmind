@@ -72,7 +72,7 @@
 | 6 | 非法人物 / 空间 / 账户 / 参数 / 过期 / 版本不符被拒绝 | 自动化测试通过 |
 | 7 | 后端断开时 App 明确反馈 | 前端单元测试 + 端到端场景 `http-offline`（关掉后端后点确认，出现“无法连接后端，显示的状态可能已过期”，设备数值变灰，没有假装成功） |
 
-浏览器端到端：`apps/mobile/e2e/run_e2e.py`（已入库，可复现）。用 Expo 网页导出，在 1180×820 和 390×844 两种尺寸下跑 20 个场景。2026-09-18 最新一次通过 `--external-backend` 连接 Docker Compose API，**20/20 通过**；末尾断网场景只关闭本地代理，不伪造后端成功。模型路径连的是本地桩，不是 DeepSeek。
+浏览器端到端：`apps/mobile/e2e/run_e2e.py`（已入库，可复现）。用 Expo 网页导出，在 1180×820 和 390×844 两种尺寸下跑 22 个场景。2026-09-18 通过 `--external-backend` 连接 Docker Compose API 跑过 **20/20**（当时 20 个场景）；2026-09-19 新增两个澄清场景后本地 **22/22 通过**；末尾断网场景只关闭本地代理，不伪造后端成功。模型路径连的是本地桩，不是 DeepSeek。
 
 ## ⑤ 的验证情况
 
@@ -197,6 +197,7 @@
 | 设备底座 V2 协议：`DeviceGateway`（`deviceId`、`actionId` 幂等键、`serviceEpoch`、accepted/completed/rejected/unknown 回执、错误类型、观测时间与观测值） | `adapters/protocol.py` | `tests/test_adapter_protocols.py`：可执行契约替身 + `isinstance` 校验 |
 | 语音网关协议：`VoiceGateway`（`audioId`、来源、语言、说话人与空间提示、置信度、播报与取消） | `adapters/voice.py` | 同上 |
 | 环境事件协议：`EnvironmentEventAdapter`（事件 ID、去重键、来源、空间、采集时间、类型与值） | `adapters/events.py` | 同上；演示用的 `POST /api/spaces/{id}/events` 仍是独立入口并标注 `simulated` |
+| E：澄清路径的浏览器端到端场景（提问 → 不产生计划也不碰设备 → 补充信息后在同一会话继续 → 冲突请求再次澄清 → 否定 + 明确指令走设备分支且不起服务） | `apps/mobile/e2e/run_e2e.py::scenario_clarification` | `http-clarification`、`mock-clarification` 两个场景通过；总数 20 → 22 |
 | 文档口径校正与工程评审说明 | `docs/agent-engineering-review.md`、`docs/architecture.md`（关键规则 27、28）、本文件、`AGENT-HANDOFF.md`、`docs/acceptance.md`、`docs/evidence.md` | 三档口径分开写：已实现并验证 / 接口预留 / 待下一位执行 |
 
 ### 本轮复跑的检查基线
@@ -210,7 +211,7 @@
 | Legacy / LangGraph 等价 | 5 组输入全部等价 |
 | 前端 | `tsc --noEmit`（含 tests）无错；`32 passed` |
 | 契约 | 重新生成 `openapi.json` 与 `schema.ts`，与仓库内容逐字节一致 |
-| 网页端到端 | 20/20 场景通过 |
+| 网页端到端 | 22/22 场景通过（含 `http-clarification`、`mock-clarification`） |
 
 ### 本轮明确不做（留给下一位，需用户授权）
 
