@@ -79,8 +79,9 @@ ROWS: list[tuple[str, str, str, str, str, str]] = [
      "rest_service.py::advance_clock；tests/test_night_service.py（15 项，含并发、重置竞态、部分失败）；端到端 http-night、mock-night、http-night-stop-phone；录屏 03",
      "模拟时钟 / 明确的模拟入睡信号"),
     ("P07", "24 小时家庭并网仿真：规则策略与 MATD3 对比；净运行成本 -$0.02；舒适违规 0 / 0", "已实现（离线展示）",
-     "已迁入给定的家庭能源研究快照与其已提供结果；App 只读展示固定日对比。MATD3 框架在该结果中为单智能体，不参与在线设备控制",
-     "simulation/home-energy/data/provided-day-comparison.json；provenance/manifest.json；GET /api/spaces/{spaceId}/energy/simulation；空间页“24 小时能源仿真”卡", "离线仿真：固定预设日、已提供结果；未重训或重新评估"),
+     "已迁入给定的家庭能源研究快照与其结果；**已在本仓库用同一权重、种子 42 重跑评估，8 项 KPI 与图中数字全部一致（最大差 0.005，仅两位小数取整）**。未重新训练。MATD3 框架在该结果中为单智能体，不参与在线设备控制",
+     "simulation/home-energy/research/reproduce_day.py → data/reproduced-day-comparison.json；data/provided-day-comparison.json；provenance/manifest.json；GET /api/spaces/{spaceId}/energy/simulation；空间页“24 小时能源仿真”卡",
+     "离线仿真：固定预设日、单智能体、美元/华氏度参数；已复现评估，未重训"),
     ("P08", "49.45% 消费者已使用智能家居；65% 酒店提及劳动力成本压力", "外部数据",
      "只用于说明市场背景，不证明付费意愿", "幻灯片标注的来源（2025 年中国消费者数据；AHLA 2026，n=246）", "外部数据"),
     ("P08", "一套能力，两种商业路径；拟收费单位", "待验证", "幻灯片已标“待验证”", "—", "商业假设"),
@@ -169,7 +170,7 @@ def markdown() -> str:
     lines += [f"| {a} | {b} |" for a, b in SOURCES]
     lines += ["", "## 使用建议", "",
               "- 汇报时说“已实现”的，只用状态为“已实现”的行；“部分实现”要同时说清缺的部分。",
-              "- P07 只能说“已提供的固定日离线仿真结果”；不能说已接入实时设备、已重新训练，或证明跨日节能效果。",
+              "- P07 可以说“该固定日的结果已在本仓库复现”；仍不能说已接入实时设备、已重新训练，或证明跨日节能效果。",
               "- 外部数据只用于背景，不要用来证明 LivingMind 的效果或付费意愿。", ""]
     return "\n".join(lines)
 
@@ -228,7 +229,7 @@ ul {{ margin: 1mm 0; padding-left: 5mm; }}
 <div><h2>来源标注说明</h2>{table(["标注", "含义"], SOURCES)}</div></div>
 <div class="note"><b>使用建议</b><ul>
 <li>汇报时说“已实现”的，只用状态为“已实现”的行；“部分实现”要同时说清缺的部分。</li>
-<li>P07 只能说“已提供的固定日离线仿真结果”；不能说已接入实时设备、已重新训练，或证明跨日节能效果。</li>
+<li>P07 可以说“该固定日的结果已在本仓库复现”；仍不能说已接入实时设备、已重新训练，或证明跨日节能效果。</li>
 <li>外部数据只用于背景，不要用来证明 LivingMind 的效果或付费意愿。</li></ul></div>
 </body></html>"""
 

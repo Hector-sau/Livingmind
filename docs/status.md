@@ -16,6 +16,7 @@
 | 前端模拟接口（与后端规则一致，标注“前端模拟”） | `apps/mobile/services/mock/` | `tests/mockApi.test.ts` |
 | 真实 API 客户端（断网/超时明确报错，不回退模拟） | `apps/mobile/services/http/` | `tests/httpApi.test.ts` |
 | P07：固定日家庭能源离线仿真（规则 vs 单智能体 MATD3）只读 API 与空间页展示 | `simulation/home-energy/`、`backend/app/energy/simulation.py`、`features/energy/OfflineSimulationCard.tsx` | `tests/test_offline_energy_simulation.py`（2 项）、`tests/mockApi.test.ts` |
+| P07：该固定日结果在本仓库复现（同一权重、种子 42，8 项 KPI 全部一致，最大差 0.005；未重新训练） | `simulation/home-energy/research/reproduce_day.py`、`data/reproduced-day-comparison.json` | 复现脚本可一条命令重跑；依赖单独列在 `requirements-research.txt`，不进后端与 CI |
 | 固定休息规则（无模型） | `backend/app/rules/rest_rule.py` | `tests/test_rest_flow.py` |
 | 统一执行器：白名单、参数范围、每个动作前检查服务、回读 | `backend/app/harness/executor.py` | 同上 |
 | 有状态虚拟设备（灯光、空调、窗帘） | `backend/app/adapters/virtual/devices.py` | 同上 |
@@ -100,7 +101,7 @@
 - 所有人物、偏好、评测用例、室外温度与电价时段都是设计的模拟数据（见 `docs/test-data.md`）。
 - 主 Agent 路由与 Space Execution Agent 的指令解析是规则实现；只有 Experience Agent 可调用模型。
 - 能源负荷是规则估算，不是实测，也不代表节省比例。
-- P07 的能源数值是给定模块的固定预设日离线结果：单智能体、美元/华氏度参数，未重训或重新评估，未接入实时设备；不得外推成真实节能效果。
+- P07 的能源数值是固定预设日的离线结果：单智能体、美元/华氏度参数，未重训，未接入实时设备；不得外推成真实节能效果。该日结果已在本仓库复现（`simulation/home-energy/research/reproduce_day.py`，种子 42，8 项 KPI 与图一致，最大差 0.005）。
 - 演示身份下，谁能读哪份记忆由请求上下文决定，不是认证。
 - 规则模式下输入文字只记录，不做语义理解。模型模式已验证一次真实调用；延迟只有单次样本。
 - CI 配置写好了，但还没有在 GitHub 上跑过。

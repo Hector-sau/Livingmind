@@ -1,0 +1,91 @@
+{
+  "source": "reproduced_in_this_repository",
+  "reproducedAt": "2026-09-18T06:43:42+00:00",
+  "seed": 42,
+  "tolerance": 0.01,
+  "allMatch": true,
+  "worstAbsDiff": 0.005,
+  "note": "同一预设日、同一权重、种子 42 的重跑结果；与图中数字的差异只来自两位小数取整。",
+  "rows": [
+    {
+      "metric": "daily_cost",
+      "label": "日运行成本",
+      "unit": "USD/day",
+      "controller": "rule",
+      "supplied": 1.87,
+      "reproduced": 1.865,
+      "abs_diff": 0.005,
+      "matches": true
+    },
+    {
+      "metric": "daily_cost",
+      "label": "日运行成本",
+      "unit": "USD/day",
+      "controller": "matd3",
+      "supplied": -0.02,
+      "reproduced": -0.018,
+      "abs_diff": 0.002,
+      "matches": true
+    },
+    {
+      "metric": "grid_import",
+      "label": "电网购电",
+      "unit": "kWh/day",
+      "controller": "rule",
+      "supplied": 13.61,
+      "reproduced": 13.606,
+      "abs_diff": 0.004,
+      "matches": true
+    },
+    {
+      "metric": "grid_import",
+      "label": "电网购电",
+      "unit": "kWh/day",
+      "controller": "matd3",
+      "supplied": 0.76,
+      "reproduced": 0.759,
+      "abs_diff": 0.001,
+      "matches": true
+    },
+    {
+      "metric": "peak_import",
+      "label": "峰值购电",
+      "unit": "kW",
+      "controller": "rule",
+      "supplied": 1.95,
+      "reproduced": 1.954,
+      "abs_diff": 0.004,
+      "matches": true
+    },
+    {
+      "metric": "peak_import",
+      "label": "峰值购电",
+      "unit": "kW",
+      "controller": "matd3",
+      "supplied": 0.37,
+      "reproduced": 0.374,
+      "abs_diff": 0.004,
+      "matches": true
+    },
+    {
+      "metric": "comfort_violation",
+      "label": "舒适违规",
+      "unit": "F*h",
+      "controller": "rule",
+      "supplied": 0,
+      "reproduced": 0.0,
+      "abs_diff": 0.0,
+      "matches": true
+    },
+    {
+      "metric": "comfort_violation",
+      "label": "舒适违规",
+      "unit": "F*h",
+      "controller": "matd3",
+      "supplied": 0,
+      "reproduced": 0.0,
+      "abs_diff": 0.0,
+      "matches": true
+    }
+  ]
+}

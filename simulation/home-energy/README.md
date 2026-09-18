@@ -17,8 +17,21 @@ The LivingMind App reads the structured, supplied result through a read-only API
 - One episode is 24 hourly decisions on one fixed predefined day.
 - `agentCount` is 1. Although the code uses a MATD3 framework, this supplied run is a single-agent controller, not a multi-agent collaboration result.
 - Costs use USD and temperatures use Fahrenheit in the research environment.
-- The result is supplied precomputed evidence. This migration intentionally does not retrain or re-evaluate the model.
+- The result is supplied precomputed evidence. This migration does not retrain the model. It **was** re-evaluated once in this repository (`research/reproduce_day.py`, seed 42): all eight KPIs match the supplied figure within 0.005, and the reproduced numbers are in `data/reproduced-day-comparison.json`.
 - The daily-cost total includes every environment cost term. Do not infer a complete cost breakdown from the legacy chart, whose visible bars omit diesel cost while its total includes it.
+
+## Reproducing the one-day comparison
+
+```bash
+cd simulation/home-energy
+python -m venv .venv && .venv/bin/pip install -r requirements-research.txt
+MPLBACKEND=Agg .venv/bin/python research/reproduce_day.py     # writes data/reproduced-day-comparison.json
+```
+
+The script imports the evaluation from `research/plot_product_demo.py` rather than copying it,
+so there is no second implementation of the environment, the policies or the metrics. It loads
+the supplied actor weight, runs one MATD3 day and one rule-based day, and compares each KPI with
+the supplied figure (tolerance 0.01, the figure's own rounding). It never trains or overwrites a model.
 
 ## Optional research runtime
 
