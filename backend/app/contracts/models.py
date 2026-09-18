@@ -39,6 +39,8 @@ __all__ = [
     "OfflineEnergySimulation",
     "AssistantMessageRequest",
     "AssistantReply",
+    "PendingClarification",
+    "RecoveryStatus",
     "MemoryView",
     "SpaceRule",
     "UpdatePreferenceRequest",
@@ -121,6 +123,9 @@ ActivityKind = Literal[
     "schedule_cancelled",
     "service_completed",
     "service_failed",
+    "clarification_requested",
+    "clarification_resolved",
+    "clarification_cancelled",
 ]
 ActivitySource = Literal[
     "user", "rule_engine", "experience_agent", "executor", "virtual_device", "system", "simulated_event", "simulated_clock", "frontend_mock"
@@ -213,6 +218,21 @@ class RequestContext(Contract):
     account_id: str
     person_id: str
     space_id: str
+
+
+class PendingClarification(Contract):
+    """A resumable question in one person/space conversation."""
+
+    clarification_id: str
+    conversation_id: str
+    account_id: str
+    person_id: str
+    space_id: str
+    original_text: str
+    question: str
+    target_intent: Literal["rest", "device_command"]
+    created_at: datetime
+    expires_at: datetime
 
 
 # ---- devices, plans, services ----
@@ -459,6 +479,12 @@ class AssistantMessageRequest(Contract):
     text: str = Field(min_length=1, max_length=200)
     mode: Optional[PlannerMode] = None
     wake_time: Optional[WakeTime] = None
+    conversation_id: Optional[str] = Field(
+        default=None,
+        min_length=1,
+        max_length=120,
+        description="Stable id for resuming a pending clarification; scoped again by account/person/space",
+    )
 
 
 class UpdatePreferenceRequest(Contract):
@@ -501,6 +527,18 @@ class BootstrapResponse(Contract):
     active_service: Optional[Service]
 
 
+class RecoveryStatus(Contract):
+    """Result of the startup reconciliation; observable evidence, not a claim of exact device recovery."""
+
+    store: Literal["memory", "postgresql"]
+    active_services: int
+    cancelled_unknown_steps: int
+    cleared_inflight_flags: int
+    device_state_reconciled: bool
+    checked_at: datetime
+    note: str
+
+
 class ConfirmPlanResponse(Contract):
     plan: Plan
     service: Optional[Service] = Field(description="Null for direct device commands (no rest service)")
@@ -534,11 +572,13 @@ class AdvanceClockResponse(Contract):
 
 
 class AssistantReply(Contract):
-    kind: Literal["plan", "answer"]
-    intent: Literal["rest", "device_command", "status", "other"]
+    kind: Literal["plan", "answer", "clarification"]
+    intent: Literal["rest", "device_command", "status", "other", "clarification"]
     text: str
     plan: Optional[Plan]
     trace: list[AgentStep]
+    conversation_id: Optional[str] = None
+    clarification: Optional[PendingClarification] = None
 
 
 class MemoryView(Contract):

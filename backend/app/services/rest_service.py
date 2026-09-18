@@ -13,9 +13,11 @@ Front-end mock (apps/mobile/services/mock/mockApi.ts) mirrors the visible rules.
 
 from __future__ import annotations
 
+import hashlib
+import re
 import threading
 from datetime import timedelta
-from typing import Optional
+from typing import Literal, Optional
 
 from app import config
 from app.adapters.virtual.devices import VirtualDeviceAdapter
@@ -23,6 +25,7 @@ from app.cache import Cooldown, SpaceLock
 from app.api.errors import ApiError
 from app.clock import Clock, utc_now
 from app.agents.orchestrator import Orchestrator
+from app.agents.orchestrator.agent import Intent, route_intent
 from app.agents.space_execution import SpaceExecutionAgent
 from app.contracts import (
     ActionResult,
@@ -32,7 +35,9 @@ from app.contracts import (
     EnergyMode,
     MemoryView,
     OfflineEnergySimulation,
+    PendingClarification,
     PlannerMode,
+    RecoveryStatus,
     RestPreference,
     Space,
     ActivityKind,
@@ -92,6 +97,22 @@ class RestService:
         self._max_adjustments = config.EVENT_MAX_ADJUSTMENTS if event_max_adjustments is None else event_max_adjustments
         self._lock = threading.RLock()
         self._store: Store = store or default_store()
+        recovered = self._store.startup_reconcile()
+        sql_store = isinstance(self._store, SqlStore)
+        self._recovery = RecoveryStatus(
+            store="postgresql" if sql_store else "memory",
+            active_services=recovered["active_services"],
+            cancelled_unknown_steps=recovered["cancelled_unknown_steps"],
+            cleared_inflight_flags=recovered["cleared_inflight_flags"],
+            device_state_reconciled=False,
+            checked_at=clock(),
+            note=(
+                "业务状态已从 PostgreSQL 读取；崩溃时处于 running 的步骤已取消，避免结果未知的设备动作被盲目重放。"
+                "虚拟设备状态属于进程内状态，未做硬件回读恢复。"
+                if sql_store
+                else "内存模式没有跨进程恢复；重启会重新创建演示状态。"
+            ),
+        )
         self._planner = planner or planner_from_config(clock)
         self._devices = {
             s.space_id: VirtualDeviceAdapter(s.space_id, seed.INITIAL_DEVICE_STATE, clock) for s in seed.SPACES
@@ -139,6 +160,13 @@ class RestService:
     def _space_lock(self, space_id: str) -> SpaceLock:
         """Hold while this request may write devices. A no-op when Redis is not configured."""
         return SpaceLock(space_id)
+
+    @staticmethod
+    def _conversation_key(ctx: RequestContext, conversation_id: Optional[str]) -> str:
+        """Scope a client id to the account/person/space without exposing those values as a database key."""
+        raw = conversation_id or "default"
+        scoped = "\x00".join((ctx.account_id, ctx.person_id, ctx.space_id, raw))
+        return f"conv-{hashlib.sha256(scoped.encode('utf-8')).hexdigest()[:32]}"
 
     @staticmethod
     def _busy(space_id: str) -> ApiError:
@@ -224,6 +252,10 @@ class RestService:
         self._check_space(account_id, space_id)
         return offline_energy_simulation()
 
+    def recovery_status(self, account_id: str) -> RecoveryStatus:
+        self._check_account(account_id)
+        return self._recovery.model_copy()
+
     def handle_message(
         self,
         ctx: RequestContext,
@@ -231,9 +263,45 @@ class RestService:
         mode: Optional[PlannerMode] = None,
         force_rest: bool = False,
         wake_time: WakeTime = "07:00",
+        conversation_id: Optional[str] = None,
     ) -> AssistantReply:
         """Main entry for the chat: the main Agent decides the branch and returns a plan or an answer."""
         self._check_context(ctx)
+        conversation_key = self._conversation_key(ctx, conversation_id)
+        forced_intent: Optional[Intent] = "rest" if force_rest else None
+        with self._lock:
+            pending = self._store.get_clarification(conversation_key)
+            if pending and self._clock() > pending.expires_at:
+                self._store.delete_clarification(conversation_key)
+                pending = None
+            if pending and re.search(r"取消|不用了|算了|停止", text):
+                self._store.delete_clarification(conversation_key)
+                self._log(
+                    ctx.space_id,
+                    "clarification_cancelled",
+                    "user",
+                    "用户取消了待澄清请求",
+                    person_id=ctx.person_id,
+                )
+                return AssistantReply(
+                    kind="answer",
+                    intent="other",
+                    text="已取消刚才的请求，没有生成计划或设备动作。",
+                    plan=None,
+                    trace=[],
+                    conversation_id=conversation_key,
+                )
+            if pending:
+                self._store.delete_clarification(conversation_key)
+                text = f"{pending.original_text}；用户补充：{text.strip()}"
+                forced_intent = pending.target_intent
+                self._log(
+                    ctx.space_id,
+                    "clarification_resolved",
+                    "user",
+                    "收到补充信息，继续原请求",
+                    person_id=ctx.person_id,
+                )
         # Capture this before the (possibly slow) model call. A stop increments the
         # epoch, so a request that began before stop can never resurrect a service.
         with self._lock:
@@ -247,12 +315,38 @@ class RestService:
             self._devices[ctx.space_id],
             self._energy_modes[ctx.space_id],
             self._store.new_id,
-            force_intent="rest" if force_rest else None,
+            force_intent=forced_intent,
             wake_time=wake_time,
         )
+        if reply.kind == "clarification":
+            target_intent: Literal["rest", "device_command"] = (
+                "rest" if forced_intent == "rest" or route_intent(text) == "rest" else "device_command"
+            )
+            pending = PendingClarification(
+                clarification_id=self._store.new_id("clarify"),
+                conversation_id=conversation_key,
+                account_id=ctx.account_id,
+                person_id=ctx.person_id,
+                space_id=ctx.space_id,
+                original_text=text,
+                question=reply.text,
+                target_intent=target_intent,
+                created_at=self._clock(),
+                expires_at=self._clock() + timedelta(minutes=10),
+            )
+            with self._lock:
+                self._store.save_clarification(pending)
+                self._log(
+                    ctx.space_id,
+                    "clarification_requested",
+                    "system",
+                    f"请求补充信息：{reply.text}",
+                    person_id=ctx.person_id,
+                )
+            return reply.model_copy(update={"conversation_id": conversation_key, "clarification": pending})
         if reply.plan is not None:
             self._record_new_plan(reply.plan, request_epoch)
-        return reply
+        return reply.model_copy(update={"conversation_id": conversation_key})
 
     def create_rest_plan(
         self, ctx: RequestContext, utterance: str, mode: Optional[PlannerMode] = None, wake_time: WakeTime = "07:00"

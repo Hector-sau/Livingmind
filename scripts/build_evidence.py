@@ -54,9 +54,18 @@ ROWS: list[tuple[str, str, str, str, str, str]] = [
      "幻灯片已注明尚未接入。原型里的本地对应：设备能力列表、执行器白名单与参数范围、写入后回读、演示上下文校验",
      "backend/app/adapters/virtual/devices.py；backend/app/harness/executor.py", "虚拟设备；接口待官方文档与联调"),
     ("P05", "Zigbee、Matter、Apple Home 等协议与平台", "未实现", "生态关系示意", "—", "示意"),
+    ("P05", "真实设备底座 V2 契约（设备身份、幂等动作 ID、服务代次、回执与错误类型）", "接口预留",
+     "DeviceGateway 定义 deviceId / spaceId / actionId / serviceEpoch / accepted-completed-rejected-unknown 四态回执 / 错误类型 / 观测值与观测时间；用可执行契约替身验证协议可实现。没有任何真实对端",
+     "backend/app/adapters/protocol.py；tests/test_adapter_protocols.py", "接口预留，未接入真实设备或 SpaceMind"),
+    ("P05", "智能音箱语音入口", "接口预留",
+     "VoiceGateway 定义 audioId、来源、语言、说话人与空间提示、置信度、播报与取消；转写进入与平板同一条 assistant-message 入口。可信身份必须由应用层解析，不能由转写文本自称。没有麦克风、唤醒词或音箱",
+     "backend/app/adapters/voice.py；tests/test_adapter_protocols.py", "接口预留，未接入语音"),
+    ("P05", "真实传感器事件源", "接口预留",
+     "EnvironmentEventAdapter 定义事件 ID、去重键、来源、空间、采集时间、类型与值；与演示用的 POST /api/spaces/{id}/events 是两个入口，后者永远标注 simulated",
+     "backend/app/adapters/events.py；tests/test_adapter_protocols.py", "接口预留，未接入传感器"),
     ("P06", "目标架构 1+2：一个主 Agent，两个专业 Agent", "已实现",
      "主 Agent：规则路由与编排；Experience Agent：可调用大模型；Space Execution Agent：规则（设备能力、空间规则、指令解析、整晚安排）。不是三个大模型 Agent",
-     "backend/app/agents/；tests/test_agents.py（33 项）；tests/test_experience_agent.py（20 项）；“场景”页说明卡",
+     "backend/app/agents/；tests/test_agents.py（24 项）；tests/test_experience_agent.py（14 项）；“场景”页说明卡",
      "只有 Experience Agent 调用模型"),
     ("P06", "Experience Agent 生成体验目标", "已实现；真实调用验证 1 次",
      "2026-09-17 在团队 Mac 上运行 scripts/try_model.py 成功（deepseek-flash，2035 ms，单次）。未配置、超时、网络、HTTP、非法 JSON、结构不符、超出偏离上限都会降级为规则并写明原因",
@@ -74,6 +83,14 @@ ROWS: list[tuple[str, str, str, str, str, str]] = [
     ("P06", "读取执行结果，基于结果重规划", "部分实现",
      "室温事件后的重新规划已实现；设备动作失败后的自动重规划没有实现（只记录并提示）",
      "tests/test_events.py", "模拟事件"),
+    ("补充", "歧义请求先澄清，不直接变成设备动作", "已实现",
+     "否定（“我不想休息，只想关灯”）走设备指令；设备冲突（“先开灯再关灯”）与指代不清（“把那个调低一点”）先提问；待澄清状态按账户、人物、空间与 conversationId 四重隔离，10 分钟过期，可取消，补充后按原意图继续",
+     "backend/app/agents/orchestrator/agent.py；contracts/models.py::PendingClarification；alembic 0004；tests/test_agents.py（澄清 3 项）",
+     "后端规则；模型也可给出澄清问题"),
+    ("补充", "重启恢复语义明确且可查询", "已实现",
+     "配置 PostgreSQL 后可恢复计划、服务、整晚步骤、活动与待澄清；崩溃遗留的执行中标记被清理；结果未知的 running 步骤一律取消而不是重放。GET /api/system/recovery 返回存储类型、活跃服务数、取消数、清理数与 deviceStateReconciled",
+     "backend/app/services/rest_service.py::recovery_status；tests/test_recovery.py（2 项）",
+     "虚拟设备状态仍不跨进程恢复，deviceStateReconciled 为 false"),
     ("补充", "一次表达，持续服务：整晚服务", "已实现",
      "一个服务贯穿整晚：模拟入睡后关灯、01:00 空调调高 1°C、所选起床时间前 30 / 15 / 0 分钟三步唤醒；每步只执行一次；停止取消剩余步骤；任一设备动作失败都不会误标完成",
      "rest_service.py::advance_clock；tests/test_night_service.py（15 项，含并发、重置竞态、部分失败）；端到端 http-night、mock-night、http-night-stop-phone；录屏 03",
@@ -104,6 +121,9 @@ ROWS: list[tuple[str, str, str, str, str, str]] = [
     ("工程证据", "T6 完整集成回归", "已实现",
      "默认、PostgreSQL、PostgreSQL+Redis+LangGraph 三套后端组合通过；20 个浏览器场景全部连接 Docker API 通过；GitHub Actions 运行 35333253707 的 6 个 Job 全绿",
      ".github/workflows/ci.yml；apps/mobile/e2e/run_e2e.py；docs/status.md", "本地 Docker / Playwright + GitHub 托管运行"),
+    ("工程证据", "E 一致性与可恢复性专项复跑", "已实现",
+     "内存+legacy 136/19；PostgreSQL+legacy 150/5；PostgreSQL+Redis+LangGraph 154/1；Alembic 0003↔0004 升降级；legacy/LangGraph 5 组等价；前端 32 项 + 类型检查；契约重新生成逐字节一致；网页端到端 20/20",
+     "docs/status.md（E 专项一节）；docs/acceptance.md；docs/agent-engineering-review.md", "2026-09-18 本轮实跑"),
 ]
 
 CLIPS = [
@@ -113,12 +133,12 @@ CLIPS = [
 ]
 
 TESTS = [
-    ("后端：内存 + legacy", "127 通过 / 18 跳过", "backend/tests/"),
-    ("后端：PostgreSQL + legacy", "141 通过 / 4 跳过", "backend/tests/"),
-    ("后端：PostgreSQL + Redis + LangGraph", "145 通过", "backend/tests/"),
-    ("Alembic 迁移", "0001→0003，0003→0002→0003 通过", "backend/alembic/"),
+    ("后端：内存 + legacy", "136 通过 / 19 跳过", "backend/tests/"),
+    ("后端：PostgreSQL + legacy", "150 通过 / 5 跳过", "backend/tests/"),
+    ("后端：PostgreSQL + Redis + LangGraph", "154 通过 / 1 跳过", "backend/tests/"),
+    ("Alembic 迁移", "0001→0004；0003→0002→0003 与 0004→0003→0004 通过", "backend/alembic/"),
     ("Outbox / Consumer Compose 链路", "7/7 发布并消费；Worker 重启无重复", "backend/workers/"),
-    ("前端逻辑测试 + 类型检查", "31 项", "apps/mobile/tests/"),
+    ("前端逻辑测试 + 类型检查", "32 项", "apps/mobile/tests/"),
     ("网页端到端（平板 / 手机，前端模拟 + Docker API）", "20/20 场景", "apps/mobile/e2e/run_e2e.py"),
     ("契约一致性（后端模型 → 前端类型）", "通过", "scripts/gen-api.sh"),
     ("GitHub Actions 三组合 + Docker E2E", "运行 35333253707：6/6 Job 通过", ".github/workflows/ci.yml"),
@@ -133,9 +153,10 @@ SOURCES = [
     ("设计的模拟数据", "人物、偏好、室外温度、电价时段、评测用例都是设计的"),
     ("网页版验证", "界面测试和录屏来自 Expo 网页导出，不等于平板真机"),
     ("离线仿真", "给定的单日家庭能源研究快照及其已提供指标；不是实时测量、在线控制或重新评估"),
+    ("接口预留", "只有协议定义和可执行契约替身测试，没有真实对端；不得描述为已接入"),
 ]
 
-STATUS_ORDER = ["已实现", "部分实现", "未接入", "未实现", "仓库外", "外部数据", "待验证", "计划"]
+STATUS_ORDER = ["已实现", "部分实现", "接口预留", "未接入", "未实现", "仓库外", "外部数据", "待验证", "计划"]
 
 
 def bucket(status: str) -> str:
@@ -171,11 +192,12 @@ def markdown() -> str:
     lines += ["", "## 使用建议", "",
               "- 汇报时说“已实现”的，只用状态为“已实现”的行；“部分实现”要同时说清缺的部分。",
               "- P07 可以说“该固定日的结果已在本仓库复现”；仍不能说已接入实时设备、已重新训练，或证明跨日节能效果。",
+              "- “接口预留”的行只能说“协议已定义、可被实现、有契约测试”，不能说已接入真实设备、语音或传感器。",
               "- 外部数据只用于背景，不要用来证明 LivingMind 的效果或付费意愿。", ""]
     return "\n".join(lines)
 
 
-TONE = {"已实现": "ok", "部分实现": "part", "未接入": "no", "未实现": "no", "仓库外": "warn", "外部数据": "ext", "待验证": "ext", "计划": "ext"}
+TONE = {"已实现": "ok", "部分实现": "part", "接口预留": "part", "未接入": "no", "未实现": "no", "仓库外": "warn", "外部数据": "ext", "待验证": "ext", "计划": "ext"}
 
 
 def page_html() -> str:
@@ -230,6 +252,7 @@ ul {{ margin: 1mm 0; padding-left: 5mm; }}
 <div class="note"><b>使用建议</b><ul>
 <li>汇报时说“已实现”的，只用状态为“已实现”的行；“部分实现”要同时说清缺的部分。</li>
 <li>P07 可以说“该固定日的结果已在本仓库复现”；仍不能说已接入实时设备、已重新训练，或证明跨日节能效果。</li>
+<li>“接口预留”的行只能说“协议已定义、可被实现、有契约测试”，不能说已接入真实设备、语音或传感器。</li>
 <li>外部数据只用于背景，不要用来证明 LivingMind 的效果或付费意愿。</li></ul></div>
 </body></html>"""
 

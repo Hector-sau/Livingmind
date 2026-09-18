@@ -55,7 +55,18 @@ def build_graph(orchestrator: Orchestrator, adapter_for: AdapterFor, new_id: New
         exp = orchestrator.stage_experience(
             trace, state["person_context"], state["utterance"], adapter.read_state(), state.get("planner_mode")
         )
-        return {"experience": exp, "trace": trace.steps}
+        return {"experience": exp, "clarification_question": exp.clarification_question, "trace": trace.steps}
+
+    def clarification_node(state: LivingMindState) -> LivingMindState:
+        trace = _trace()
+        reply = orchestrator.clarification_reply(trace, state["utterance"], state.get("clarification_question"))
+        return {
+            "intent": "clarification",
+            "answer": reply.text,
+            "reply_kind": "clarification",
+            "plan": None,
+            "trace": trace.steps,
+        }
 
     def energy_node(state: LivingMindState) -> LivingMindState:
         trace = _trace()
@@ -132,18 +143,29 @@ def build_graph(orchestrator: Orchestrator, adapter_for: AdapterFor, new_id: New
     graph.add_node("device_command", command_node)
     graph.add_node("status", status_node)
     graph.add_node("other", other_node)
+    graph.add_node("clarification", clarification_node)
 
     graph.add_edge(START, "route")
     graph.add_conditional_edges(
         "route",
         lambda state: state["intent"],
-        {"rest": "memory", "device_command": "device_command", "status": "status", "other": "other"},
+        {
+            "rest": "memory",
+            "device_command": "device_command",
+            "status": "status",
+            "other": "other",
+            "clarification": "clarification",
+        },
     )
     graph.add_edge("memory", "experience")
-    graph.add_edge("experience", "energy")
+    graph.add_conditional_edges(
+        "experience",
+        lambda state: "clarification" if state.get("clarification_question") else "energy",
+        {"clarification": "clarification", "energy": "energy"},
+    )
     graph.add_edge("energy", "space_execution")
     graph.add_edge("space_execution", "harness")
     graph.add_edge("harness", "build_plan")
-    for last in ("build_plan", "device_command", "status", "other"):
+    for last in ("build_plan", "device_command", "status", "other", "clarification"):
         graph.add_edge(last, END)
     return graph

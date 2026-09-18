@@ -111,6 +111,19 @@ class ActivityRow(Base):
     payload: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False)
 
 
+class PendingClarificationRow(Base):
+    """One pending clarification per scoped conversation; the JSON is the API contract."""
+
+    __tablename__ = "pending_clarifications"
+
+    conversation_id: Mapped[str] = mapped_column(String(120), primary_key=True)
+    account_id: Mapped[str] = mapped_column(String(64), nullable=False)
+    person_id: Mapped[str] = mapped_column(String(64), nullable=False)
+    space_id: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
+    expires_at: Mapped[Any] = mapped_column(DateTime(timezone=True), nullable=False)
+    payload: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False)
+
+
 class OutboxEventRow(Base):
     """Written in the same transaction as the business fact it describes."""
 

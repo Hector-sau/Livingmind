@@ -51,6 +51,9 @@ def energy_mode(client, mode, space=SPACE):
         ("卧室现在几度", "status"),
         ("灯现在什么状态", "status"),
         ("今天股市怎么样", "other"),
+        ("我不想休息，只想关灯", "device_command"),
+        ("把那个调低一点", "clarification"),
+        ("先开灯再关灯", "clarification"),
     ],
 )
 def test_router(text, intent):
@@ -123,6 +126,31 @@ def test_device_command_plan_confirm_without_service(client):
     assert res["deviceState"]["acTargetTempC"] == 24.0
     again = confirm(client, plan)
     assert again["repeated"] is True and again["deviceState"]["version"] == res["deviceState"]["version"]
+
+
+def test_ambiguous_request_is_clarified_then_resumed_without_an_early_action(client):
+    first = say(client, "把那个调低一点")
+    assert first["kind"] == "clarification" and first["plan"] is None
+    assert first["clarification"]["targetIntent"] == "device_command"
+    assert devices(client)["version"] == 0
+
+    resumed = say(client, "灯调到20%")
+    assert resumed["kind"] == "plan"
+    assert [(a["device"], a["value"]) for a in resumed["plan"]["actions"]] == [("light", 20.0)]
+
+
+def test_negated_rest_with_explicit_command_uses_command_branch(client):
+    reply = say(client, "我不想休息，只想关灯")
+    assert reply["intent"] == "device_command"
+    assert reply["plan"]["scenario"] == "device_command"
+
+
+def test_pending_clarification_is_scoped_by_person_and_can_be_cancelled(client):
+    assert say(client, "把那个调低一点", "person-lin")["kind"] == "clarification"
+    assert say(client, "我想休息", "person-chen")["kind"] == "plan"
+    cancelled = say(client, "算了", "person-lin")
+    assert cancelled["kind"] == "answer" and "已取消" in cancelled["text"]
+    assert say(client, "灯调到20%", "person-lin")["intent"] == "device_command"
 
 
 def test_device_command_allowed_while_rest_service_runs(client):

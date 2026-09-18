@@ -14,6 +14,9 @@ const ROUTES: [string, string][] = [
   ['卧室现在几度', 'status'],
   ['灯现在什么状态', 'status'],
   ['今天股市怎么样', 'other'],
+  ['我不想休息，只想关灯', 'device_command'],
+  ['把那个调低一点', 'clarification'],
+  ['先开灯再关灯', 'clarification'],
 ];
 
 test('mock router matches backend routing cases', () => {
@@ -65,6 +68,17 @@ test('mock main agent: rest trace, device command without service, answers', asy
   const status = await api.sendMessage({ context: ctx('person-lin'), text: '卧室现在几度' });
   assert.equal(status.kind, 'answer');
   assert.match(status.text, /24°C/);
+});
+
+test('mock clarification waits for a follow-up in the same conversation', async () => {
+  const api = createMockApi({ latencyMs: 0 });
+  const context = ctx('person-lin');
+  const first = await api.sendMessage({ context, text: '把那个调低一点', conversationId: 'chat-1' });
+  assert.equal(first.kind, 'clarification');
+  assert.equal(first.plan, null);
+  const second = await api.sendMessage({ context, text: '灯调到20%', conversationId: 'chat-1' });
+  assert.equal(second.kind, 'plan');
+  assert.deepEqual(second.plan!.actions.map((a) => [a.device, a.value]), [['light', 20]]);
 });
 
 test('mock memory: own preference only, edits change the next plan, eco applies', async () => {

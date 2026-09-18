@@ -17,10 +17,11 @@ from typing import Optional
 from sqlalchemy import cast, func, select, text, update
 from sqlalchemy.dialects.postgresql import JSONB
 
-from app.contracts import ActionResult, ActivityRecord, Plan, ScheduledStep, Service
+from app.contracts import ActionResult, ActivityRecord, PendingClarification, Plan, ScheduledStep, Service
 from app.db.models import (
     ActivityRow,
     OutboxEventRow,
+    PendingClarificationRow,
     PlanRow,
     ScheduledStepRow,
     ServiceFlagRow,
@@ -226,6 +227,35 @@ class SqlStore:
         with session_scope() as session:
             return session.get(ServiceFlagRow, (service_id, flag)) is not None
 
+    # ---- resumable clarification ----
+
+    def save_clarification(self, clarification: PendingClarification) -> None:
+        with session_scope() as session:
+            row = session.get(PendingClarificationRow, clarification.conversation_id)
+            values = {
+                "account_id": clarification.account_id,
+                "person_id": clarification.person_id,
+                "space_id": clarification.space_id,
+                "expires_at": clarification.expires_at,
+                "payload": clarification.model_dump(mode="json"),
+            }
+            if row is None:
+                session.add(PendingClarificationRow(conversation_id=clarification.conversation_id, **values))
+            else:
+                for key, value in values.items():
+                    setattr(row, key, value)
+
+    def get_clarification(self, conversation_id: str) -> Optional[PendingClarification]:
+        with session_scope() as session:
+            row = session.get(PendingClarificationRow, conversation_id)
+            return PendingClarification.model_validate(row.payload) if row else None
+
+    def delete_clarification(self, conversation_id: str) -> None:
+        with session_scope() as session:
+            row = session.get(PendingClarificationRow, conversation_id)
+            if row is not None:
+                session.delete(row)
+
     # ---- activity ----
 
     def append_activity(self, record: ActivityRecord) -> None:
@@ -260,6 +290,7 @@ class SqlStore:
             session.query(PlanRow).delete()
             session.query(ServiceRow).delete()
             session.query(ActivityRow).delete()
+            session.query(PendingClarificationRow).delete()
             session.query(OutboxEventRow).delete()
             # Epochs only ever move forward, so requests still in flight stay invalid.
             for space_id in space_ids:
@@ -278,4 +309,23 @@ class SqlStore:
                 "plans": session.scalar(select(func.count()).select_from(PlanRow)) or 0,
                 "services": session.scalar(select(func.count()).select_from(ServiceRow)) or 0,
                 "activity": session.scalar(select(func.count()).select_from(ActivityRow)) or 0,
+                "clarifications": session.scalar(select(func.count()).select_from(PendingClarificationRow)) or 0,
+            }
+
+    def startup_reconcile(self) -> dict[str, int]:
+        """Resolve process-local work left behind by a crash without replaying an uncertain device action."""
+        with session_scope() as session:
+            active = session.scalar(select(func.count()).select_from(ServiceRow).where(ServiceRow.status == "active")) or 0
+            flags = session.scalar(select(func.count()).select_from(ServiceFlagRow)) or 0
+            running = session.scalars(
+                select(ScheduledStepRow).where(ScheduledStepRow.status == "running").with_for_update()
+            ).all()
+            for row in running:
+                row.status = "cancelled"
+                row.payload = {**row.payload, "status": "cancelled"}
+            session.query(ServiceFlagRow).delete()
+            return {
+                "active_services": int(active),
+                "cancelled_unknown_steps": len(running),
+                "cleared_inflight_flags": int(flags),
             }

@@ -188,6 +188,30 @@ def test_rule_mode_never_calls_provider():
     assert p["source"] == "model" and len(provider.calls) == 1
 
 
+def test_model_clarification_waits_for_followup_before_creating_a_plan():
+    needs_more = {
+        **GOOD,
+        "needs_clarification": True,
+        "clarification_question": "你希望几点起床？",
+    }
+    provider = FakeProvider(reply=json.dumps(needs_more, ensure_ascii=False))
+    client, _ = make(provider)
+    first = client.post(
+        "/api/assistant/messages",
+        json={"context": ctx(), "text": "我想早点休息", "mode": "model", "conversationId": "chat-1"},
+    ).json()
+    assert first["kind"] == "clarification" and first["plan"] is None
+    assert first["text"] == "你希望几点起床？"
+
+    provider.reply = json.dumps(GOOD, ensure_ascii=False)
+    second = client.post(
+        "/api/assistant/messages",
+        json={"context": ctx(), "text": "早上七点", "mode": "model", "conversationId": "chat-1"},
+    ).json()
+    assert second["kind"] == "plan" and second["plan"]["source"] == "model"
+    assert "用户补充：早上七点" in provider.calls[-1][1]
+
+
 # 7. model failure does not disturb stop / repeat-confirm / expiry semantics
 def test_model_failure_keeps_existing_semantics(clock):
     provider = FakeProvider(error=ProviderError("network", "无法连接模型服务：ConnectError"))

@@ -314,6 +314,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/system/recovery": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Recovery Status */
+        get: operations["getRecoveryStatus"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/health": {
         parameters: {
             query?: never;
@@ -373,7 +390,7 @@ export interface components {
              * Kind
              * @enum {string}
              */
-            kind: "plan_created" | "plan_fallback" | "event_received" | "event_ignored" | "service_adjusted" | "plan_confirmed" | "plan_confirm_repeated" | "plan_rejected" | "action_executed" | "action_rejected" | "service_stopped" | "memory_updated" | "energy_mode_changed" | "demo_reset" | "clock_advanced" | "schedule_step_executed" | "schedule_cancelled" | "service_completed" | "service_failed";
+            kind: "plan_created" | "plan_fallback" | "event_received" | "event_ignored" | "service_adjusted" | "plan_confirmed" | "plan_confirm_repeated" | "plan_rejected" | "action_executed" | "action_rejected" | "service_stopped" | "memory_updated" | "energy_mode_changed" | "demo_reset" | "clock_advanced" | "schedule_step_executed" | "schedule_cancelled" | "service_completed" | "service_failed" | "clarification_requested" | "clarification_resolved" | "clarification_cancelled";
             /** Message */
             message: string;
             /** Personid */
@@ -453,6 +470,11 @@ export interface components {
         /** AssistantMessageRequest */
         AssistantMessageRequest: {
             context: components["schemas"]["RequestContext"];
+            /**
+             * Conversationid
+             * @description Stable id for resuming a pending clarification; scoped again by account/person/space
+             */
+            conversationId?: string | null;
             /** Mode */
             mode?: ("rule" | "model") | null;
             /** Text */
@@ -462,16 +484,19 @@ export interface components {
         };
         /** AssistantReply */
         AssistantReply: {
+            clarification?: components["schemas"]["PendingClarification"] | null;
+            /** Conversationid */
+            conversationId?: string | null;
             /**
              * Intent
              * @enum {string}
              */
-            intent: "rest" | "device_command" | "status" | "other";
+            intent: "rest" | "device_command" | "status" | "other" | "clarification";
             /**
              * Kind
              * @enum {string}
              */
-            kind: "plan" | "answer";
+            kind: "plan" | "answer" | "clarification";
             plan: components["schemas"]["Plan"] | null;
             /** Text */
             text: string;
@@ -806,6 +831,41 @@ export interface components {
              */
             source: "provided_precomputed_offline_simulation";
         };
+        /**
+         * PendingClarification
+         * @description A resumable question in one person/space conversation.
+         */
+        PendingClarification: {
+            /** Accountid */
+            accountId: string;
+            /** Clarificationid */
+            clarificationId: string;
+            /** Conversationid */
+            conversationId: string;
+            /**
+             * Createdat
+             * Format: date-time
+             */
+            createdAt: string;
+            /**
+             * Expiresat
+             * Format: date-time
+             */
+            expiresAt: string;
+            /** Originaltext */
+            originalText: string;
+            /** Personid */
+            personId: string;
+            /** Question */
+            question: string;
+            /** Spaceid */
+            spaceId: string;
+            /**
+             * Targetintent
+             * @enum {string}
+             */
+            targetIntent: "rest" | "device_command";
+        };
         /** Person */
         Person: {
             /**
@@ -944,6 +1004,32 @@ export interface components {
             provider: string | null;
             /** Timeoutms */
             timeoutMs: number;
+        };
+        /**
+         * RecoveryStatus
+         * @description Result of the startup reconciliation; observable evidence, not a claim of exact device recovery.
+         */
+        RecoveryStatus: {
+            /** Activeservices */
+            activeServices: number;
+            /** Cancelledunknownsteps */
+            cancelledUnknownSteps: number;
+            /**
+             * Checkedat
+             * Format: date-time
+             */
+            checkedAt: string;
+            /** Clearedinflightflags */
+            clearedInflightFlags: number;
+            /** Devicestatereconciled */
+            deviceStateReconciled: boolean;
+            /** Note */
+            note: string;
+            /**
+             * Store
+             * @enum {string}
+             */
+            store: "memory" | "postgresql";
         };
         /**
          * RequestContext
@@ -2326,6 +2412,73 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["EventResult"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    getRecoveryStatus: {
+        parameters: {
+            query: {
+                accountId: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RecoveryStatus"];
                 };
             };
             /** @description Forbidden */

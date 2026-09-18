@@ -52,4 +52,7 @@ export const ACTIVITY_KIND_LABEL: Record<ActivityKind, string> = {
   schedule_cancelled: '步骤取消',
   service_completed: '服务完成',
   service_failed: '服务失败',
+  clarification_requested: '请求澄清',
+  clarification_resolved: '继续请求',
+  clarification_cancelled: '取消请求',
 };

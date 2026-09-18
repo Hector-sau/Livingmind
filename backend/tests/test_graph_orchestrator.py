@@ -44,8 +44,10 @@ def test_both_paths_answer_the_same_for_commands_and_questions():
     for text in ("把空调调到24度", "关灯", "卧室现在几度", "今天股市怎么样", "把那个弄一下"):
         legacy = RestService(clock=FakeClock())
         graph = _graph_service(FakeClock())
-        a = legacy.handle_message(_ctx(), text)
-        b = graph.handle_message(_ctx(), text)
+        # Separate conversations: in SQL mode both service instances intentionally share
+        # pending clarification state.
+        a = legacy.handle_message(_ctx(), text, conversation_id=f"legacy:{text}")
+        b = graph.handle_message(_ctx(), text, conversation_id=f"graph:{text}")
         assert (a.kind, a.intent, a.text) == (b.kind, b.intent, b.text)
         assert [s.agent for s in a.trace] == [s.agent for s in b.trace]
         if a.plan is not None:

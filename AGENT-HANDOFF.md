@@ -45,9 +45,10 @@
 | T4 Redis 协调 | 空间执行锁（随机 token + 30 秒 TTL + Lua 校验释放）、事件冷却快速判断；未配置或连不上自动退化 | 唯一持有者、别人的锁不误删、TTL、第二实例收到 `SPACE_BUSY`、删掉冷却键也绕不过规则、Redis 连不上主流程照常 |
 | T5 Outbox 与事件总线 | 事件信封；业务事实与 outbox 同事务；publisher（SKIP LOCKED / 重试 / 死信不删）；consumer（`consumer_receipts` 去重 → `service_projection`）；总线默认是 PostgreSQL 表 | `tests/test_outbox_events.py`：同事务提交、回滚不留事件、至少一次且不重复、总线停摆不挡设备、重复投递靠回执保护、同空间保序 |
 | T6 本地集成冻结 | Compose 全栈、Worker 投递消费、迁移升降、三套后端 matrix、Docker API E2E、证据表和最终文档 | 127/141/145 后端组合；Outbox 7/7；Worker 重启无重复；Playwright 20/20；契约无 diff；PDF 逐页检查 |
+| E 一致性与可恢复性专项 | 文档口径校正；意图路由识别否定/设备冲突/指代不清；可恢复的多轮澄清（`conversationId` + `PendingClarification` 落库，账户/人物/空间/会话四重隔离，10 分钟过期，可取消）；启动恢复语义明确化并可查询（`GET /api/system/recovery`，结果未知的 `running` 步骤取消而非重放）；设备 V2 / 语音 / 传感器事件协议补齐为可实现接口 | 后端 136/19、150/5、154/1 三套组合；迁移 0003↔0004 升降级；`tests/test_recovery.py`、`tests/test_adapter_protocols.py`、`tests/test_agents.py` 澄清用例；前端 32/32；契约无 diff；端到端 20/20 |
 | 文档 | 本交接文档、README、architecture、acceptance、status、ui-polish；产品界面方向（第 12 节） | `587d7aa`、`8525718`、`c58a29f` |
 
-检查基线（数量以`docs/status.md`为准）：默认后端127通过/18跳过；PostgreSQL+legacy 141通过/4跳过；PostgreSQL+Redis+LangGraph 145通过；前端31项+类型检查；Legacy/LangGraph 5组等价；Docker API网页端到端20/20；契约无diff。Compose两个Worker常驻验证已完成。GitHub Actions 托管 CI 运行 `35333253707` 的 6 个 Job 全部通过。尚未执行：真机安装；iOS/Android JS与Hermes导出成功。
+检查基线（数量以 `docs/status.md` 为准，下列为 E 专项后的最新值）：内存+legacy 136 通过 / 19 跳过；PostgreSQL+legacy 150 通过 / 5 跳过；PostgreSQL+Redis+LangGraph 154 通过 / 1 跳过；前端 32 项 + 类型检查；Legacy/LangGraph 5 组等价；网页端到端 20/20；契约重新生成无 diff；Alembic 0003↔0004 升降级通过。Compose 两个 Worker 常驻验证已完成。GitHub Actions 托管 CI 运行 `35333253707` 的 6 个 Job 全部通过（对应 `main@197037a`；E 专项提交后需重新观察一次 CI）。尚未执行：真机安装；iOS/Android JS 与 Hermes 导出成功。
 
 ### 0.3 当前状态与外部待办
 
@@ -68,6 +69,8 @@
 | D 演示打包 | **云端部分已完成** | 网页版录屏 3 段、主张证据表（`docs/evidence.md`）、开发版配置与安装说明（`docs/device-build.md`）；EAS 构建与平板录屏待设备 |
 | P07 能源仿真证据 | **已迁入（离线展示）** | `simulation/home-energy/` 保存给定研究快照、结果与溯源；App 通过只读 API 展示固定日结果，不重训、不重新评估、不参与控制 |
 | GitHub 远程与 CI 实跑 | **已完成** | `origin=https://github.com/Hector-sau/Livingmind.git`；运行 `35333253707` 为 6/6 通过 |
+| E 一致性与可恢复性专项 | **已完成（代码 + 测试 + 文档）** | 只做口径校正、意图路由、澄清闭环、恢复语义与接口补齐；未接入任何真实硬件，未新增技术栈 |
+| 多实例与真实部署 / 真实调度器 / 真实设备语音传感器接入 | 明确不做（待用户授权） | 锁续租或 fencing token、设备网关拒绝过期代次、可恢复调度器的时区与漏触发验证；Redis 续租不能单独证明真实设备执行安全 |
 
 ### 0.4 评审时最该核对的五个点
 
@@ -174,6 +177,7 @@ Expo App：对话 / 空间 / 场景 / 我的（计划来源开关：规则 / 模
 | ⑦ 整晚服务 | 整晚安排规则、模拟时钟推进、单次执行、停止取消、服务完成；App 快进与自动播放、整晚时间线 | `backend/app/rules/night_rule.py`、`agents/space_execution/agent.py::night_schedule`、`services/rest_service.py::advance_clock`；`apps/mobile/features/night/` |
 | ⑨ 演示打磨 | 准备演示按钮、协作说明卡、提示淡出、空态、演示讲稿 | `apps/mobile/features/shell/AppShell.tsx`、`notices.ts`、`features/scenes/ScenesScreen.tsx`、`components/EmptyState.tsx`、`docs/demo-script.md` |
 | ⑥ 一次事件调整 | 事件接口、检查顺序、调整规则、模型调整、App 注入按钮 | `services/rest_service.py::inject_event`、`rules/rest_rule.py::adjustment_rule`、`services/planner.py::plan_adjustment`、`apps/mobile/features/rest/ServiceCard.tsx` |
+| E 一致性与可恢复性 | 意图路由的否定/冲突/指代不清分支；可恢复澄清（`conversationId`、待澄清落库、过期、取消、人物隔离）；启动恢复与 `GET /api/system/recovery`；`DeviceGateway` / `VoiceGateway` / `EnvironmentEventAdapter` 协议 | `agents/orchestrator/agent.py::route_intent`、`contracts/models.py::PendingClarification`、`repositories/store.py`、`sql_store.py`、`alembic/versions/0004_pending_clarifications.py`、`services/rest_service.py::recovery_status`、`adapters/protocol.py|voice.py|events.py` |
 
 当前 Git 提交按步骤拆分：
 
@@ -208,15 +212,21 @@ e8ffb61 feat: step 3 clickable rest-flow prototype with front-end mock
 - 演示 PIN 只防误切换：不签发令牌，后续请求不据此授权，任何接口都不返回 PIN。访客使用空间默认设置。
 - 设备指令确认后执行，不创建休息服务；停止服务会让未确认的设备指令失效。
 - 共享列表不含任何人的偏好；能源“舒适优先”只建议，“节能模式”才在舒适范围内改设定。
+- 否定、设备冲突与指代不清的请求先澄清：不生成计划，也不生成设备动作。待澄清状态按账户、人物、空间与 `conversationId` 四重隔离，10 分钟过期，可显式取消；补充信息后按原意图继续。换人物不会读到别人的待澄清。
+- 启动恢复的语义是明确的：清理崩溃遗留的执行中标记；把结果未知的 `running` 步骤**取消**而不是重放（已发出但结果不明的动作不重复下发）；虚拟设备状态不跨进程恢复，`deviceStateReconciled` 因此为 `false`。`GET /api/system/recovery` 把这些结果如实暴露。
+- 真实设备接入走 `DeviceGateway`（`deviceId`、幂等 `actionId`、`serviceEpoch`、accepted/completed/rejected/unknown 四态回执、错误类型、观测时间与观测值），不是扩展 `DeviceAdapter`；所有请求仍进 Harness / Executor。
+- 语音的可信身份由应用层解析（说话人 → `accountId`/`personId`/`spaceId` 授权），不能由转写文本自称；转写进入的是同一条 assistant-message 入口。
+- 真实传感器事件走 `EnvironmentEventAdapter`（事件 ID、去重键、来源、采集时间），与演示用的 `POST /api/spaces/{id}/events` 是两个入口，后者永远标注 `simulated`。
 
 主要接口：
 
 ```text
 GET  /health
 GET  /api/bootstrap
+GET  /api/system/recovery              # 启动恢复结果：存储类型、活跃服务、被取消的未知步骤、清理的标记
 GET  /api/scenes                        # 场景库（状态如实）
 GET  /api/spaces/{spaceId}/energy/simulation  # 给定的固定日离线仿真证据；只读、不参与设备控制
-POST /api/assistant/messages            # 主 Agent 入口：计划或回答（附协作轨迹）
+POST /api/assistant/messages            # 主 Agent 入口：计划 / 回答 / 澄清（附协作轨迹）；可带 conversationId 续上一次澄清
 GET  /api/memory                        # 本人偏好 + 空间规则
 PUT  /api/memory/preference             # 编辑本人偏好（访客不可）
 PUT  /api/spaces/{spaceId}/energy-mode  # 舒适优先 / 节能模式
@@ -284,13 +294,16 @@ git status --short
 - 尚未在 iPad、Android 平板、手机真机或 iOS 模拟器运行；网页预览不能替代真机验收。
 - GitHub Actions 已真实运行；`main@197037a` 对应运行 `35333253707` 的 6 个 Job 全部通过，包括 Docker API 浏览器端到端 20/20。
 - 规则模式下用户文字只记录，固定规则不会理解任意自然语言；模型模式已验证一次真实调用（见下）。
-- 没有真实身份认证、持久化数据库、WebSocket、语音、睡眠传感器或厂商设备。
+- 没有真实身份认证、WebSocket、语音、睡眠传感器或厂商设备。持久化数据库已有（PostgreSQL，可选开启）；语音、设备 V2 与传感器事件只到协议层。
 - 前端 Mock 和后端内存数据互不共享；切换模式应视为不同演示环境。
 - 停止不会把灯光、温度、窗帘恢复到执行前状态，这是当前明确语义。
 - 计划确认即标 `executed`（已采纳），真实结果看 `results`；同一账户下任何人物都能停止服务（有意设计）。详见 `docs/architecture.md` 关键规则 10–14。
 - 模型计划偏离本人偏好超过上限（灯光/窗帘 ±40、空调 ±3°C）会被后端拒绝并降级为规则。
 - 网页端到端的模型路径连的是本地桩 `apps/mobile/e2e/fake_deepseek.py`，不是 DeepSeek；CI 目前不跑端到端。
 - 事件没有真实传感器：室温由 App 按钮（当前设定 +3°C）或 API 直接给出，界面与记录都标“模拟事件”。
+- 多 API 实例控制真实设备未做：Redis 锁保证同一时刻只有一个实例驱动某空间，但**不能**证明真实设备恰好执行一次；真实接入前需要锁续租或 fencing token，并由设备网关拒绝过期 `serviceEpoch`。
+- 澄清只覆盖规则可判定的三类歧义（否定、设备冲突、指代不清），不是通用多轮对话；模型也可以给出澄清问题，但不改变“先确认后执行”的边界。
+- 启动恢复只恢复数据库里的业务事实。虚拟设备状态在进程内存里，重启后不对齐；真实硬件的回读恢复未做。
 - 语音按钮是占位。Logo 为 PNG（来自旧 PPT 品牌目录，用户已同意使用），正式发布前需 SVG 母版与商标检索。
 - 对话记录只在前端内存，刷新即清空。
 - 主 Agent 路由与指令解析是规则；能源负荷是规则估算；室外温度与电价时段是模拟值（`LIVINGMIND_DEMO_LOCAL_HOUR` 可固定演示时段）。
@@ -340,9 +353,18 @@ git status --short
 
 不能因为建立了目录或类名，就宣称相应 Agent 已经实现。功能声明必须对应真实调用轨迹和测试。
 
-## 9. T6 已完成：下一位 AI 的接手边界
+## 9. T6 + E 已完成：下一位 AI 的接手边界
 
-T1–T6 本地工程化冻结已完成。下一位 AI 首先读 `docs/status.md`和`docs/technology-architecture.md`，不要重做基础设施，也不要继续增加技术栈。
+T1–T6 本地工程化冻结与 E 一致性可恢复性专项均已完成。下一位 AI 首先读 `docs/status.md`（尤其 E 专项一节）、`docs/agent-engineering-review.md` 和 `docs/technology-architecture.md`，不要重做基础设施，也不要继续增加技术栈。
+
+**三档口径必须分开说**：
+
+| 口径 | 含义 | 本仓库的例子 |
+|---|---|---|
+| 已实现并验证 | 有代码、有测试、有本轮实跑结果 | 休息闭环、整晚服务、事件调整、澄清闭环、启动恢复、PostgreSQL、LangGraph、Redis、Outbox、Docker、CI |
+| 接口预留 | 只有协议和契约替身测试，没有对端 | `DeviceGateway`、`VoiceGateway`、`EnvironmentEventAdapter`、`EventPublisher` 的 Kafka 实现 |
+| 仍待下一位执行 | 需要用户授权或外部条件 | 真机验收、DeepSeek 多样本指标、多实例与真实部署、真实调度器、真实设备/语音/传感器联调 |
+
 
 ### 9.1 本地冻结证据
 
@@ -350,11 +372,12 @@ T1–T6 本地工程化冻结已完成。下一位 AI 首先读 `docs/status.md`
 |---|---|
 | Compose 全栈 | PostgreSQL、Redis、migration、API、Outbox Publisher、Activity Projector 一次启动，API healthy |
 | Worker 链路 | 7/7 Outbox 发布与消费；Worker 重启后 `domain_events` 与 `consumer_receipts` 数量不变 |
-| 数据库迁移 | 空库 0001→0003；0003→0002→0003 回退再恢复通过 |
-| 后端组合 | 内存+legacy 127/18 skip；PostgreSQL+legacy 141/4 skip；PostgreSQL+Redis+LangGraph 145/145 |
+| 数据库迁移 | 空库 0001→0004；0003→0002→0003 与 0004→0003→0004 回退再升级均通过 |
+| 后端组合（E 专项后复跑） | 内存+legacy 136/19 skip；PostgreSQL+legacy 150/5 skip；PostgreSQL+Redis+LangGraph 154/1 skip |
 | Agent 等价 | Legacy / LangGraph 5 组输入全部等价 |
-| 前端与契约 | 前端 31/31 + 类型检查；OpenAPI → TS 重新生成无 diff |
+| 前端与契约 | 前端 32/32 + 类型检查（含 tests 子项目）；OpenAPI → TS 重新生成与仓库内容逐字节一致 |
 | Docker API E2E | Playwright 20/20；含整晚、模型桩、停止竞态与断开后端 |
+| E 专项 | 澄清路由与恢复用例、`tests/test_recovery.py`、`tests/test_adapter_protocols.py` 全部通过；Legacy/LangGraph 5 组仍等价 |
 | 证据表 | `docs/evidence.md` 与 `output/pdf/LivingMind-主张证据表.pdf`；5 页逐页渲染检查 |
 
 ### 9.2 外部状态与剩余验收
@@ -364,6 +387,9 @@ T1–T6 本地工程化冻结已完成。下一位 AI 首先读 `docs/status.md`
 3. **可选指标**：DeepSeek 多次延迟统计按 `docs/project-metrics.md` 执行；当前仍只有 2035 ms 单次真实样本，不得虚构提升比例。
 4. **能源口径**：用户已确认以给定固定日数据为准，不重训、不复现 MATD3；只标注“已提供的离线仿真结果”。
 5. **旧 HTML**：已不是新 Expo 项目完成的前置；只在用户再提供具体旧页面并要求对照时处理。
+6. **多实例与真实部署（明确不做，待授权）**：锁续租或 fencing token，并让设备网关拒绝过期 `serviceEpoch`。注意：Redis 续租只能证明“同一时刻只有一个实例在驱动空间”，**不能**单独证明真实设备的执行安全，必须由设备网关侧的代次校验兜底。
+7. **真实后台调度器（明确不做，待授权）**：把模拟时钟换成可恢复调度器，并验证时区、漏触发与重复触发。
+8. **真实设备 / 语音 / 传感器联调（明确不做，待授权）**：实现 `DeviceGateway`、`VoiceGateway`、`EnvironmentEventAdapter`，验证异步回执、重复 `actionId`、过期 `serviceEpoch`、状态回读；真实语音上线前先定义说话人到 `accountId/personId/spaceId` 的授权规则。
 
 ### 9.3 复现入口
 
@@ -376,7 +402,7 @@ python scripts/build_evidence.py --pdf
 docker compose down
 ```
 
-不写 Kafka 实现，不把设备状态放 Redis，不让 LangGraph 绕过 Harness / Executor，不把本地 CI 配置描述成 GitHub 已运行。
+不写 Kafka 实现，不把设备状态放 Redis，不让 LangGraph 绕过 Harness / Executor，不把本地 CI 配置描述成 GitHub 已运行，不把接口预留描述成已接入，不在真实回读对齐前把 `deviceStateReconciled` 改成 `true`。
 
 ## 10. 禁止事项
 
@@ -404,7 +430,7 @@ docker compose down
 
 可直接给下一位 AI 的指令：
 
-> 请先阅读仓库根目录 `AGENT-HANDOFF.md`（尤其第 0.2、0.3、9 节），再依次阅读 `docs/technology-architecture.md`、`docs/status.md`、`README.md`、`docs/project-metrics.md`、`docs/acceptance.md` 与 `docs/architecture.md`。保留现有实现和提交历史。T1–T6、本地验证及 GitHub 托管 CI 均已完成，不要重复搭建基础设施，也不要新增 Kafka、重构 Agent/Harness/Executor、复现或重训 MATD3。下一步只在用户明确授权后选择一项执行：①依据 `docs/device-build.md` 做 iPad/Android 真机验收；②按用户要求运行 DeepSeek 多样本指标评测；③后续提交若导致 CI 失败，只修复对应回归。描述能力时遵守第 0.4 节与 `docs/project-metrics.md` 的如实口径；真实设备接入、真机安装和多样本模型指标在实际完成前必须标为未验证。不要自行部署或扩大业务范围。
+> 请先阅读仓库根目录 `AGENT-HANDOFF.md`（尤其第 0.2、0.3、9 节），再依次阅读 `docs/status.md`（含“E 一致性与可恢复性专项”一节）、`docs/agent-engineering-review.md`、`docs/technology-architecture.md`、`README.md`、`docs/project-metrics.md`、`docs/acceptance.md` 与 `docs/architecture.md`。保留现有实现和提交历史。T1–T6、E 专项、本地验证及 GitHub 托管 CI 均已完成，不要重复搭建基础设施，不要新增 Kafka，不要重构 Agent/Harness/Executor，不要复现或重训 MATD3，也不要把已有的接口预留改写成“已接入”。描述能力时必须区分三档：已实现并验证 / 接口预留 / 仍待执行（对照第 9 节的表）。下一步只在用户明确授权后选择一项执行：①依据 `docs/device-build.md` 做 iPad/Android 真机验收；②按 `docs/project-metrics.md` 运行 DeepSeek 多样本指标评测；③多实例与真实部署（锁续租或 fencing token + 设备网关拒绝过期代次）；④真实后台调度器（时区、漏触发、重复触发）；⑤实现 `DeviceGateway`/`VoiceGateway`/`EnvironmentEventAdapter` 并联调；⑥后续提交若导致 CI 失败，只修复对应回归。真实设备接入、真机安装、真实语音与传感器、多样本模型指标在实际完成前一律标为未验证。不要自行部署或扩大业务范围。
 
 ## 12. 产品界面方向（用户已确认，2026-09-17）
 

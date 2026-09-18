@@ -5,19 +5,31 @@
 import type { DeviceAction, DeviceState, EnergyAdvice, EnergyMode, RestPreference, ScheduledStep } from '../types';
 import { DEEP_NIGHT_AC_RAISE_C, NIGHT_START_LOCAL, WAKE_LIGHT_MAX } from './seed';
 
-export type Intent = 'rest' | 'device_command' | 'status' | 'other';
+export type Intent = 'rest' | 'device_command' | 'status' | 'other' | 'clarification';
 
 const REST = /休息|睡|躺|困|累|午睡|歇|放松|安静/;
 const DEVICE = /灯|空调|窗帘/;
 const ACTION = /开|关|调|设|拉|合|到/;
 const STATUS = /现在|状态|多少|几度|怎么样了|情况/;
+const NEGATED_REST = /(?:不想|不要|不用|别).{0,4}(?:休息|睡|躺|午睡|歇)/;
+const VAGUE_ACTION = /(?:那个|这个|它).{0,5}(?:调|开|关|弄)|(?:调高|调低|大一点|小一点|亮一点|暗一点)$/;
 
 export function routeIntent(text: string): Intent {
   const t = text.replace(/\s/g, '');
-  if (REST.test(t)) return 'rest';
-  if (DEVICE.test(t) && ACTION.test(t)) return 'device_command';
+  const explicitDeviceAction = DEVICE.test(t) && ACTION.test(t);
+  if (/灯/.test(t) && (/开灯.*关灯/.test(t) || /关灯.*开灯/.test(t))) return 'clarification';
+  if (explicitDeviceAction && NEGATED_REST.test(t)) return 'device_command';
+  if (REST.test(t) && !NEGATED_REST.test(t)) return 'rest';
+  if (explicitDeviceAction) return 'device_command';
   if (STATUS.test(t) && (DEVICE.test(t) || /房间|卧室|温度/.test(t))) return 'status';
+  if (VAGUE_ACTION.test(t)) return 'clarification';
   return 'other';
+}
+
+export function clarificationQuestion(text: string): string {
+  const t = text.replace(/\s/g, '');
+  if (/灯/.test(t) && (/开灯.*关灯/.test(t) || /关灯.*开灯/.test(t))) return '你希望灯最终打开还是关闭？';
+  return '请说明要调整灯、空调还是窗帘，并告诉我目标值，例如“灯调到 20%”。';
 }
 
 export const INTENT_LABEL: Record<Intent, string> = {
@@ -25,6 +37,7 @@ export const INTENT_LABEL: Record<Intent, string> = {
   device_command: '设备指令',
   status: '状态查询',
   other: '其他话题',
+  clarification: '需要澄清',
 };
 
 const CN: Record<string, number> = { 二: 2, 两: 2, 三: 3, 四: 4, 五: 5, 六: 6, 七: 7, 八: 8, 九: 9, 一: 1 };

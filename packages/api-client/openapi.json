@@ -111,7 +111,10 @@
               "schedule_step_executed",
               "schedule_cancelled",
               "service_completed",
-              "service_failed"
+              "service_failed",
+              "clarification_requested",
+              "clarification_resolved",
+              "clarification_cancelled"
             ],
             "title": "Kind",
             "type": "string"
@@ -339,6 +342,20 @@
           "context": {
             "$ref": "#/components/schemas/RequestContext"
           },
+          "conversationId": {
+            "anyOf": [
+              {
+                "maxLength": 120,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Stable id for resuming a pending clarification; scoped again by account/person/space",
+            "title": "Conversationid"
+          },
           "mode": {
             "anyOf": [
               {
@@ -386,12 +403,34 @@
       },
       "AssistantReply": {
         "properties": {
+          "clarification": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PendingClarification"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "conversationId": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Conversationid"
+          },
           "intent": {
             "enum": [
               "rest",
               "device_command",
               "status",
-              "other"
+              "other",
+              "clarification"
             ],
             "title": "Intent",
             "type": "string"
@@ -399,7 +438,8 @@
           "kind": {
             "enum": [
               "plan",
-              "answer"
+              "answer",
+              "clarification"
             ],
             "title": "Kind",
             "type": "string"
@@ -1239,6 +1279,71 @@
         "title": "OfflineEnergySimulation",
         "type": "object"
       },
+      "PendingClarification": {
+        "description": "A resumable question in one person/space conversation.",
+        "properties": {
+          "accountId": {
+            "title": "Accountid",
+            "type": "string"
+          },
+          "clarificationId": {
+            "title": "Clarificationid",
+            "type": "string"
+          },
+          "conversationId": {
+            "title": "Conversationid",
+            "type": "string"
+          },
+          "createdAt": {
+            "format": "date-time",
+            "title": "Createdat",
+            "type": "string"
+          },
+          "expiresAt": {
+            "format": "date-time",
+            "title": "Expiresat",
+            "type": "string"
+          },
+          "originalText": {
+            "title": "Originaltext",
+            "type": "string"
+          },
+          "personId": {
+            "title": "Personid",
+            "type": "string"
+          },
+          "question": {
+            "title": "Question",
+            "type": "string"
+          },
+          "spaceId": {
+            "title": "Spaceid",
+            "type": "string"
+          },
+          "targetIntent": {
+            "enum": [
+              "rest",
+              "device_command"
+            ],
+            "title": "Targetintent",
+            "type": "string"
+          }
+        },
+        "required": [
+          "clarificationId",
+          "conversationId",
+          "accountId",
+          "personId",
+          "spaceId",
+          "originalText",
+          "question",
+          "targetIntent",
+          "createdAt",
+          "expiresAt"
+        ],
+        "title": "PendingClarification",
+        "type": "object"
+      },
       "Person": {
         "properties": {
           "avatarColor": {
@@ -1562,6 +1667,55 @@
           "timeoutMs"
         ],
         "title": "PlannerInfo",
+        "type": "object"
+      },
+      "RecoveryStatus": {
+        "description": "Result of the startup reconciliation; observable evidence, not a claim of exact device recovery.",
+        "properties": {
+          "activeServices": {
+            "title": "Activeservices",
+            "type": "integer"
+          },
+          "cancelledUnknownSteps": {
+            "title": "Cancelledunknownsteps",
+            "type": "integer"
+          },
+          "checkedAt": {
+            "format": "date-time",
+            "title": "Checkedat",
+            "type": "string"
+          },
+          "clearedInflightFlags": {
+            "title": "Clearedinflightflags",
+            "type": "integer"
+          },
+          "deviceStateReconciled": {
+            "title": "Devicestatereconciled",
+            "type": "boolean"
+          },
+          "note": {
+            "title": "Note",
+            "type": "string"
+          },
+          "store": {
+            "enum": [
+              "memory",
+              "postgresql"
+            ],
+            "title": "Store",
+            "type": "string"
+          }
+        },
+        "required": [
+          "store",
+          "activeServices",
+          "cancelledUnknownSteps",
+          "clearedInflightFlags",
+          "deviceStateReconciled",
+          "checkedAt",
+          "note"
+        ],
+        "title": "RecoveryStatus",
         "type": "object"
       },
       "RequestContext": {
@@ -3613,6 +3767,88 @@
         "summary": "Inject Event",
         "tags": [
           "events"
+        ]
+      }
+    },
+    "/api/system/recovery": {
+      "get": {
+        "operationId": "getRecoveryStatus",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "accountId",
+            "required": true,
+            "schema": {
+              "title": "Accountid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RecoveryStatus"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          }
+        },
+        "summary": "Get Recovery Status",
+        "tags": [
+          "system"
         ]
       }
     },

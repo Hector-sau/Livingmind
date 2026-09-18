@@ -19,7 +19,7 @@ import itertools
 from dataclasses import dataclass, field
 from typing import Optional, Protocol
 
-from app.contracts import ActionResult, ActivityRecord, Plan, ScheduledStep, Service
+from app.contracts import ActionResult, ActivityRecord, PendingClarification, Plan, ScheduledStep, Service
 from app.events.envelope import Envelope
 
 # Flags for work in flight on one service. They are process/transaction level, not user data.
@@ -74,6 +74,13 @@ class Store(Protocol):
 
     def has_flag(self, service_id: str, flag: str) -> bool: ...
 
+    # ---- resumable clarification ----
+    def save_clarification(self, clarification: PendingClarification) -> None: ...
+
+    def get_clarification(self, conversation_id: str) -> Optional[PendingClarification]: ...
+
+    def delete_clarification(self, conversation_id: str) -> None: ...
+
     # ---- activity ----
     def append_activity(self, record: ActivityRecord) -> None: ...
 
@@ -84,6 +91,8 @@ class Store(Protocol):
         ...
 
     def clear(self) -> None: ...
+
+    def startup_reconcile(self) -> dict[str, int]: ...
 
 
 def _copy_service(service: Service) -> Service:
@@ -99,6 +108,7 @@ class MemoryStore:
         self._activity: list[ActivityRecord] = []
         self._epochs: dict[str, int] = {}
         self._flags: set[tuple[str, str]] = set()
+        self._clarifications: dict[str, PendingClarification] = {}
         self._events: list[Envelope] = []
         self._counter = itertools.count(1)
 
@@ -189,6 +199,16 @@ class MemoryStore:
     def has_flag(self, service_id: str, flag: str) -> bool:
         return (service_id, flag) in self._flags
 
+    def save_clarification(self, clarification: PendingClarification) -> None:
+        self._clarifications[clarification.conversation_id] = clarification.model_copy(deep=True)
+
+    def get_clarification(self, conversation_id: str) -> Optional[PendingClarification]:
+        item = self._clarifications.get(conversation_id)
+        return item.model_copy(deep=True) if item else None
+
+    def delete_clarification(self, conversation_id: str) -> None:
+        self._clarifications.pop(conversation_id, None)
+
     def append_activity(self, record: ActivityRecord) -> None:
         self._activity.append(record.model_copy(deep=True))
 
@@ -216,4 +236,8 @@ class MemoryStore:
         self._activity.clear()
         self._epochs = next_epochs
         self._flags.clear()
+        self._clarifications.clear()
         self._events.clear()
+
+    def startup_reconcile(self) -> dict[str, int]:
+        return {"active_services": 0, "cancelled_unknown_steps": 0, "cleared_inflight_flags": 0}

@@ -203,7 +203,13 @@ export function useRestFlow(api: LivingMindApi) {
       if (!ctx || !text.trim()) return NO_CONTEXT;
       patch({ busy: 'plan', error: null, info: null });
       try {
-        const reply = await api.sendMessage({ context: ctx, text: text.trim(), mode: stateRef.current.mode, wakeTime });
+        const reply = await api.sendMessage({
+          context: ctx,
+          text: text.trim(),
+          mode: stateRef.current.mode,
+          wakeTime,
+          conversationId: `${ctx.personId}:${ctx.spaceId}`,
+        });
         patch(reply.plan ? { plan: reply.plan, results: [], busy: null } : { busy: null });
         await loadActivity(ctx.spaceId);
         return { ok: true, value: reply };

@@ -77,7 +77,7 @@ def truncate_test_database() -> None:
         connection.execute(
             text(
                 "TRUNCATE plans, services, scheduled_steps, service_flags, "
-                "activity_records, space_state, person_preferences RESTART IDENTITY"
+                "activity_records, pending_clarifications, space_state, person_preferences RESTART IDENTITY"
             )
         )
         connection.execute(text("ALTER SEQUENCE livingmind_id_seq RESTART WITH 1"))

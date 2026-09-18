@@ -43,6 +43,7 @@ class ExperienceOutcome:
     source: PlanSource
     generation: PlanGeneration
     fallback_reason: Optional[str]
+    clarification_question: Optional[str] = None
 
 
 def _rule_generation(mode: PlannerMode, latency_ms: int, reason: Optional[str]) -> PlanGeneration:
@@ -125,7 +126,15 @@ class Planner:
         generation = PlanGeneration(
             mode_requested="model", provider=result.provider, model=result.model, latency_ms=latency, fallback_reason=None, goal=out.goal
         )
-        return ExperienceOutcome(settings, out.goal, notes, "model", generation, None)
+        return ExperienceOutcome(
+            settings,
+            out.goal,
+            notes,
+            "model",
+            generation,
+            None,
+            out.clarification_question if out.needs_clarification else None,
+        )
 
     def plan_adjustment(
         self, person: Person, room_temp_c: float, device_state: DeviceState, mode: PlannerMode

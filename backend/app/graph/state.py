@@ -32,6 +32,7 @@ class LivingMindState(TypedDict, total=False):
     intent: str
     person_context: Any  # PersonContext (dataclass of contract models)
     experience: Any  # ExperienceOutcome
+    clarification_question: Optional[str]
     energy_advice: Optional[EnergyAdvice]
     experience_target: Any  # RestPreference after the energy stage
     device_actions: list[Any]

@@ -24,6 +24,7 @@ from app.contracts import (
     EventResult,
     InjectEventRequest,
     Plan,
+    RecoveryStatus,
     ScenesResponse,
     StopServiceRequest,
     UnlockPersonRequest,
@@ -39,6 +40,11 @@ Svc = Depends(get_rest_service)
 @router.get("/bootstrap", response_model=BootstrapResponse, operation_id="getBootstrap", tags=["demo"])
 def get_bootstrap(account_id: str = Query(alias="accountId"), svc: RestService = Svc) -> BootstrapResponse:
     return svc.bootstrap(account_id)
+
+
+@router.get("/system/recovery", response_model=RecoveryStatus, operation_id="getRecoveryStatus", tags=["system"])
+def get_recovery_status(account_id: str = Query(alias="accountId"), svc: RestService = Svc) -> RecoveryStatus:
+    return svc.recovery_status(account_id)
 
 
 @router.post(
@@ -62,7 +68,13 @@ def get_device_state(space_id: str, account_id: str = Query(alias="accountId"), 
 @router.post("/assistant/messages", response_model=AssistantReply, operation_id="sendMessage", tags=["assistant"])
 def send_message(body: AssistantMessageRequest, svc: RestService = Svc) -> AssistantReply:
     """Main Agent entry: routes the message and returns a plan (to confirm) or a short answer."""
-    return svc.handle_message(body.context, body.text, body.mode, wake_time=body.wake_time or "07:00")
+    return svc.handle_message(
+        body.context,
+        body.text,
+        body.mode,
+        wake_time=body.wake_time or "07:00",
+        conversation_id=body.conversation_id,
+    )
 
 
 @router.get("/memory", response_model=MemoryView, operation_id="getMemory", tags=["memory"])

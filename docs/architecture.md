@@ -5,8 +5,11 @@
 ## 请求链路（⑧ 起）
 
 ```text
-App 对话 → POST /api/assistant/messages
-  → 主 Agent（agents/orchestrator）规则路由：休息请求 / 设备指令 / 状态查询 / 其他
+App 对话 → POST /api/assistant/messages（人物 + 空间稳定 conversationId）
+  → 主 Agent（agents/orchestrator）规则路由：休息请求 / 设备指令 / 状态查询 / 澄清 / 其他
+  歧义请求：
+    → 保存 PendingClarification（内存或 PostgreSQL，10 分钟）
+    → 下一句话按同一会话继续原请求；取消、过期、切人物均不会误执行
   休息请求（完整分支）：
     → 人物记忆（memory/）：只取本人偏好 + 空间规则
     → Experience Agent（services/planner.py + agents/experience/）：体验目标（规则或模型，失败降级，偏离上限）
@@ -56,9 +59,10 @@ App 页面 → services/api（http 实现）→ FastAPI 路由
 | `backend/app/harness/` | 统一执行器与检查规则 | 第一批最小版 |
 | `backend/app/services/` | 服务生命周期（active / stopped）、确认幂等、停止失效 | 第一批实现 |
 | `backend/app/adapters/virtual/` | 有状态虚拟灯光、空调、窗帘 | 第一批实现 |
-| `backend/app/adapters/protocol.py` | 真实 SpaceMind / 底座厂商适配器必须实现的最小设备接口；仍须通过 Harness | 接口预留，未接真实设备 |
-| `backend/app/adapters/voice.py` | 智能音箱 / 语音网关的转写输入接口；应复用同一 assistant-message 契约 | 接口预留，未接语音 |
-| `backend/app/repositories/` | 内存存储（重启重置） | 第一批实现 |
+| `backend/app/adapters/protocol.py` | V1 虚拟设备接口；V2 `DeviceGateway` 预留设备身份、动作 ID、服务代次、回执与错误类型 | V1 已用；V2 接口预留，未接真实设备 |
+| `backend/app/adapters/voice.py` | 智能音箱 / 语音网关的转写、来源、说话人/空间提示、播报与取消协议 | 接口预留，未接语音 |
+| `backend/app/adapters/events.py` | 真实传感器事件 ID、去重键、来源、空间与采集时间协议 | 接口预留，未接传感器 |
+| `backend/app/repositories/` | 内存 / PostgreSQL 两种业务事实存储；含待澄清状态 | 已实现 |
 | `backend/app/demo/` | 种子人物、空间、演示账户 | 第一批实现 |
 | `packages/api-client/` | 由 OpenAPI 生成的 TS 类型 | 第一批实现 |
 | `backend/app/agents/orchestrator/` | 主 Agent：规则路由、编排、协作轨迹（AgentStep）、事件调整编排 | ⑧ 实现 |
@@ -89,7 +93,7 @@ App 页面 → services/api（http 实现）→ FastAPI 路由
 6. 停止保持设备当前状态，不自动恢复。
 7. 计划 10 分钟后过期。
 8. 所有设备写入经过执行器：工具白名单 + 参数范围。
-9. 数据存在内存里，后端重启即重置；`POST /api/demo/reset` 可手动重置（会写一条 `demo_reset` 记录）。
+9. 默认内存模式重启即重置；配置 PostgreSQL 后，人物偏好、计划、服务、步骤、活动和待澄清状态可恢复。`POST /api/demo/reset` 可手动重置。
 10. 计划一经确认即标为 `executed`，表示“已被采纳”；每个动作的真实结果以 `results` 为准。执行过程中重复确认，返回的是当时已完成的部分。
 11. 同一演示账户下的任何人物都能停止空间里正在运行的服务，不要求是发起人。这是有意的：共享空间里，谁都应该能让设备停下来。
 12. 模型计划相对本人偏好的偏离有上限：灯光与窗帘 ±40、空调 ±3°C（`services/planner.py` 的 `MAX_DEVIATION`）；超出即改用规则计划并标注原因。这是“体验是约束”在代码里的落点，由后端强制，不只靠提示词。
@@ -130,6 +134,8 @@ App 页面 → services/api（http 实现）→ FastAPI 路由
 24. 能源智能：舒适范围 = 体验目标 ±1°C；高峰电价（本地 18–23 点，可用 `LIVINGMIND_DEMO_LOCAL_HOUR` 固定）且需要制冷时，建议把空调提高 0.5°C；“舒适优先”只给建议，“节能模式”才应用。负荷是规则估算，只显示档位和 kW 估算，不显示节省比例或金额。
 25. 设备指令走简化分支，确认后执行但**不创建休息服务**；休息服务运行中也可以下设备指令；停止服务会让未确认的设备指令失效。
 26. 事件调整也由主 Agent 编排（体验 → 执行 → Harness），以舒适优先，不应用节能策略。
+27. 否定、冲突或指代不清的请求先澄清，不生成计划或设备动作；待澄清状态按账户、人物、空间和 `conversationId` 隔离，10 分钟过期。
+28. PostgreSQL 启动恢复会清理崩溃遗留的执行标记，并取消结果未知的 `running` 步骤，避免盲目重放。`GET /api/system/recovery` 暴露本次恢复结果；虚拟设备状态仍不跨进程恢复。
 
 ## ⑦ 整晚服务规则
 

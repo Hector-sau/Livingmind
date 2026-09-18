@@ -25,28 +25,51 @@ from app.memory import MemoryService
 from app.rules.rest_rule import PLAN_TTL
 from app.services.planner import ExperienceOutcome, Planner
 
-Intent = Literal["rest", "device_command", "status", "other"]
+Intent = Literal["rest", "device_command", "status", "other", "clarification"]
 NewId = Callable[[str], str]
 
 _REST = re.compile(r"休息|睡|躺|困|累|午睡|歇|放松|安静")
 _DEVICE = re.compile(r"灯|空调|窗帘")
 _ACTION = re.compile(r"开|关|调|设|拉|合|到")
 _STATUS = re.compile(r"现在|状态|多少|几度|怎么样了|情况")
+_NEGATED_REST = re.compile(r"(?:不想|不要|不用|别).{0,4}(?:休息|睡|躺|午睡|歇)")
+_VAGUE_ACTION = re.compile(r"(?:那个|这个|它).{0,5}(?:调|开|关|弄)|(?:调高|调低|大一点|小一点|亮一点|暗一点)$")
+
+
+def clarification_question(text: str) -> str:
+    """A deterministic question for requests that must not become device actions yet."""
+    t = text.replace(" ", "")
+    if "灯" in t and re.search(r"开灯.*关灯|关灯.*开灯", t):
+        return "你希望灯最终打开还是关闭？"
+    return "请说明要调整灯、空调还是窗帘，并告诉我目标值，例如“灯调到 20%”。"
 
 
 def route_intent(text: str) -> Intent:
     """Rule router (deterministic, labelled 'rule' in the trace)."""
     t = text.replace(" ", "")
-    if _REST.search(t):
+    explicit_device_action = bool(_DEVICE.search(t) and _ACTION.search(t))
+    if "灯" in t and re.search(r"开灯.*关灯|关灯.*开灯", t):
+        return "clarification"
+    if explicit_device_action and _NEGATED_REST.search(t):
+        return "device_command"
+    if _REST.search(t) and not _NEGATED_REST.search(t):
         return "rest"
-    if _DEVICE.search(t) and _ACTION.search(t):
+    if explicit_device_action:
         return "device_command"
     if _STATUS.search(t) and (_DEVICE.search(t) or "房间" in t or "卧室" in t or "温度" in t):
         return "status"
+    if _VAGUE_ACTION.search(t):
+        return "clarification"
     return "other"
 
 
-INTENT_LABEL = {"rest": "休息请求", "device_command": "设备指令", "status": "状态查询", "other": "其他话题"}
+INTENT_LABEL = {
+    "rest": "休息请求",
+    "device_command": "设备指令",
+    "status": "状态查询",
+    "other": "其他话题",
+    "clarification": "需要澄清",
+}
 
 
 class _Trace:
@@ -113,7 +136,15 @@ class Orchestrator:
             return self._command(trace, person_id, space_id, text, mode, adapter, new_id)
         if intent == "status":
             return self.status_reply(trace, adapter)
+        if intent == "clarification":
+            return self.clarification_reply(trace, text)
         return self.other_reply(trace)
+
+    def clarification_reply(self, trace, text: str, question: Optional[str] = None) -> AssistantReply:
+        t = time.monotonic()
+        prompt = question or clarification_question(text)
+        trace.add("orchestrator", "请求澄清", "没有生成计划或设备动作", "rule", t)
+        return AssistantReply(kind="clarification", intent="clarification", text=prompt, plan=None, trace=trace.steps)
 
     def status_reply(self, trace, adapter: DeviceAdapter) -> AssistantReply:
         state = adapter.read_state()
@@ -136,6 +167,8 @@ class Orchestrator:
         ctx = self.stage_memory(trace, person_id, space_id)
         state = adapter.read_state()
         exp = self.stage_experience(trace, ctx, text, state, mode)
+        if exp.clarification_question:
+            return self.clarification_reply(trace, text, exp.clarification_question)
         advice, target = self.stage_energy(trace, exp, energy_mode)
         actions, schedule, exec_notes = self.stage_execution(trace, target, ctx, adapter, new_id, wake_time)
         actions, schedule, problems = self.stage_harness(trace, actions, schedule, exp)

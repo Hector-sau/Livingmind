@@ -34,6 +34,7 @@ import type {
 import {
   adjustmentTarget,
   commandActions,
+  clarificationQuestion,
   energyAdvise,
   INTENT_LABEL,
   nightClockLabel,
@@ -66,6 +67,19 @@ interface PlanRecord {
   results: ActionResult[];
 }
 
+interface PendingClarificationMock {
+  clarificationId: string;
+  conversationId: string;
+  accountId: string;
+  personId: string;
+  spaceId: string;
+  originalText: string;
+  question: string;
+  targetIntent: 'rest' | 'device_command';
+  createdAt: string;
+  expiresAt: string;
+}
+
 const step = (agent: AgentStep['agent'], title: string, detail: string, ok = true): AgentStep => ({
   agent,
   title,
@@ -91,6 +105,7 @@ export function createMockApi(options: MockOptions = {}): LivingMindApi {
   let prefs: Map<string, RestPreference>;
   let prefUpdated: Map<string, string>;
   let energyMode: EnergyMode;
+  let clarifications: Map<string, PendingClarificationMock>;
 
   const reset = () => {
     devices = {
@@ -107,6 +122,7 @@ export function createMockApi(options: MockOptions = {}): LivingMindApi {
     prefs = new Map(MOCK_PERSONS.map((p) => [p.personId, { ...p.restPreference! }]));
     prefUpdated = new Map();
     energyMode = MOCK_SPACES[0].energyMode;
+    clarifications = new Map();
   };
   reset();
 
@@ -188,6 +204,12 @@ export function createMockApi(options: MockOptions = {}): LivingMindApi {
     const mode: PlannerMode = req.mode ?? 'rule';
     const intent = force ?? routeIntent(req.text);
     const trace: AgentStep[] = [step('orchestrator', `识别意图：${INTENT_LABEL[intent]}`, '前端模拟的规则路由')];
+
+    if (intent === 'clarification') {
+      const question = clarificationQuestion(req.text);
+      trace.push(step('orchestrator', '请求澄清', '没有生成计划或设备动作'));
+      return { kind: 'clarification', intent, text: question, plan: null, trace };
+    }
 
     if (intent === 'rest') {
       const pref = prefs.get(person.personId)!;
@@ -314,7 +336,42 @@ export function createMockApi(options: MockOptions = {}): LivingMindApi {
     },
 
     async sendMessage(req: AssistantMessageRequest) {
-      return delay(handle(req));
+      const conversationId = `${req.context.accountId}:${req.context.personId}:${req.context.spaceId}:${req.conversationId ?? 'default'}`;
+      const pending = clarifications.get(conversationId);
+      if (pending && /取消|不用了|算了|停止/.test(req.text)) {
+        clarifications.delete(conversationId);
+        note('clarification_cancelled', '用户取消了待澄清请求', { personId: req.context.personId });
+        return delay({ kind: 'answer', intent: 'other', text: '已取消刚才的请求，没有生成计划或设备动作。', plan: null, trace: [], conversationId, clarification: null });
+      }
+      let next = req;
+      let force: Intent | undefined;
+      if (pending) {
+        clarifications.delete(conversationId);
+        next = { ...req, text: `${pending.originalText}；用户补充：${req.text}` };
+        force = pending.targetIntent;
+        note('clarification_resolved', '收到补充信息，继续原请求', { personId: req.context.personId });
+      }
+      const reply = handle(next, force);
+      if (reply.kind === 'clarification') {
+        const targetIntent = routeIntent(next.text) === 'rest' || force === 'rest' ? 'rest' : 'device_command';
+        const createdAt = now();
+        const clarification: PendingClarificationMock = {
+          clarificationId: id('clarify'),
+          conversationId,
+          accountId: req.context.accountId,
+          personId: req.context.personId,
+          spaceId: req.context.spaceId,
+          originalText: next.text,
+          question: reply.text,
+          targetIntent,
+          createdAt: createdAt.toISOString(),
+          expiresAt: new Date(createdAt.getTime() + PLAN_TTL_MS).toISOString(),
+        };
+        clarifications.set(conversationId, clarification);
+        note('clarification_requested', `请求补充信息：${reply.text}`, { personId: req.context.personId });
+        return delay({ ...reply, conversationId, clarification });
+      }
+      return delay({ ...reply, conversationId, clarification: null });
     },
 
     async createRestPlan(req: CreateRestPlanRequest) {

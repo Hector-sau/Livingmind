@@ -20,7 +20,7 @@
 | 固定休息规则（无模型） | `backend/app/rules/rest_rule.py` | `tests/test_rest_flow.py` |
 | 统一执行器：白名单、参数范围、每个动作前检查服务、回读 | `backend/app/harness/executor.py` | 同上 |
 | 有状态虚拟设备（灯光、空调、窗帘） | `backend/app/adapters/virtual/devices.py` | 同上 |
-| 真实设备与语音接口预留 | `backend/app/adapters/protocol.py`、`voice.py` | 仅接口预留；未接入真实设备、SpaceMind 或音箱 |
+| 真实设备 V2、语音与传感器事件接口预留（`DeviceGateway` 含 `deviceId`/`actionId`/`serviceEpoch`/受理-完成-拒绝-未知四态回执/错误类型/观测时间；`VoiceGateway` 含 `audioId`/说话人/空间/置信度/播报与取消；`EnvironmentEventAdapter` 含事件 ID/去重键/来源/采集时间） | `backend/app/adapters/protocol.py`、`voice.py`、`events.py` | `tests/test_adapter_protocols.py`：用可执行的契约替身证明三个协议能被实现并被 `isinstance` 识别。**仅接口预留**：未接入真实设备、SpaceMind、音箱或传感器 |
 | 服务状态、确认幂等、单空间单服务、停止失效、计划过期 | `backend/app/services/rest_service.py` | 同上 |
 | 活动记录（按实际发生写入，标注来源） | 同上 | 同上 |
 | PR 模板 + CI（三套后端组合、迁移升降、契约、前端与 Docker API E2E） | `.github/` | GitHub Actions 运行 `35333253707`：6/6 Job 通过 |
@@ -35,6 +35,9 @@
 | R1：网页端到端脚本入库（7 个场景，一条命令） | `apps/mobile/e2e/` | `python apps/mobile/e2e/run_e2e.py`：7/7 通过 |
 | ⑥：模拟室温事件接口 `POST /api/spaces/{spaceId}/events`；冷却 30 秒、上限 3 次、单服务单调整、停止后忽略；规则调整（±1°C，不超出偏好 ±3°C）；模型调整跟随服务模式并受偏离上限约束 | `backend/app/services/rest_service.py`、`services/planner.py`、`rules/rest_rule.py` | `tests/test_events.py`（10 项，含停止与调整并发） |
 | ⑥：App“注入模拟事件”按钮、调整次数、事件结果提示、服务动态中的事件记录；前端 Mock 同步规则 | `apps/mobile/features/rest/ServiceCard.tsx`、`services/mock/mockApi.ts` | `tests/mockApi.test.ts`；端到端 `mock-event`、`http-event` |
+| E：意图路由识别否定、冲突与指代不清（“我不想休息，只想关灯”走设备指令；“先开灯再关灯”与“把那个调低一点”先澄清，不产生动作） | `backend/app/agents/orchestrator/agent.py::route_intent`、`clarification_question` | `tests/test_agents.py`（新增 3 项路由与澄清用例） |
+| E：可恢复的多轮澄清。`conversationId` + `PendingClarification` 落库（内存或 PostgreSQL），按账户、人物、空间、会话四重隔离，10 分钟过期，可取消；补充信息后按原意图继续，中途换人物不会被别人的待澄清污染 | `backend/app/contracts/models.py::PendingClarification`、`repositories/store.py`、`sql_store.py`、`alembic/versions/0004_pending_clarifications.py`、`services/rest_service.py` | `tests/test_agents.py`（澄清 → 恢复 → 取消 → 人物隔离）、`tests/test_experience_agent.py`（模型给出澄清问题时不生成计划） |
+| E：启动恢复可查询。`GET /api/system/recovery` 返回存储类型、活跃服务数、被取消的结果未知步骤数、清理的执行中标记数、设备状态是否已对齐 | `backend/app/services/rest_service.py::recovery_status`、`api/routes.py` | `tests/test_recovery.py`：内存模式如实回答“没有跨进程恢复”；PostgreSQL 模式下崩溃遗留的 `running` 步骤被**取消**而不是重放 |
 | ⑥b：四个入口（对话 / 空间 / 场景 / 我的）；对话主页（计划卡、结果卡、系统消息、服务状态条、快捷语、语音占位）；平板左栏 + 右侧房间面板，手机底部标签栏 | `apps/mobile/features/shell/`、`chat/` | `tests/conversation.test.ts`；端到端全部场景已改为走对话 |
 | ⑥b：演示 PIN 切换人物（`POST /api/persons/{id}/unlock`，不是认证）、访客模式（空间默认设置）、只显示本人偏好、证据面板开关 | `backend/app/services/rest_service.py`、`apps/mobile/features/me/` | `tests/test_people_and_scenes.py`；端到端 `*-pin-evidence`、`http-guest-scenes` |
 | ⑥b：场景库（`GET /api/scenes`，状态如实）与人话时间线 | `backend/app/demo/seed.py`、`apps/mobile/features/scenes/` | `test_scene_library_status_is_honest`；`tests/conversation.test.ts` |
@@ -96,7 +99,7 @@
 - 模拟事件没有真实传感器；室温数值由按钮或 API 直接给出。
 - 整晚服务跑在模拟时钟上，由按钮或“自动播放”（每 2.5 秒推进一步）驱动；后端没有真实定时器，也不读真实时间。
 - 演示 PIN 不是认证；“我的”页上直接写出了演示 PIN，便于评审操作。
-- 语音按钮仍是占位，点击只提示“后续接入”；后端已有转写输入协议，但没有麦克风、唤醒词或音箱接入。
+- 语音按钮仍是占位，点击只提示“后续接入”；后端已有 `VoiceGateway` 转写与播报协议（含说话人与空间提示字段），但没有麦克风、唤醒词、说话人到人物的授权映射或音箱接入。真实语音的可信身份必须由应用层解析，不能由转写文本自称。
 - Logo 来自团队既有的 LivingMind 品牌源文件（用户已同意在 App 中使用），为 PNG；正式发布前按品牌说明补 SVG 母版与商标检索。
 - 所有人物、偏好、评测用例、室外温度与电价时段都是设计的模拟数据（见 `docs/test-data.md`）。
 - 主 Agent 路由与 Space Execution Agent 的指令解析是规则实现；只有 Experience Agent 可调用模型。
@@ -105,6 +108,8 @@
 - 演示身份下，谁能读哪份记忆由请求上下文决定，不是认证。
 - 规则模式下输入文字只记录，不做语义理解。模型模式已验证一次真实调用；延迟只有单次样本。
 - GitHub Actions 已真实运行；`main@197037a` 对应运行 `35333253707` 的 6 个 Job 全绿。
+- 多 API 实例控制真实设备、真实后台定时器、真实传感器事件源都未做；Redis 锁只能证明同一时刻只有一个实例在驱动空间，不能证明真实设备恰好执行一次。
+- 澄清只覆盖否定、设备冲突和指代不清三类规则可判定的歧义，不是通用多轮对话；虚拟设备状态仍在进程内，不跨进程恢复。
 
 ## T1 Docker 基线（已完成并通过宿主机验证）
 
@@ -174,16 +179,52 @@
 
 - Compose 全栈一次启动：PostgreSQL、Redis、migration、API、Outbox Publisher、Activity Projector 均健康。
 - 迁移：空库 0001→0003，以及 0003→0002→0003 回退再升级通过。
-- 后端组合：内存+legacy `127 passed / 18 skipped`；PostgreSQL+legacy `141 passed / 4 skipped`；PostgreSQL+Redis+LangGraph `145 passed`。
+- 后端组合（T6 冻结当时）：内存+legacy `127 passed / 18 skipped`；PostgreSQL+legacy `141 passed / 4 skipped`；PostgreSQL+Redis+LangGraph `145 passed`。E 专项后的基线见下节。
 - Redis 测试仅允许清理显式配置的非 0 号逻辑库；冷却到期同时尊重服务时钟与 Redis TTL。
 - Legacy / LangGraph 5 组输入全部等价；前端 31/31；契约重新生成无 diff；Docker API Playwright 20/20。
 - GitHub Actions 三套后端 matrix、迁移、契约、前端与 Docker E2E 均已在托管环境运行；`35333253707` 为 6/6 Job 通过，Docker API 浏览器场景 20/20。
 
+## E 一致性与可恢复性专项（已完成，2026-09-18）
+
+本轮只做四件事：把文档口径校正到与代码一致、让意图路由不再把歧义请求直接变成动作、把澄清做成可恢复的闭环、把"重启恢复"从含糊说法变成可查询的明确语义；另外把真实设备、语音和传感器接口的字段补齐为可实现的协议。**没有**新增技术栈，**没有**接入任何真实硬件。
+
+| 项 | 位置 | 证据 |
+|---|---|---|
+| 意图路由：否定语义（"我不想休息，只想关灯" → 设备指令）、设备冲突（"先开灯再关灯" → 澄清）、指代不清（"把那个调低一点" → 澄清） | `agents/orchestrator/agent.py::route_intent` | `tests/test_agents.py` 新增 3 项；澄清分支不产生计划，也不产生设备动作 |
+| 澄清闭环：`conversationId` + `PendingClarification` 持久化，账户/人物/空间/会话四重隔离，10 分钟过期，可取消，补充后按原意图继续 | `contracts/models.py`、`repositories/store.py`、`sql_store.py`、`services/rest_service.py` | 同上；`tests/test_experience_agent.py` 覆盖"模型返回澄清问题时不生成计划" |
+| 迁移 `0004_pending_clarifications` | `backend/alembic/versions/0004_pending_clarifications.py` | `0003 → 0004 → 0003 → 0004` 升降级各一次通过 |
+| 启动恢复语义：清理崩溃遗留的执行中标记；结果未知的 `running` 步骤一律**取消**，不盲目重放；结果可查询 | `services/rest_service.py::recovery_status`、`GET /api/system/recovery` | `tests/test_recovery.py` 2 项（内存模式如实说明无跨进程恢复；PostgreSQL 模式取消而非重放） |
+| 设备底座 V2 协议：`DeviceGateway`（`deviceId`、`actionId` 幂等键、`serviceEpoch`、accepted/completed/rejected/unknown 回执、错误类型、观测时间与观测值） | `adapters/protocol.py` | `tests/test_adapter_protocols.py`：可执行契约替身 + `isinstance` 校验 |
+| 语音网关协议：`VoiceGateway`（`audioId`、来源、语言、说话人与空间提示、置信度、播报与取消） | `adapters/voice.py` | 同上 |
+| 环境事件协议：`EnvironmentEventAdapter`（事件 ID、去重键、来源、空间、采集时间、类型与值） | `adapters/events.py` | 同上；演示用的 `POST /api/spaces/{id}/events` 仍是独立入口并标注 `simulated` |
+| 文档口径校正与工程评审说明 | `docs/agent-engineering-review.md`、`docs/architecture.md`（关键规则 27、28）、本文件、`AGENT-HANDOFF.md`、`docs/acceptance.md`、`docs/evidence.md` | 三档口径分开写：已实现并验证 / 接口预留 / 待下一位执行 |
+
+### 本轮复跑的检查基线
+
+| 组合 | 结果 |
+|---|---|
+| 后端 内存 + legacy | `136 passed / 19 skipped` |
+| 后端 PostgreSQL + legacy | `150 passed / 5 skipped` |
+| 后端 PostgreSQL + Redis + LangGraph | `154 passed / 1 skipped` |
+| Alembic `0003 → 0004 → 0003 → 0004` | 通过 |
+| Legacy / LangGraph 等价 | 5 组输入全部等价 |
+| 前端 | `tsc --noEmit`（含 tests）无错；`32 passed` |
+| 契约 | 重新生成 `openapi.json` 与 `schema.ts`，与仓库内容逐字节一致 |
+| 网页端到端 | 20/20 场景通过 |
+
+### 本轮明确不做（留给下一位，需用户授权）
+
+1. **多实例与真实部署**：锁续租 / fencing token、设备网关拒绝过期代次。Redis 续租本身不能证明真实设备执行安全，必须由设备网关侧的代次校验兜底。
+2. **真实后台调度器**：把模拟时钟换成可恢复的调度器，并验证时区、漏触发与重复触发。
+3. **真实设备 / 语音 / 传感器接入**：实现上面三个协议并做异步回执、重复 `actionId`、过期 `serviceEpoch`、状态回读的联调。
+4. **真机验收与 DeepSeek 多样本指标**：见 `docs/device-build.md`、`docs/project-metrics.md`。
+
 ## 本地冻结后仍待完成
 
-A 真机验收（有 iPad 时） · D 的设备部分（EAS 开发版构建、平板录屏） · 旧 HTML 前端清单（用户尚未提供旧文件）
+A 真机验收（有 iPad 时） · D 的设备部分（EAS 开发版构建、平板录屏） · 旧 HTML 前端清单（用户尚未提供旧文件） · E 专项列出的四项"明确不做"（多实例与真实部署、真实调度器、真实设备/语音/传感器接入、多样本模型指标）
 
 ## 下一步接口
 
-- 下一步只剩设备侧验收：有 iPad 或安卓平板时完成真机构建与录屏。
-- 若以后换成真实定时器：由定时器调用 `advance_clock`，认领与守卫逻辑不变。
+- 设备侧验收：有 iPad 或安卓平板时完成真机构建与录屏。
+- 若以后换成真实定时器：由定时器调用 `advance_clock`，认领与守卫逻辑不变；但必须先补齐时区、漏触发与重复触发的验证。
+- 若以后接真实设备：实现 `DeviceGateway` 而不是扩展 `DeviceAdapter`，所有请求仍进 Harness / Executor；`GET /api/system/recovery` 的 `deviceStateReconciled` 只有在真实回读对齐后才允许改成 `true`。
