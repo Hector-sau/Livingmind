@@ -20,6 +20,7 @@ from dataclasses import dataclass, field
 from typing import Optional, Protocol
 
 from app.contracts import ActionResult, ActivityRecord, Plan, ScheduledStep, Service
+from app.events.envelope import Envelope
 
 # Flags for work in flight on one service. They are process/transaction level, not user data.
 FLAG_REPLANNING = "replanning"  # an environment adjustment is being planned or executed
@@ -43,7 +44,9 @@ class Store(Protocol):
     def bump_epoch(self, space_id: str) -> int: ...
 
     # ---- plans ----
-    def save_plan(self, record: PlanRecord) -> None: ...
+    def save_plan(self, record: PlanRecord, events: Optional[list[Envelope]] = None) -> None:
+        """Save the plan and, in the same transaction, any domain events it produced."""
+        ...
 
     def get_plan(self, plan_id: str) -> Optional[PlanRecord]: ...
 
@@ -52,7 +55,7 @@ class Store(Protocol):
     def invalidate_proposed_plans(self, space_id: str) -> None: ...
 
     # ---- services and their overnight steps ----
-    def save_service(self, service: Service) -> None: ...
+    def save_service(self, service: Service, events: Optional[list[Envelope]] = None) -> None: ...
 
     def get_service(self, service_id: str) -> Optional[Service]: ...
 
@@ -76,6 +79,10 @@ class Store(Protocol):
 
     def activity(self, space_id: str, limit: int) -> list[ActivityRecord]: ...
 
+    def record_events(self, events: list[Envelope]) -> None:
+        """Only for facts that are not a plan or service save (preference, energy mode)."""
+        ...
+
     def clear(self) -> None: ...
 
 
@@ -92,6 +99,7 @@ class MemoryStore:
         self._activity: list[ActivityRecord] = []
         self._epochs: dict[str, int] = {}
         self._flags: set[tuple[str, str]] = set()
+        self._events: list[Envelope] = []
         self._counter = itertools.count(1)
 
     def new_id(self, prefix: str) -> str:
@@ -104,7 +112,8 @@ class MemoryStore:
         self._epochs[space_id] = self.epoch(space_id) + 1
         return self._epochs[space_id]
 
-    def save_plan(self, record: PlanRecord) -> None:
+    def save_plan(self, record: PlanRecord, events: Optional[list[Envelope]] = None) -> None:
+        self.record_events(events or [])
         self._plans[record.plan.plan_id] = PlanRecord(
             plan=record.plan.model_copy(deep=True),
             epoch=record.epoch,
@@ -133,7 +142,8 @@ class MemoryStore:
             if stored.plan.space_id == space_id and stored.plan.status == "proposed":
                 stored.plan.status = "invalidated"
 
-    def save_service(self, service: Service) -> None:
+    def save_service(self, service: Service, events: Optional[list[Envelope]] = None) -> None:
+        self.record_events(events or [])
         self._services[service.service_id] = _copy_service(service)
 
     def get_service(self, service_id: str) -> Optional[Service]:
@@ -186,6 +196,13 @@ class MemoryStore:
         items = [a for a in self._activity if a.space_id == space_id]
         return [a.model_copy(deep=True) for a in reversed(items)][:limit]
 
+    def record_events(self, events: list[Envelope]) -> None:
+        # No bus in memory mode: events are kept so tests can assert what would be published.
+        self._events.extend(events)
+
+    def pending_events(self) -> list[Envelope]:
+        return list(self._events)
+
     def clear(self) -> None:
         # Reset invalidates work that may still be outside the service lock in a
         # slow device adapter. Never clear epochs back to zero: an old request
@@ -199,3 +216,4 @@ class MemoryStore:
         self._activity.clear()
         self._epochs = next_epochs
         self._flags.clear()
+        self._events.clear()

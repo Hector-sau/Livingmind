@@ -18,7 +18,16 @@ from sqlalchemy import cast, func, select, text, update
 from sqlalchemy.dialects.postgresql import JSONB
 
 from app.contracts import ActionResult, ActivityRecord, Plan, ScheduledStep, Service
-from app.db.models import ActivityRow, PlanRow, ScheduledStepRow, ServiceFlagRow, ServiceRow, SpaceStateRow
+from app.db.models import (
+    ActivityRow,
+    OutboxEventRow,
+    PlanRow,
+    ScheduledStepRow,
+    ServiceFlagRow,
+    ServiceRow,
+    SpaceStateRow,
+)
+from app.events.envelope import Envelope
 from app.db.session import session_scope
 from app.repositories.store import PlanRecord
 
@@ -56,9 +65,28 @@ class SqlStore:
 
     # ---- plans ----
 
-    def save_plan(self, record: PlanRecord) -> None:
+    @staticmethod
+    def _write_events(session, events) -> None:
+        """Outbox rows are written inside the caller's transaction: business fact and event
+        commit together, or neither does."""
+        for envelope in events or []:
+            session.add(
+                OutboxEventRow(
+                    event_id=envelope.event_id,
+                    event_type=envelope.event_type,
+                    space_id=envelope.space_id,
+                    payload=envelope.model_dump(mode="json", by_alias=True),
+                )
+            )
+
+    def record_events(self, events: list[Envelope]) -> None:
+        with session_scope() as session:
+            self._write_events(session, events)
+
+    def save_plan(self, record: PlanRecord, events: Optional[list[Envelope]] = None) -> None:
         plan = record.plan
         with session_scope() as session:
+            self._write_events(session, events)
             row = session.get(PlanRow, plan.plan_id)
             if row is None:
                 row = PlanRow(plan_id=plan.plan_id)
@@ -101,8 +129,9 @@ class SqlStore:
 
     # ---- services ----
 
-    def save_service(self, service: Service) -> None:
+    def save_service(self, service: Service, events: Optional[list[Envelope]] = None) -> None:
         with session_scope() as session:
+            self._write_events(session, events)
             row = session.get(ServiceRow, service.service_id)
             if row is None:
                 row = ServiceRow(service_id=service.service_id)
@@ -231,6 +260,7 @@ class SqlStore:
             session.query(PlanRow).delete()
             session.query(ServiceRow).delete()
             session.query(ActivityRow).delete()
+            session.query(OutboxEventRow).delete()
             # Epochs only ever move forward, so requests still in flight stay invalid.
             for space_id in space_ids:
                 row = session.get(SpaceStateRow, space_id)

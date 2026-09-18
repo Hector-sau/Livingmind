@@ -101,3 +101,47 @@ def client(service):
 
 def ctx(person="person-lin", account="demo-account", space="space-home-bedroom"):
     return {"accountId": account, "personId": person, "spaceId": space}
+
+
+# ---- database fixtures shared by the persistence and event tests ----
+
+
+@pytest.fixture
+def sql_repo():
+    """A migrated, empty person_preferences table pointed at the test database."""
+    if not TEST_DB_URL:
+        pytest.skip("LIVINGMIND_TEST_DATABASE_URL is not set")
+    from app import config
+    from app.db import session as db_session
+    from app.memory.repository import SqlPreferenceRepository
+
+    previous = config.DATABASE_URL
+    config.DATABASE_URL = TEST_DB_URL
+    db_session.reset_engine()
+    migrate_test_database()
+    repo = SqlPreferenceRepository()
+    repo.clear()
+    try:
+        yield repo
+    finally:
+        repo.clear()
+        db_session.reset_engine()
+        config.DATABASE_URL = previous
+
+
+@pytest.fixture
+def sql_store(sql_repo):
+    """A migrated, empty business-fact store (reuses the migration from sql_repo)."""
+    from sqlalchemy import text
+
+    from app.db.session import engine
+    from app.repositories.sql_store import SqlStore
+
+    with engine().begin() as connection:
+        connection.execute(
+            text(
+                "TRUNCATE plans, services, scheduled_steps, service_flags, "
+                "activity_records, space_state RESTART IDENTITY"
+            )
+        )
+    return SqlStore()

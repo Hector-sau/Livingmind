@@ -55,6 +55,7 @@ from app.contracts import (
 )
 from app.demo import seed
 from app.energy import EnergyIntelligence
+from app.events.envelope import event as domain_event
 from app.energy.simulation import offline_energy_simulation
 from app.harness.executor import Executor
 from app.db.session import database_configured
@@ -268,7 +269,20 @@ class RestService:
             record = PlanRecord(plan=plan, epoch=request_epoch)
             if request_epoch != current_epoch:
                 plan.status = "invalidated"
-            self._store.save_plan(record)
+            self._store.save_plan(
+                record,
+                events=[
+                    domain_event(
+                        "plan.created",
+                        occurred_at=self._clock(),
+                        space_id=plan.space_id,
+                        aggregate_id=plan.plan_id,
+                        person_id=plan.person_id,
+                        scenario=plan.scenario,
+                        source=plan.source,
+                    )
+                ],
+            )
             if request_epoch != current_epoch:
                 self._log(
                     plan.space_id,
@@ -327,6 +341,18 @@ class RestService:
         self._check_context(ctx)
         with self._lock:
             change = self._memory.update(ctx.person_id, preference)
+            self._store.record_events(
+                [
+                    domain_event(
+                        "memory.preference.updated",
+                        occurred_at=self._clock(),
+                        space_id=ctx.space_id,
+                        aggregate_id=ctx.person_id,
+                        person_id=ctx.person_id,
+                        change=change,
+                    )
+                ]
+            )
             person = next(p for p in seed.PERSONS if p.person_id == ctx.person_id)
             self._log(
                 ctx.space_id, "memory_updated", "user", f"{person.name} 更新了自己的休息偏好：{change}", person_id=ctx.person_id
@@ -339,6 +365,18 @@ class RestService:
             raise ApiError("FORBIDDEN_CONTEXT", "空间与请求上下文不一致", {"spaceId": space_id})
         with self._lock:
             self._energy_modes[space_id] = mode
+            self._store.record_events(
+                [
+                    domain_event(
+                        "energy.mode.updated",
+                        occurred_at=self._clock(),
+                        space_id=space_id,
+                        aggregate_id=space_id,
+                        person_id=ctx.person_id,
+                        mode=mode,
+                    )
+                ]
+            )
             self._log(space_id, "energy_mode_changed", "user", f"节能设置改为：{'节能模式' if mode == 'eco' else '舒适优先'}")
             return self._space(next(s for s in seed.SPACES if s.space_id == space_id))
 
@@ -429,7 +467,29 @@ class RestService:
                     wake_time=plan.wake_time or "07:00",
                     sleep_detected_at=None,
                 )
-                self._store.save_service(service)
+                now_utc = self._clock()
+                self._store.save_service(
+                    service,
+                    events=[
+                        domain_event(
+                            "plan.confirmed",
+                            occurred_at=now_utc,
+                            space_id=plan.space_id,
+                            aggregate_id=service.service_id,
+                            person_id=plan.person_id,
+                            plan_id=plan_id,
+                        ),
+                        domain_event(
+                            "service.started",
+                            occurred_at=now_utc,
+                            space_id=plan.space_id,
+                            aggregate_id=service.service_id,
+                            person_id=plan.person_id,
+                            planner_mode=service.planner_mode,
+                            wake_time=service.wake_time,
+                        ),
+                    ],
+                )
                 plan.status = "executed"
                 record.service_id = service.service_id
                 record.results = []
@@ -520,6 +580,20 @@ class RestService:
                     results.append(result)
                 if plan_id is not None:
                     self._store.append_result(plan_id, result)
+                self._store.record_events(
+                    [
+                        domain_event(
+                            "device.action.completed",
+                            occurred_at=self._clock(),
+                            space_id=service.space_id,
+                            aggregate_id=service.service_id,
+                            person_id=service.person_id,
+                            device=action.device,
+                            value=action.value,
+                            outcome=result.outcome,
+                        )
+                    ]
+                )
                 if self._store.get_service(service.service_id) is None:
                     return
                 self._log(
@@ -625,7 +699,20 @@ class RestService:
                 self._store.save_plan(record)
                 service.adjustments += 1
                 service.last_adjusted_at = self._clock()
-                self._store.save_service(service)
+                self._store.save_service(
+                    service,
+                    events=[
+                        domain_event(
+                            "service.adjusted",
+                            occurred_at=self._clock(),
+                            space_id=space_id,
+                            aggregate_id=service.service_id,
+                            person_id=service.person_id,
+                            summary=plan.summary,
+                            source=plan.source,
+                        )
+                    ],
+                )
                 self._cooldown_cache.start(service.service_id)
                 label = {"model": "模型", "rule": "规则", "rule_fallback": "规则降级"}.get(plan.source, plan.source)
                 self._log(
@@ -824,7 +911,19 @@ class RestService:
                             person_id=service.person_id,
                         )
                 if still_tracked:
-                    self._store.save_service(service)
+                    events = []
+                    if service.status in ("completed", "failed"):
+                        events.append(
+                            domain_event(
+                                f"service.{service.status}",
+                                occurred_at=self._clock(),
+                                space_id=service.space_id,
+                                aggregate_id=service_id,
+                                person_id=service.person_id,
+                                night_clock=service.night_clock,
+                            )
+                        )
+                    self._store.save_service(service, events=events)
 
         with self._lock:
             return AdvanceClockResponse(
@@ -894,7 +993,19 @@ class RestService:
             pending = [st for st in service.schedule if st.status == "pending"]
             for st in pending:
                 st.status = "cancelled"
-            self._store.save_service(service)
+            self._store.save_service(
+                service,
+                events=[
+                    domain_event(
+                        "service.stopped",
+                        occurred_at=self._clock(),
+                        space_id=service.space_id,
+                        aggregate_id=service_id,
+                        person_id=service.person_id,
+                        cancelled_steps=len(pending),
+                    )
+                ],
+            )
             self._log(
                 service.space_id,
                 "service_stopped",

@@ -557,6 +557,8 @@ kafka healthy ────┘                │
 
 ### 阶段 E：Outbox 与事件总线（Kafka 可选）
 
+状态：**已完成（数据库队列实现）**。业务事实与 outbox 行在同一事务提交；publisher 用 `FOR UPDATE SKIP LOCKED` 领取、失败退避重试、超过次数进入死信但不删除；consumer（activity-projector）用 `consumer_receipts` 去重并投影到 `service_projection`。App 显示的活动记录仍由 API 同步写库，不依赖投影。**Kafka 实现故意没写**：目前没有 broker 可验证，仓库里放一个未验证的发布器比不放更糟；接口是 `EventPublisher`，将来补一个实现即可（message key = spaceId）。
+
 - 建 `outbox_events`、`consumer_receipts` migration。
 - 实现 `EventPublisher` 协议 + 数据库队列实现 + Outbox Publisher + 一个真实 Consumer：`activity-projector`。
 - 所有消息携带 `event_id`、`correlation_id` 和 `schema_version`；消费者按 `event_id` 去重。

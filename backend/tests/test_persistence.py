@@ -17,34 +17,11 @@ from app.db import session as db_session
 from app.memory.repository import InMemoryPreferenceRepository, SqlPreferenceRepository
 from app.memory.service import MemoryService
 from app.services.rest_service import RestService
-from tests.conftest import FakeClock
+from tests.conftest import FakeClock, sql_repo, sql_store  # noqa: F401  (fixtures)
 
 BACKEND = Path(__file__).resolve().parent.parent
 TEST_DB_URL = os.getenv("LIVINGMIND_TEST_DATABASE_URL", "").strip()
 needs_db = pytest.mark.skipif(not TEST_DB_URL, reason="LIVINGMIND_TEST_DATABASE_URL is not set")
-
-
-@pytest.fixture
-def sql_repo():
-    """A migrated, empty person_preferences table pointed at the test database."""
-    from alembic import command
-    from alembic.config import Config
-
-    previous = config.DATABASE_URL
-    config.DATABASE_URL = TEST_DB_URL
-    db_session.reset_engine()
-    alembic_cfg = Config(str(BACKEND / "alembic.ini"))
-    alembic_cfg.set_main_option("script_location", str(BACKEND / "alembic"))
-    alembic_cfg.set_main_option("sqlalchemy.url", TEST_DB_URL)
-    command.upgrade(alembic_cfg, "head")
-    repo = SqlPreferenceRepository()
-    repo.clear()
-    try:
-        yield repo
-    finally:
-        repo.clear()
-        db_session.reset_engine()
-        config.DATABASE_URL = previous
 
 
 @pytest.fixture(params=["memory", "sql"])
@@ -145,24 +122,6 @@ def _ctx():
 
 
 # ---- T2.2: plans, services, overnight steps and activity on PostgreSQL ----
-
-
-@pytest.fixture
-def sql_store(sql_repo):
-    """A migrated, empty business-fact store (reuses the migration from sql_repo)."""
-    from sqlalchemy import text
-
-    from app.db.session import engine
-    from app.repositories.sql_store import SqlStore
-
-    with engine().begin() as connection:
-        connection.execute(
-            text(
-                "TRUNCATE plans, services, scheduled_steps, service_flags, "
-                "activity_records, space_state RESTART IDENTITY"
-            )
-        )
-    return SqlStore()
 
 
 @needs_db

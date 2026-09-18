@@ -77,5 +77,28 @@ services:
       retries: 5
       start_period: 5s
 
+  # T5: the bus is a PostgreSQL table by default, so these are two small Python processes.
+  outbox-publisher:
+    build:
+      context: ./backend
+    image: livingmind-api:dev
+    command: ["python", "-m", "workers.outbox_publisher"]
+    environment:
+      LIVINGMIND_DATABASE_URL: "${LIVINGMIND_DATABASE_URL:-postgresql+psycopg://livingmind:livingmind@postgres:5432/livingmind}"
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+
+  activity-projector:
+    build:
+      context: ./backend
+    image: livingmind-api:dev
+    command: ["python", "-m", "workers.activity_projector"]
+    environment:
+      LIVINGMIND_DATABASE_URL: "${LIVINGMIND_DATABASE_URL:-postgresql+psycopg://livingmind:livingmind@postgres:5432/livingmind}"
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+
 volumes:
   postgres-data:

@@ -109,3 +109,56 @@ class ActivityRow(Base):
     activity_id: Mapped[str] = mapped_column(String(64), nullable=False, unique=True)
     space_id: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
     payload: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False)
+
+
+class OutboxEventRow(Base):
+    """Written in the same transaction as the business fact it describes."""
+
+    __tablename__ = "outbox_events"
+
+    event_id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    event_type: Mapped[str] = mapped_column(String(64), nullable=False)
+    space_id: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
+    payload: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False)
+    created_at: Mapped[Any] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    published_at: Mapped[Any | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    attempts: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    last_error: Mapped[str | None] = mapped_column(String(500), nullable=True)
+
+
+class DomainEventRow(Base):
+    """The bus itself in the default setup: delivered events, consumed by workers."""
+
+    __tablename__ = "domain_events"
+
+    seq: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    event_id: Mapped[str] = mapped_column(String(64), nullable=False, unique=True)
+    event_type: Mapped[str] = mapped_column(String(64), nullable=False)
+    space_id: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
+    payload: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False)
+    created_at: Mapped[Any] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+
+
+class ConsumerReceiptRow(Base):
+    """One row per (consumer, event). Makes re-delivery harmless."""
+
+    __tablename__ = "consumer_receipts"
+
+    consumer: Mapped[str] = mapped_column(String(64), primary_key=True)
+    event_id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    processed_at: Mapped[Any] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+
+
+class ServiceProjectionRow(Base):
+    """What the activity projector builds: a per-service summary for audit and analytics."""
+
+    __tablename__ = "service_projection"
+
+    service_id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    space_id: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
+    person_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    status: Mapped[str] = mapped_column(String(32), nullable=False)
+    adjustments: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    device_actions: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    events_applied: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    updated_at: Mapped[Any] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)

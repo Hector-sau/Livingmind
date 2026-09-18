@@ -156,6 +156,19 @@
 
 未做：设备状态缓存（会带来过期风险，收益为零）；幂等结果缓存（数据库已幂等）。
 
+## T5 Outbox 与事件总线（数据库队列实现已完成）
+
+| 项 | 位置 | 证据 |
+|---|---|---|
+| 事件信封（`event_id`、`schema_version`、`correlation_id`、`spaceId` 保序）与 10 种领域事件 | `backend/app/events/envelope.py` | `tests/test_outbox_events.py` |
+| 业务事实与 outbox 行同一事务提交；事务回滚则事件也不存在 | `app/repositories/sql_store.py::_write_events`、`app/services/rest_service.py` | `test_business_facts_and_events_commit_together`、`test_a_failed_transaction_leaves_no_event` |
+| Publisher：`FOR UPDATE SKIP LOCKED` 领取、至少一次投递、重复投递不产生重复行、失败退避、超限进死信不删除 | `app/events/outbox.py`、`workers/outbox_publisher.py` | `test_publisher_delivers_once_and_marks_rows`、`test_bus_outage_keeps_events_and_never_blocks_devices` |
+| Consumer（activity-projector）：按 `event_id` 去重、投影到 `service_projection`、同空间事件保序 | `workers/activity_projector.py` | `test_projection_is_idempotent_and_ordered` |
+| 总线停摆不影响设备执行与停止；活动记录仍由 API 同步写库 | 同上 | 同上 |
+| Compose 增加 `outbox-publisher` 与 `activity-projector` 两个 worker | `compose.yaml` | `docker compose config` 通过；**运行待宿主机验证** |
+
+未做：Kafka 实现（按用户决定，非必要不上常驻中间件；接口已留在 `EventPublisher`）。
+
 ## 未开始
 
 A 真机验收（有 iPad 时） · D 的设备部分（EAS 开发版构建、平板录屏） · 旧 HTML 前端清单（用户尚未提供旧文件）
