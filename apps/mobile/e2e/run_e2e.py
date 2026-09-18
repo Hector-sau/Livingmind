@@ -28,7 +28,7 @@ from http.server import BaseHTTPRequestHandler, SimpleHTTPRequestHandler, Thread
 from urllib.error import HTTPError
 from pathlib import Path
 
-from playwright.sync_api import Page, sync_playwright
+from playwright.sync_api import Page, expect, sync_playwright
 
 HERE = Path(__file__).resolve().parent
 MOBILE = HERE.parent
@@ -456,7 +456,10 @@ def scenario_energy_memory(page: Page) -> None:
     assert "空调设定 26.5°C" in page.get_by_test_id("plan-message").last.inner_text()
 
     switch_person(page, "person-chen", "1357", "陈川")
-    assert page.get_by_test_id("pref-ac-value").inner_text().strip() == "22°C", "陈川 sees only his own preference"
+    # The header updates as soon as the person changes, while that person's
+    # isolated memory is loaded by a separate request. Hosted runners can
+    # expose this legitimate gap, so assert the eventual rendered preference.
+    expect(page.get_by_test_id("pref-ac-value")).to_have_text("22°C", timeout=10000)
 
 
 def api_get(page: Page, path: str) -> dict:
