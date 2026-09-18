@@ -101,9 +101,9 @@ ROWS: list[tuple[str, str, str, str, str, str]] = [
     ("工程证据", "Transactional Outbox 与幂等投影", "已实现",
      "业务事实和 Outbox 同事务；Publisher 重试/死信；Consumer 按 event_id 去重。Compose 实测 7/7 事件发布并消费，重启 Worker 后数量不变",
      "backend/app/events/；backend/workers/；tests/test_outbox_events.py；docs/status.md", "PostgreSQL 数据库队列，非 Kafka"),
-    ("工程证据", "T6 完整集成回归", "已实现（本地）",
-     "默认、PostgreSQL、PostgreSQL+Redis+LangGraph 三套后端组合通过；20 个浏览器场景全部连接 Docker API 通过；GitHub Actions 已写入但未在远程运行",
-     ".github/workflows/ci.yml；apps/mobile/e2e/run_e2e.py；docs/status.md", "本地 Docker / Playwright 实测；非 GitHub 运行记录"),
+    ("工程证据", "T6 完整集成回归", "已实现",
+     "默认、PostgreSQL、PostgreSQL+Redis+LangGraph 三套后端组合通过；20 个浏览器场景全部连接 Docker API 通过；GitHub Actions 运行 35333253707 的 6 个 Job 全绿",
+     ".github/workflows/ci.yml；apps/mobile/e2e/run_e2e.py；docs/status.md", "本地 Docker / Playwright + GitHub 托管运行"),
 ]
 
 CLIPS = [
@@ -121,7 +121,7 @@ TESTS = [
     ("前端逻辑测试 + 类型检查", "31 项", "apps/mobile/tests/"),
     ("网页端到端（平板 / 手机，前端模拟 + Docker API）", "20/20 场景", "apps/mobile/e2e/run_e2e.py"),
     ("契约一致性（后端模型 → 前端类型）", "通过", "scripts/gen-api.sh"),
-    ("GitHub Actions 三组合 + Docker E2E", "配置已入库，待远程首次运行", ".github/workflows/ci.yml"),
+    ("GitHub Actions 三组合 + Docker E2E", "运行 35333253707：6/6 Job 通过", ".github/workflows/ci.yml"),
 ]
 
 SOURCES = [

@@ -1,6 +1,6 @@
 # 实现状态
 
-更新：2026-09-18 · 第一批、⑤–⑨演示能力、稳定性收尾、能源快照与 **T1–T6 本地工程化冻结均已完成**。Experience Agent 已在用户 Mac 验证一次真实 DeepSeek 调用（deepseek-flash，2035 ms）。Docker Compose 全栈、Worker 事件链、迁移升降、三套后端组合与 Docker API 浏览器端到端已实测。仍待外部条件：GitHub 托管 CI 首次运行、iPad / 安卓平板真机构建与录屏。
+更新：2026-09-18 · 第一批、⑤–⑨演示能力、稳定性收尾、能源快照与 **T1–T6 工程化冻结均已完成**。Experience Agent 已在用户 Mac 验证一次真实 DeepSeek 调用（deepseek-flash，2035 ms）。Docker Compose 全栈、Worker 事件链、迁移升降、三套后端组合、Docker API 浏览器端到端与 GitHub 托管 CI 均已实测。仍待外部条件：iPad / 安卓平板真机构建与录屏。
 
 ## 已实现
 
@@ -23,7 +23,7 @@
 | 真实设备与语音接口预留 | `backend/app/adapters/protocol.py`、`voice.py` | 仅接口预留；未接入真实设备、SpaceMind 或音箱 |
 | 服务状态、确认幂等、单空间单服务、停止失效、计划过期 | `backend/app/services/rest_service.py` | 同上 |
 | 活动记录（按实际发生写入，标注来源） | 同上 | 同上 |
-| PR 模板 + CI（三套后端组合、迁移升降、契约、前端与 Docker API E2E） | `.github/` | 配置已入库；尚未在 GitHub 上运行（没有远程仓库） |
+| PR 模板 + CI（三套后端组合、迁移升降、契约、前端与 Docker API E2E） | `.github/` | GitHub Actions 运行 `35333253707`：6/6 Job 通过 |
 | B：设备写入在服务锁外执行；停止可中途抢占慢设备批次 | `backend/app/services/rest_service.py`、`adapters/virtual/devices.py` | `tests/test_concurrency.py`（服务层 + HTTP 线程池各一） |
 | ⑤：Experience Agent（提示词、Pydantic 输出校验、DeepSeek Provider） | `backend/app/agents/experience/` | `tests/test_experience_agent.py`（14 项，用测试替身，不调 DeepSeek） |
 | ⑤：规则/模型切换、降级为规则并标注原因、延迟记录 | `backend/app/services/planner.py`、`rules/rest_rule.py` | 同上；本地 HTTP 桩验证了真实 HTTP 路径与 2 秒超时降级 |
@@ -104,7 +104,7 @@
 - P07 的能源数值是固定预设日的离线结果：单智能体、美元/华氏度参数，未重训，未接入实时设备；不得外推成真实节能效果。该日结果已在本仓库复现（`simulation/home-energy/research/reproduce_day.py`，种子 42，8 项 KPI 与图一致，最大差 0.005）。
 - 演示身份下，谁能读哪份记忆由请求上下文决定，不是认证。
 - 规则模式下输入文字只记录，不做语义理解。模型模式已验证一次真实调用；延迟只有单次样本。
-- CI 配置写好了，但还没有在 GitHub 上跑过。
+- GitHub Actions 已真实运行；`main@197037a` 对应运行 `35333253707` 的 6 个 Job 全绿。
 
 ## T1 Docker 基线（已完成并通过宿主机验证）
 
@@ -177,7 +177,7 @@
 - 后端组合：内存+legacy `127 passed / 18 skipped`；PostgreSQL+legacy `141 passed / 4 skipped`；PostgreSQL+Redis+LangGraph `145 passed`。
 - Redis 测试仅允许清理显式配置的非 0 号逻辑库；冷却到期同时尊重服务时钟与 Redis TTL。
 - Legacy / LangGraph 5 组输入全部等价；前端 31/31；契约重新生成无 diff；Docker API Playwright 20/20。
-- GitHub Actions 已写入三套后端 matrix、迁移、契约、前端与 Docker E2E；**没有远程仓库，尚未在 GitHub 托管环境运行**。
+- GitHub Actions 三套后端 matrix、迁移、契约、前端与 Docker E2E 均已在托管环境运行；`35333253707` 为 6/6 Job 通过，Docker API 浏览器场景 20/20。
 
 ## 本地冻结后仍待完成
 
@@ -185,5 +185,5 @@ A 真机验收（有 iPad 时） · D 的设备部分（EAS 开发版构建、�
 
 ## 下一步接口
 
-- 下一步只剩外部验收：有设备时做真机；用户授权建远程后跑 GitHub CI。
+- 下一步只剩设备侧验收：有 iPad 或安卓平板时完成真机构建与录屏。
 - 若以后换成真实定时器：由定时器调用 `advance_clock`，认领与守卫逻辑不变。

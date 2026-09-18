@@ -47,7 +47,7 @@
 | T6 本地集成冻结 | Compose 全栈、Worker 投递消费、迁移升降、三套后端 matrix、Docker API E2E、证据表和最终文档 | 127/141/145 后端组合；Outbox 7/7；Worker 重启无重复；Playwright 20/20；契约无 diff；PDF 逐页检查 |
 | 文档 | 本交接文档、README、architecture、acceptance、status、ui-polish；产品界面方向（第 12 节） | `587d7aa`、`8525718`、`c58a29f` |
 
-检查基线（数量以`docs/status.md`为准）：默认后端127通过/18跳过；PostgreSQL+legacy 141通过/4跳过；PostgreSQL+Redis+LangGraph 145通过；前端31项+类型检查；Legacy/LangGraph 5组等价；Docker API网页端到端20/20；契约无diff。Compose两个Worker常驻验证已完成。尚未执行：真机安装与GitHub托管CI；iOS/Android JS与Hermes导出成功。
+检查基线（数量以`docs/status.md`为准）：默认后端127通过/18跳过；PostgreSQL+legacy 141通过/4跳过；PostgreSQL+Redis+LangGraph 145通过；前端31项+类型检查；Legacy/LangGraph 5组等价；Docker API网页端到端20/20；契约无diff。Compose两个Worker常驻验证已完成。GitHub Actions 托管 CI 运行 `35333253707` 的 6 个 Job 全部通过。尚未执行：真机安装；iOS/Android JS与Hermes导出成功。
 
 ### 0.3 当前状态与外部待办
 
@@ -58,7 +58,7 @@
 | T3 LangGraph 规划图 | **已完成（规划分支）** | 事件调整仍走 legacy 单阶段；图不执行设备 |
 | T4 Redis 协调 | **已完成** | 未做设备状态缓存与幂等结果缓存，原因见 `docs/status.md` |
 | T5 Outbox + 事件总线 | **已完成（数据库队列实现）** | Kafka 实现按用户决定不写：没有 broker 可验证；接口留在 `EventPublisher` |
-| T6 集成与冻结 | **本地已完成** | 完整证据见第 9 节；GitHub 托管运行与真机属于外部验收 |
+| T6 集成与冻结 | **已完成** | 本地完整回归与 GitHub Actions 6/6 均通过；真机属于单独的设备验收 |
 | A 真机验收 | 未做 | 用户暂无 iPad；所有界面验证来自网页版，不能替代真机 |
 | 真实模型的多次延迟统计 | 已规划、未执行 | 用户已同意后续多次调用并做响应效率优化前后对比；当前仍只有2035 ms单次样本。方法和结果模板见 `docs/project-metrics.md`，不为每个模块制造百分比 |
 | C 视觉整理 | 已完成 | 未做项见 `docs/ui-polish.md` 顶部 |
@@ -67,7 +67,7 @@
 | ⑨ 演示打磨 | **已完成** | 旧 HTML 清单未做（用户未提供旧页面） |
 | D 演示打包 | **云端部分已完成** | 网页版录屏 3 段、主张证据表（`docs/evidence.md`）、开发版配置与安装说明（`docs/device-build.md`）；EAS 构建与平板录屏待设备 |
 | P07 能源仿真证据 | **已迁入（离线展示）** | `simulation/home-energy/` 保存给定研究快照、结果与溯源；App 通过只读 API 展示固定日结果，不重训、不重新评估、不参与控制 |
-| GitHub 远程与 CI 实跑 | 未做 | 未经用户授权不建远程 |
+| GitHub 远程与 CI 实跑 | **已完成** | `origin=https://github.com/Hector-sau/Livingmind.git`；运行 `35333253707` 为 6/6 通过 |
 
 ### 0.4 评审时最该核对的五个点
 
@@ -282,7 +282,7 @@ git status --short
 ## 7. 尚未验证与已知限制
 
 - 尚未在 iPad、Android 平板、手机真机或 iOS 模拟器运行；网页预览不能替代真机验收。
-- GitHub CI 尚未真实运行，因为没有远程仓库。
+- GitHub Actions 已真实运行；`main@197037a` 对应运行 `35333253707` 的 6 个 Job 全部通过，包括 Docker API 浏览器端到端 20/20。
 - 规则模式下用户文字只记录，固定规则不会理解任意自然语言；模型模式已验证一次真实调用（见下）。
 - 没有真实身份认证、持久化数据库、WebSocket、语音、睡眠传感器或厂商设备。
 - 前端 Mock 和后端内存数据互不共享；切换模式应视为不同演示环境。
@@ -357,10 +357,10 @@ T1–T6 本地工程化冻结已完成。下一位 AI 首先读 `docs/status.md`
 | Docker API E2E | Playwright 20/20；含整晚、模型桩、停止竞态与断开后端 |
 | 证据表 | `docs/evidence.md` 与 `output/pdf/LivingMind-主张证据表.pdf`；5 页逐页渲染检查 |
 
-### 9.2 只剩外部验收
+### 9.2 外部状态与剩余验收
 
 1. **真机**：有 iPad 或安卓平板后，按 `docs/device-build.md` 做 Expo Go / Development Build、横竖屏、局域网、断网和完整闭环验收。
-2. **GitHub 托管 CI**：`.github/workflows/ci.yml` 已配置三套后端 matrix、迁移、契约、前端和 Docker E2E；只有用户授权建立/连接远程后才推送并核对首次运行。
+2. **GitHub 托管 CI（已完成）**：运行 `35333253707` 的 6 个 Job 全绿；覆盖三套后端组合、迁移、契约、前端和 Docker API E2E 20/20。
 3. **可选指标**：DeepSeek 多次延迟统计按 `docs/project-metrics.md` 执行；当前仍只有 2035 ms 单次真实样本，不得虚构提升比例。
 4. **能源口径**：用户已确认以给定固定日数据为准，不重训、不复现 MATD3；只标注“已提供的离线仿真结果”。
 5. **旧 HTML**：已不是新 Expo 项目完成的前置；只在用户再提供具体旧页面并要求对照时处理。
@@ -404,7 +404,7 @@ docker compose down
 
 可直接给下一位 AI 的指令：
 
-> 请先阅读仓库根目录 `AGENT-HANDOFF.md`（尤其第 0.2、0.3、9 节），再依次阅读 `docs/technology-architecture.md`、`docs/status.md`、`README.md`、`docs/project-metrics.md`、`docs/acceptance.md` 与 `docs/architecture.md`。保留现有实现和提交历史。T1–T6 的本地集成冻结已经完成，不要重复搭建基础设施，也不要新增 Kafka、重构 Agent/Harness/Executor、复现或重训 MATD3。下一步只在用户明确授权后选择一项执行：①连接 GitHub 远程并运行托管 CI，仅修复 CI 可移植性问题；②依据 `docs/device-build.md` 做 iPad/Android 真机验收；③按用户要求运行 DeepSeek 多样本指标评测。描述能力时遵守第 0.4 节与 `docs/project-metrics.md` 的如实口径；真实设备接入、GitHub CI、真机安装和多样本模型指标在实际完成前必须标为未验证。不要自行创建远程、推送、部署或扩大业务范围。
+> 请先阅读仓库根目录 `AGENT-HANDOFF.md`（尤其第 0.2、0.3、9 节），再依次阅读 `docs/technology-architecture.md`、`docs/status.md`、`README.md`、`docs/project-metrics.md`、`docs/acceptance.md` 与 `docs/architecture.md`。保留现有实现和提交历史。T1–T6、本地验证及 GitHub 托管 CI 均已完成，不要重复搭建基础设施，也不要新增 Kafka、重构 Agent/Harness/Executor、复现或重训 MATD3。下一步只在用户明确授权后选择一项执行：①依据 `docs/device-build.md` 做 iPad/Android 真机验收；②按用户要求运行 DeepSeek 多样本指标评测；③后续提交若导致 CI 失败，只修复对应回归。描述能力时遵守第 0.4 节与 `docs/project-metrics.md` 的如实口径；真实设备接入、真机安装和多样本模型指标在实际完成前必须标为未验证。不要自行部署或扩大业务范围。
 
 ## 12. 产品界面方向（用户已确认，2026-09-17）
 
