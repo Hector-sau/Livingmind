@@ -17,6 +17,18 @@ services:
       timeout: 3s
       retries: 10
 
+  redis:
+    image: redis:7-alpine
+    # No persistence on purpose: everything in Redis here is short-lived and rebuildable.
+    command: ["redis-server", "--save", "", "--appendonly", "no"]
+    ports:
+      - "127.0.0.1:6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
   # Runs once and exits; the API waits for it so it never starts against an old schema.
   migrate:
     build:
@@ -42,8 +54,12 @@ services:
     depends_on:
       migrate:
         condition: service_completed_successfully
+      redis:
+        condition: service_healthy
     environment:
       LIVINGMIND_DATABASE_URL: "${LIVINGMIND_DATABASE_URL:-postgresql+psycopg://livingmind:livingmind@postgres:5432/livingmind}"
+      LIVINGMIND_REDIS_URL: "${LIVINGMIND_REDIS_URL:-redis://redis:6379/0}"
+      LIVINGMIND_ORCHESTRATOR: "${LIVINGMIND_ORCHESTRATOR:-legacy}"
       # Peak-tariff hour, so energy advice is identical at every demo.
       LIVINGMIND_DEMO_LOCAL_HOUR: "20"
       LIVINGMIND_PLANNER_MODE: "${LIVINGMIND_PLANNER_MODE:-rule}"

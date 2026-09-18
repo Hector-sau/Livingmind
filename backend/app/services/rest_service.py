@@ -19,6 +19,7 @@ from typing import Optional
 
 from app import config
 from app.adapters.virtual.devices import VirtualDeviceAdapter
+from app.cache import Cooldown, SpaceLock
 from app.api.errors import ApiError
 from app.clock import Clock, utc_now
 from app.agents.orchestrator import Orchestrator
@@ -95,6 +96,9 @@ class RestService:
             s.space_id: VirtualDeviceAdapter(s.space_id, seed.INITIAL_DEVICE_STATE, clock) for s in seed.SPACES
         }
         self._memory = MemoryService(clock, preferences or default_preference_repository())
+        # Redis (optional): a short cross-instance lock and a fast cooldown check. The database
+        # constraints and the executor guard remain the real protection.
+        self._cooldown_cache = Cooldown(self._cooldown.total_seconds())
         self._energy_modes: dict[str, EnergyMode] = {s.space_id: s.energy_mode for s in seed.SPACES}
         self._legacy_agent = Orchestrator(
             planner=self._planner,
@@ -130,6 +134,14 @@ class RestService:
         return next(p for p in seed.PERSONS if p.person_id == ctx.person_id)
 
     # ---- helpers ----
+
+    def _space_lock(self, space_id: str) -> SpaceLock:
+        """Hold while this request may write devices. A no-op when Redis is not configured."""
+        return SpaceLock(space_id)
+
+    @staticmethod
+    def _busy(space_id: str) -> ApiError:
+        return ApiError("SPACE_BUSY", "这个空间正在执行另一个请求，请稍后重试", {"spaceId": space_id})
 
     def _log(
         self,
@@ -337,6 +349,12 @@ class RestService:
 
     def confirm_plan(self, plan_id: str, ctx: RequestContext, plan_version: int) -> ConfirmPlanResponse:
         self._check_context(ctx)
+        with self._space_lock(ctx.space_id) as space_lock:
+            if space_lock.blocked:
+                raise self._busy(ctx.space_id)
+            return self._confirm_plan_locked(plan_id, ctx, plan_version)
+
+    def _confirm_plan_locked(self, plan_id: str, ctx: RequestContext, plan_version: int) -> ConfirmPlanResponse:
         with self._lock:
             record = self._store.get_plan(plan_id)
             if record is None:
@@ -568,6 +586,10 @@ class RestService:
             if service.last_adjusted_at and now - service.last_adjusted_at < self._cooldown:
                 left = int((self._cooldown - (now - service.last_adjusted_at)).total_seconds()) + 1
                 return ignored(event_id, f"冷却中，约 {left} 秒后才会再次调整", service)
+            cached_left = self._cooldown_cache.remaining(service.service_id)
+            if cached_left:
+                # Redis knows about an adjustment another instance made moments ago.
+                return ignored(event_id, f"冷却中，约 {cached_left} 秒后才会再次调整", service)
             self._store.acquire_flag(service.service_id, FLAG_REPLANNING)
             epoch_at_start = self._store.epoch(space_id)
             person = next(p for p in seed.PERSONS if p.person_id == service.person_id)
@@ -604,6 +626,7 @@ class RestService:
                 service.adjustments += 1
                 service.last_adjusted_at = self._clock()
                 self._store.save_service(service)
+                self._cooldown_cache.start(service.service_id)
                 label = {"model": "模型", "rule": "规则", "rule_fallback": "规则降级"}.get(plan.source, plan.source)
                 self._log(
                     space_id,
@@ -644,6 +667,12 @@ class RestService:
         executor guard (service active + space epoch), so a stop cancels the rest.
         """
         self._check_context(ctx)
+        with self._space_lock(ctx.space_id) as space_lock:
+            if space_lock.blocked:
+                raise self._busy(ctx.space_id)
+            return self._advance_clock_locked(service_id, ctx, minutes)
+
+    def _advance_clock_locked(self, service_id: str, ctx: RequestContext, minutes: Optional[int]) -> AdvanceClockResponse:
         adapter = self._devices[ctx.space_id]
         with self._lock:
             service = self._store.get_service(service_id)

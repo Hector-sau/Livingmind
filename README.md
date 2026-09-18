@@ -148,6 +148,16 @@ LIVINGMIND_ORCHESTRATOR=langgraph .venv/bin/pytest      # 整套测试走图路�
 
 设备执行不在图里：图只产出计划，确认后仍由 Harness 与执行器写设备。
 
+### 2d. 跨实例协调（T4，可选）
+
+设 `LIVINGMIND_REDIS_URL` 后，同一空间在被驱动时会加一把短锁（带 TTL 和 token），事件冷却多一个快速判断。**Redis 不是事实来源**：没配、连不上或键被删掉，功能都照常，只是少了这层加速；正确性仍由数据库约束和执行器守卫保证。
+
+```bash
+cd backend
+LIVINGMIND_REDIS_URL=redis://127.0.0.1:6379/0 .venv/bin/uvicorn app.main:app --port 8000
+LIVINGMIND_TEST_REDIS_URL=redis://127.0.0.1:6379/15 .venv/bin/pytest   # 加跑 Redis 专项测试
+```
+
 ### 3. 重新生成接口类型
 
 后端契约改动后运行（需先完成后端 venv 安装）：

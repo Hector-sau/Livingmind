@@ -9,3 +9,5 @@ psycopg[binary]>=3.1
 # T3 orchestration. Only imported when LIVINGMIND_ORCHESTRATOR=langgraph.
 langgraph>=1.0,<2
 langgraph-checkpoint-postgres>=3,<4
+# T4 coordination. Only used when LIVINGMIND_REDIS_URL is set; absence degrades to PostgreSQL.
+redis>=5,<7

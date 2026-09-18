@@ -144,6 +144,18 @@
 
 未做：事件调整仍走 legacy 单阶段；图只覆盖规划，不覆盖执行（执行属于 Harness 与执行器）。
 
+## T4 Redis 协调（已完成）
+
+| 项 | 位置 | 证据 |
+|---|---|---|
+| 空间执行锁：随机 token + 30 秒 TTL，释放时用 Lua 校验 token，只删自己的锁 | `backend/app/cache/locks.py`、`keys.py` | `tests/test_cache_coordination.py`：持有者唯一、别人的锁不会被误删、TTL 存在 |
+| 第二个 API 实例在空间被驱动时收到 `SPACE_BUSY`，释放后同一计划仍可确认 | `app/services/rest_service.py::confirm_plan`、`advance_clock` | 同上 |
+| 事件冷却的快速判断：Redis 键带 TTL，删掉它也不会绕过规则（服务行仍是权威） | `app/cache/cooldown.py` | 同上 |
+| 降级：未配置 Redis、或配了但连不上，都不影响主流程 | `app/cache/client.py` | `test_without_redis_...`、`test_unreachable_redis_degrades_instead_of_failing` |
+| 与其他两层组合运行 | — | PostgreSQL + LangGraph + Redis 同时开启，139 项后端测试通过 |
+
+未做：设备状态缓存（会带来过期风险，收益为零）；幂等结果缓存（数据库已幂等）。
+
 ## 未开始
 
 A 真机验收（有 iPad 时） · D 的设备部分（EAS 开发版构建、平板录屏） · 旧 HTML 前端清单（用户尚未提供旧文件）
