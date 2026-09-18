@@ -33,12 +33,12 @@
 | ⑥b | 四个入口（对话 / 空间 / 场景 / 我的）；对话主页（计划卡、结果卡、系统消息、服务状态条、语音占位）；演示 PIN 切换与访客模式；只显示本人偏好；证据面板；场景库；数据重新设计（3 位成员 + 访客、15 条评测用例） | `tests/test_people_and_scenes.py`、`tests/test_eval_cases.py`、`apps/mobile/tests/conversation.test.ts`；端到端 12 个场景 |
 | ⑥ | 模拟室温事件 → 一次自动调整：事件接口、冷却 30 秒、上限 3 次、单服务单调整、停止后忽略、规则调整（±1°C，偏好 ±3°C 内）、模型调整跟随服务模式并受偏离上限约束；App 注入按钮与调整次数；Mock 同步 | `backend/tests/test_events.py`（10 项）；端到端 `mock-event`、`http-event` |
 | ⑨ | 一键“准备演示”（重置 → 林悦 · 舒适优先 · 设备 80/26/100 · 清空对话 · 关证据面板 · 回对话页）；“场景”页“1+2 Agent 如何协作”说明卡（有计划时展示真实协作过程）；信息提示 3 秒淡出；空态大图标；README 演示启动命令；`docs/demo-script.md` 3 分钟讲稿 | `apps/mobile/tests/notices.test.ts`；端到端 `http-prepare-demo` |
-| ⑦ | 整晚服务：休息计划附带 5 步整晚安排（Space Execution Agent 规则生成、Harness 预检、随计划确认）；模拟时钟推进接口 `POST /api/services/{id}/clock/advance`；每步最多执行一次（锁内认领 + 单服务单推进）；停止取消剩余步骤；最后一步后服务 `completed`；App 运行条“快进 / 自动播放整晚”、计划卡整晚安排、空间页整晚时间线、场景“起床渐进唤醒”改为已实现 | `backend/tests/test_night_service.py`（10 项）、`apps/mobile/tests/night.test.ts`；端到端 `http-night`、`mock-night`、`http-night-stop-phone` |
-| 稳定性与接口预留 | 自动时钟与环境调整互斥；停止期间慢规划返回的计划失效；设备全失败为 `failed`；模拟入睡、三档起床时间；真实设备 / 语音协议预留；能源研究绘图使用迁入后的权重路径 | 后端 112 项测试；`adapters/protocol.py`、`adapters/voice.py`、`docs/team-workflow.md`、`docs/demo-freeze.md` |
+| ⑦ | 整晚服务：休息计划附带 5 步整晚安排（Space Execution Agent 规则生成、Harness 预检、随计划确认）；模拟时钟推进接口 `POST /api/services/{id}/clock/advance`；每步最多执行一次（锁内认领 + 单服务单推进）；停止取消剩余步骤；只有每步全部设备动作成功才 `completed`；App 运行条“模拟已入睡 / 快进 / 自动播放整晚”、计划卡整晚安排、空间页整晚时间线、场景“起床渐进唤醒”改为已实现 | `backend/tests/test_night_service.py`（15 项）、`apps/mobile/tests/night.test.ts`；端到端 `http-night`、`mock-night`、`http-night-stop-phone` |
+| 稳定性与接口预留 | 自动时钟与环境调整互斥；调整等待时仍可停止且迟到响应不回写；重置通过服务代次和设备代次隔离旧任务；设备回读异常结果化；模拟入睡、三档起床时间；真实设备 / 语音协议预留；能源研究绘图使用迁入后的权重路径 | 后端 115 项测试；端到端 `http-stop-during-event`；`adapters/protocol.py`、`adapters/voice.py`、`docs/team-workflow.md`、`docs/demo-freeze.md` |
 | D（云端） | 三段网页版录屏脚本（每帧字幕标注来源）；主张证据表生成脚本（23 条，Markdown + PDF）；`eas.json` 开发版配置、`expo-dev-client`、包名、iOS 本地网络设置；平板安装与真机验收清单 | `apps/mobile/e2e/record_demo.py`、`scripts/build_evidence.py`、`docs/evidence.md`、`docs/device-build.md` |
 | 文档 | 本交接文档、README、architecture、acceptance、status、ui-polish；产品界面方向（第 12 节） | `587d7aa`、`8525718`、`c58a29f` |
 
-检查基线：后端 112 项 pytest、前端 30 项测试 + 类型检查、契约一致性；历史干净副本 CI 模拟与网页端到端为 19/19（本轮未因界面改动重新录制）。本机默认 Python 3.9 不满足项目的 Python 3.10+ 前提；以 Python 3.12 运行测试通过。
+检查基线：后端 115 项 pytest、前端 31 项测试 + 类型检查、契约一致性；网页端到端 20/20（含调整等待时停止与迟到响应隔离）；iOS / Android JS 与 Hermes 导出成功。真机安装与 GitHub 托管 CI 尚未执行。本机默认 Python 3.9 不满足项目的 Python 3.10+ 前提；以 Python 3.12 运行测试通过。
 
 ### 0.3 未完成（按第 8 节顺序）
 
@@ -181,7 +181,7 @@ e8ffb61 feat: step 3 clickable rest-flow prototype with front-end mock
 - 数据仅在进程内存中保存，后端重启或演示重置会清空。
 - 模拟事件只作用于正在运行的服务；没有服务、上一次调整未结束、达到 3 次上限、30 秒冷却中都会忽略并写明原因；停止后事件一律忽略。
 - 同一服务的自动操作互斥：夜间步骤执行中，环境事件忽略；环境调整中，时钟不推进。停止期间开始的慢规划返回后，计划必须是 `invalidated`，不能重新启动服务。
-- 夜间步骤设备动作全失败时服务是 `failed`，不能标为 `completed`；仅全部步骤成功才完成。
+- 夜间步骤任一设备动作失败、被拒绝或被跳过时，该步取消且服务最终为 `failed`；仅全部设备动作成功才完成。
 - “模拟已入睡”是明确演示事件，不是传感器；起床时间只允许 06:30 / 07:00 / 07:30。
 - 事件调整跟随服务的计划模式；只对有变化的设备生成动作；调整次数在执行前计数。
 - 演示 PIN 只防误切换：不签发令牌，后续请求不据此授权，任何接口都不返回 PIN。访客使用空间默认设置。

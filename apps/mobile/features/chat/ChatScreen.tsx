@@ -59,6 +59,7 @@ export function ChatScreen({ api, flow, messages, dispatch }: Props) {
 
   const injectEvent = async (temp: number) => {
     const res = await actions.injectEvent(temp);
+    if (res.stale) return;
     if (!res.ok) return system(`模拟事件失败：${res.error.message}`, 'error');
     const r = res.value;
     if (r.outcome === 'adjusted') {
@@ -70,6 +71,7 @@ export function ChatScreen({ api, flow, messages, dispatch }: Props) {
 
   const advance = async () => {
     const res = await actions.advanceClock(null);
+    if (res.stale) return;
     if (!res.ok) {
       setAutoPlay(false);
       return system(`快进失败：${res.error.message}`, res.error.connectivity ? 'warning' : 'error');
@@ -80,6 +82,7 @@ export function ChatScreen({ api, flow, messages, dispatch }: Props) {
 
   const simulateSleep = async () => {
     const res = await actions.simulateSleep();
+    if (res.stale) return;
     if (!res.ok) return system(`模拟入睡失败：${res.error.message}`, res.error.connectivity ? 'warning' : 'error');
     system(res.value.note ?? '已模拟入睡', 'success');
   };

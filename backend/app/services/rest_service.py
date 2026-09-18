@@ -428,6 +428,8 @@ class RestService:
             ok = result.outcome == "succeeded"
             with self._lock:
                 record.results.append(result)
+                if plan.plan_id not in self._store.plans:
+                    return
                 self._log(
                     plan.space_id,
                     "action_executed" if ok else "action_rejected",
@@ -456,6 +458,8 @@ class RestService:
             ok = result.outcome == "succeeded"
             with self._lock:
                 results.append(result)
+                if service.service_id not in self._store.services:
+                    return
                 self._log(
                     service.space_id,
                     "action_executed" if ok else "action_rejected",
@@ -646,6 +650,9 @@ class RestService:
         try:
             for st in due:
                 with self._lock:
+                    if service.status != "active" or service_id not in self._store.services:
+                        st.status = "cancelled"
+                        break
                     self._log(
                         service.space_id,
                         "schedule_step_executed",
@@ -657,7 +664,15 @@ class RestService:
                 step_results: list[ActionResult] = []
                 self._execute(service, st.actions, epoch_at_start, step_results)
                 with self._lock:
-                    ran = not st.actions or any(r.outcome == "succeeded" for r in step_results)
+                    # A scheduled step is atomic at the service level: one
+                    # successful device must not hide another failed device.
+                    ran = service_id in self._store.services and (
+                        not st.actions
+                        or (
+                            len(step_results) == len(st.actions)
+                            and all(r.outcome == "succeeded" for r in step_results)
+                        )
+                    )
                     st.status = "done" if ran else "cancelled"
                     st.executed_at = self._clock() if ran else None
                     results += step_results
@@ -670,7 +685,8 @@ class RestService:
                     if st.status == "running":
                         st.status = "cancelled"
                 skipped = [st for st in due if st.status == "cancelled"]
-                if skipped and service.status == "active":
+                still_tracked = service_id in self._store.services
+                if skipped and service.status == "active" and still_tracked:
                     self._log(
                         service.space_id,
                         "schedule_cancelled",
@@ -679,7 +695,7 @@ class RestService:
                         service_id=service_id,
                         person_id=service.person_id,
                     )
-                if service.status == "active" and all(st.status in ("done", "cancelled") for st in service.schedule):
+                if still_tracked and service.status == "active" and all(st.status in ("done", "cancelled") for st in service.schedule):
                     service.stopped_at = self._clock()
                     if any(st.status == "cancelled" for st in service.schedule):
                         service.status = "failed"
@@ -797,6 +813,16 @@ class RestService:
     def reset(self, account_id: str) -> BootstrapResponse:
         self._check_account(account_id)
         with self._lock:
+            # Give references held by in-flight requests a terminal state before
+            # clearing the store. Store epochs and adapter generations below
+            # prevent those requests from changing the recreated demo state.
+            for service in self._store.services.values():
+                if service.status == "active":
+                    service.status = "stopped"
+                    service.stopped_at = self._clock()
+                    for step in service.schedule:
+                        if step.status in ("pending", "running"):
+                            step.status = "cancelled"
             self._store.clear()
             self._memory.reset()
             self._energy_modes = {sp.space_id: sp.energy_mode for sp in seed.SPACES}

@@ -6,12 +6,12 @@
 
 | 页 | 主张 | 状态 | 原型实际情况 | 证据 | 来源标注 |
 |---|---|---|---|---|---|
-| P01 | 面向居住空间的主动体验 Agent：持续理解居住者，主动组织空间服务 | 部分实现 | 家庭卧室原型：一句话 → 计划 → 确认 → 室温事件调整 → 整晚服务。“持续理解”目前是读取本人偏好，不从行为中学习 | backend/app/services/rest_service.py；录屏 01–03；网页端到端 19/19 | 后端规则 · 虚拟设备 · 模拟事件 / 时钟 |
+| P01 | 面向居住空间的主动体验 Agent：持续理解居住者，主动组织空间服务 | 部分实现 | 家庭卧室原型：一句话 → 计划 → 确认 → 室温事件调整 → 整晚服务。“持续理解”目前是读取本人偏好，不从行为中学习 | backend/app/services/rest_service.py；录屏 01–03；网页端到端 20/20 | 后端规则 · 虚拟设备 · 模拟事件 / 时钟 |
 | P01 / P03 | Home Living 为核心，Smart Stay 为延展 | 部分实现 | 只实现家庭场景：1 个空间（家 · 主卧），3 位成员 + 访客；酒店场景没有实现 | backend/app/demo/seed.py；docs/test-data.md | 设计的模拟数据 |
 | P02 | 79% 重视互操作性；45% 仍主要用独立 App 控制设备 | 外部数据 | 只用于说明需求背景，不是原型证据 | 幻灯片标注：Deloitte 2023 Connected Consumer Study | 外部数据 |
 | P03 | 同一条服务闭环：理解 → 规划 → 执行 → 反馈 → 调整 | 已实现（家庭） | 主 Agent 编排并记录协作过程；执行后回读设备；室温事件触发重新规划 | backend/app/agents/orchestrator/agent.py；tests/test_agents.py（33 项）；tests/test_events.py（10 项） | 后端规则（模型可选） |
 | P03 | 多成员偏好 | 已实现 | 3 位成员偏好不同，同一句话得到不同计划；每人只能看到自己的偏好；访客不读取任何人的偏好 | backend/app/memory/service.py；tests/test_people_and_scenes.py（5 项）；端到端 *-pin-evidence、http-guest-scenes | 设计的模拟数据；演示 PIN 不是认证 |
-| P03 | 用户信任与控制权 | 已实现 | 先确认后执行；随时可停止；停止后旧计划失效；重复确认不会重复执行 | backend/app/services/rest_service.py；tests/test_rest_flow.py（17 项） | 后端规则 |
+| P03 | 用户信任与控制权 | 已实现 | 先确认后执行；随时可停止；停止后旧计划失效；重复确认不会重复执行 | backend/app/services/rest_service.py；tests/test_rest_flow.py（18 项） | 后端规则 |
 | P04 | 一句话形成方案：柔和灯光、关闭窗帘、舒适温控、勿扰设置 | 部分实现 | 灯光、窗帘、空调已实现（家庭场景）；勿扰设置没有实现 | backend/app/rules/rest_rule.py；backend/app/agents/space_execution/agent.py；录屏 01 | 虚拟设备 |
 | P04 | 状态变化后主动调整：室温变化 → 重新规划 → 调整空调 | 已实现 | 冷却 30 秒、最多 3 次、同一服务同时只有一个调整、不超出本人偏好 ±3°C、停止后忽略 | rest_service.py::inject_event；tests/test_events.py（10 项）；端到端 mock-event、http-event；录屏 02 | 模拟事件（没有真实传感器） |
 | P04 | 体验确定舒适边界，能源策略在边界内选择运行方式 | 已实现（规则） | 舒适范围 = 体验目标 ±1°C；高峰电价时建议空调提高 0.5°C；“舒适优先”只建议，“节能模式”才应用 | backend/app/energy/rules.py；tests/test_agents.py；端到端 http-energy-memory | 规则估算，非实测；不显示节省比例或金额 |
@@ -23,7 +23,7 @@
 | P06 | Harness：权限、执行约束与异常处理 | 已实现（演示级） | 白名单与参数范围；每个动作前重查服务状态与代次；设备写入在锁外，停止可中途打断；统一错误格式。权限是演示上下文校验，不是登录认证 | backend/app/harness/；tests/test_concurrency.py（2 项）；tests/test_rest_flow.py | 后端规则 |
 | P06 | 已支持空间设备虚拟执行与状态获取 | 已实现 | 有状态虚拟设备（灯光、空调、窗帘），写入后回读，版本号递增 | backend/app/adapters/virtual/devices.py；录屏 01 | 虚拟设备，不代表真实硬件 |
 | P06 | 读取执行结果，基于结果重规划 | 部分实现 | 室温事件后的重新规划已实现；设备动作失败后的自动重规划没有实现（只记录并提示） | tests/test_events.py | 模拟事件 |
-| 补充 | 一次表达，持续服务：整晚服务 | 已实现 | 一个服务贯穿整晚：模拟入睡后关灯、01:00 空调调高 1°C、所选起床时间前 30 / 15 / 0 分钟三步唤醒；每步只执行一次；停止取消剩余步骤；自动操作互斥；设备全失败不会误标完成 | rest_service.py；tests/test_night_service.py（13 项，含并发、互斥、失败与模拟入睡）；前端 `tests/night.test.ts`；端到端历史夜间场景 | 模拟时钟 / 明确的模拟入睡信号 |
+| 补充 | 一次表达，持续服务：整晚服务 | 已实现 | 一个服务贯穿整晚：模拟入睡后关灯、01:00 空调调高 1°C、所选起床时间前 30 / 15 / 0 分钟三步唤醒；每步只执行一次；停止取消剩余步骤；任一设备动作失败都不会误标完成 | rest_service.py::advance_clock；tests/test_night_service.py（15 项，含并发、重置竞态、部分失败）；端到端 http-night、mock-night、http-night-stop-phone；录屏 03 | 模拟时钟 / 明确的模拟入睡信号 |
 | P07 | 24 小时家庭并网仿真：规则策略与 MATD3 对比；净运行成本 -$0.02；舒适违规 0 / 0 | 已实现（离线展示） | 已迁入给定的家庭能源研究快照与其已提供结果；App 只读展示固定日对比。MATD3 框架在该结果中为单智能体，不参与在线设备控制 | simulation/home-energy/data/provided-day-comparison.json；provenance/manifest.json；GET /api/spaces/{spaceId}/energy/simulation；空间页“24 小时能源仿真”卡 | 离线仿真：固定预设日、已提供结果；未重训或重新评估 |
 | P08 | 49.45% 消费者已使用智能家居；65% 酒店提及劳动力成本压力 | 外部数据 | 只用于说明市场背景，不证明付费意愿 | 幻灯片标注的来源（2025 年中国消费者数据；AHLA 2026，n=246） | 外部数据 |
 | P08 | 一套能力，两种商业路径；拟收费单位 | 待验证 | 幻灯片已标“待验证” | — | 商业假设 |
@@ -44,9 +44,9 @@
 
 | 检查 | 结果 | 位置 |
 |---|---|---|
-| 后端 pytest | 108 项 | backend/tests/ |
-| 前端逻辑测试 + 类型检查 | 30 项 | apps/mobile/tests/ |
-| 网页端到端（平板 / 手机尺寸，前端模拟与后端两种模式） | 19 个场景 | apps/mobile/e2e/run_e2e.py |
+| 后端 pytest | 115 项 | backend/tests/ |
+| 前端逻辑测试 + 类型检查 | 31 项 | apps/mobile/tests/ |
+| 网页端到端（平板 / 手机尺寸，前端模拟与后端两种模式） | 20 个场景 | apps/mobile/e2e/run_e2e.py |
 | 契约一致性（后端模型 → 前端类型） | 通过 | scripts/gen-api.sh |
 | 干净副本 CI 模拟 | 通过 | .github/workflows/ |
 

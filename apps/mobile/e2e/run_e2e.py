@@ -441,27 +441,37 @@ def scenario_prepare_demo(page: Page) -> None:
     assert page.get_by_test_id("evidence-panel-space").count() == 0, "evidence is hidden again"
 
 
-def scenario_night(page: Page, url: str, label: str, backend_api: bool) -> None:
-    """Step 7: schedule preview -> confirm -> fast-forward -> auto-play to wake-up -> completed."""
+def scenario_night(page: Page, url: str, label: str, backend_api: bool, wake_time: str) -> None:
+    """Schedule preview -> explicit sleep signal -> auto-play to the selected wake time."""
     open_app(page, url)
     set_mode(page, "rule")
+    page.get_by_test_id(f"wake-time-{wake_time}").click()
     send(page, "我想休息")  # 林悦
     page.get_by_test_id("schedule-toggle").click()
     preview = page.get_by_test_id("plan-schedule").inner_text()
-    for at in ["23:00", "01:00", "06:30", "06:45", "07:00"]:
+    wake_steps = {
+        "06:30": ["06:00", "06:15", "06:30"],
+        "07:00": ["06:30", "06:45", "07:00"],
+        "07:30": ["07:00", "07:15", "07:30"],
+    }[wake_time]
+    for at in ["23:00", "01:00", *wake_steps]:
         assert at in preview, preview
     page.get_by_test_id("confirm-plan").click()
     page.get_by_test_id("night-strip").first.wait_for()
     assert "模拟时间 22:30" in page.get_by_test_id("night-clock").first.inner_text()
-    page.get_by_test_id("clock-next").first.click()
-    page.get_by_text("模拟时间 23:00 · 入睡：关灯", exact=False).wait_for(timeout=10000)
+    page.get_by_test_id("simulate-sleep").first.click()
+    page.get_by_test_id("system-message").filter(has_text="已模拟入睡，灯光已按计划关闭").last.wait_for(timeout=10000)
     assert "整晚安排 1/5" in page.get_by_test_id("night-strip").first.inner_text()
     shot(page, f"{label}-night-first-step")
     page.get_by_test_id("clock-auto").first.click()
     page.get_by_text("唤醒完成，整晚服务已结束", exact=False).wait_for(timeout=30000)
     assert page.get_by_test_id("service-strip").count() == 0, "a completed service has no running strip"
     text = body(page)
-    for line in ["模拟时间 01:00 · 深夜：空调调高到 26°C", "模拟时间 06:30 · 唤醒 1/3", "模拟时间 07:00 · 唤醒 3/3"]:
+    for line in [
+        "模拟时间 01:00 · 深夜：空调调高到 26°C",
+        f"模拟时间 {wake_steps[0]} · 唤醒 1/3",
+        f"模拟时间 {wake_steps[2]} · 唤醒 3/3",
+    ]:
         assert line in text, line
     if backend_api:
         d = page.request.get(f"{API}/api/spaces/space-home-bedroom/devices?accountId=demo-account").json()
@@ -471,7 +481,7 @@ def scenario_night(page: Page, url: str, label: str, backend_api: bool) -> None:
     assert "已完成" in body(page)
     steps = page.get_by_test_id("night-schedule").inner_text()
     assert steps.count("已执行") == 5, steps
-    assert "模拟时间 07:00" in steps
+    assert f"模拟时间 {wake_time}" in steps
     shot(page, f"{label}-night-space")
     tab(page, "scenes")
     page.get_by_test_id("scene-card-scene-wake").click()
@@ -493,6 +503,29 @@ def scenario_night_stop(page: Page, url: str) -> None:
     steps = page.get_by_test_id("night-schedule").inner_text()
     assert steps.count("已执行") == 1 and steps.count("已取消") == 4, steps
     assert page.get_by_test_id("clock-next").count() == 0
+
+
+def scenario_stop_while_event_pending(page: Page) -> None:
+    """A slow model adjustment never disables stop or restores stale state afterward."""
+    open_app(page, f"http://localhost:{HTTP_PORT}/")
+    set_mode(page, "model")
+    send(page, "我想休息，有点热")
+    page.get_by_test_id("confirm-plan").click()
+    page.get_by_test_id("service-strip").first.wait_for()
+
+    fake_deepseek.hold_next_adjustment()
+    try:
+        page.get_by_test_id("inject-event").first.click()
+        assert fake_deepseek.wait_for_adjustment(), "the held adjustment request never reached the model stub"
+        stop = page.get_by_test_id("stop-service").first
+        assert stop.is_enabled(), "stop must remain enabled while an event request is pending"
+        stop.click()
+        page.get_by_text("休息服务已停止", exact=False).wait_for(timeout=10000)
+    finally:
+        fake_deepseek.release_adjustment()
+    page.wait_for_timeout(1000)
+    assert page.get_by_test_id("service-strip").count() == 0
+    assert "已自动调整" not in last_system(page), "a late event response must not overwrite the stopped UI"
 
 
 def scenario_real_model(page: Page) -> None:
@@ -620,10 +653,10 @@ def main() -> int:
 
             def http_night(page):
                 reset_backend()
-                scenario_night(page, f"http://localhost:{HTTP_PORT}/", "http", True)
+                scenario_night(page, f"http://localhost:{HTTP_PORT}/", "http", True, "06:30")
 
             run("http-night", http_night)
-            run("mock-night", lambda page: scenario_night(page, f"http://localhost:{MOCK_PORT}/", "mock", False))
+            run("mock-night", lambda page: scenario_night(page, f"http://localhost:{MOCK_PORT}/", "mock", False, "07:30"))
 
             def phone_night_stop(page):
                 reset_backend()
@@ -631,6 +664,12 @@ def main() -> int:
                 scenario_night_stop(page, f"http://localhost:{HTTP_PORT}/")
 
             run("http-night-stop-phone", phone_night_stop)
+
+            def stop_during_event(page):
+                reset_backend()
+                scenario_stop_while_event_pending(page)
+
+            run("http-stop-during-event", stop_during_event)
 
             def http_prepare_demo(page):
                 reset_backend()

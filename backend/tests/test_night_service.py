@@ -190,6 +190,37 @@ def test_reset_clears_the_night():
     assert svc_obj._store.advancing == set()
 
 
+def test_reset_invalidates_an_overnight_write_already_in_flight():
+    client, svc_obj, _ = make(adapter_cls=GateAdapter)
+    adapter = svc_obj._devices[SPACE]
+    service = start_rest(client)
+    adapter.armed = True
+    out = {}
+    t = threading.Thread(target=lambda: out.setdefault("advance", advance(client, service["serviceId"], minutes=720)))
+    t.start()
+    assert adapter.started.wait(timeout=5)
+
+    reset = client.post("/api/demo/reset", params={"accountId": "demo-account"})
+    assert reset.status_code == 200
+    adapter.release.set()
+    t.join(timeout=5)
+
+    old = out["advance"]
+    assert old["service"]["status"] == "stopped"
+    assert all(step["status"] == "cancelled" for step in old["service"]["schedule"])
+    assert adapter.writes == 1
+    state = devices(client)
+    assert (state["lightBrightness"], state["acTargetTempC"], state["curtainOpenPercent"], state["version"]) == (
+        80,
+        26.0,
+        100,
+        0,
+    )
+    boot = client.get("/api/bootstrap", params={"accountId": "demo-account"}).json()
+    assert boot["activeService"] is None
+    assert kinds(client) == ["demo_reset"]
+
+
 def test_requested_wake_time_and_explicit_simulated_sleep_are_visible():
     client, _, _ = make()
     plan = client.post(
@@ -244,4 +275,34 @@ def test_all_failed_overnight_actions_mark_the_service_failed_not_completed():
     result = advance(client, service["serviceId"], minutes=720)
     assert result["service"]["status"] == "failed"
     assert all(step["status"] == "cancelled" for step in result["service"]["schedule"])
+    assert "service_failed" in kinds(client)
+
+
+class CurtainFailingAdapter(VirtualDeviceAdapter):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.armed = False
+
+    def _before_write(self, device, command, value):
+        if self.armed and device == "curtain":
+            raise RuntimeError("simulated curtain offline")
+
+
+def test_partial_wake_device_failures_mark_steps_and_service_failed():
+    client, svc_obj, _ = make(adapter_cls=CurtainFailingAdapter)
+    service = start_rest(client)
+    svc_obj._devices[SPACE].armed = True
+    result = advance(client, service["serviceId"], minutes=720)
+
+    assert result["service"]["status"] == "failed"
+    assert [step["status"] for step in result["service"]["schedule"]] == [
+        "done",
+        "done",
+        "cancelled",
+        "cancelled",
+        "cancelled",
+    ]
+    failed = [item for item in result["results"] if item["outcome"] == "failed"]
+    assert len(failed) == 3 and all(item["device"] == "curtain" for item in failed)
+    assert devices(client)["curtainOpenPercent"] == 0
     assert "service_failed" in kinds(client)

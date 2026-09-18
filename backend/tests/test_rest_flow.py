@@ -115,6 +115,20 @@ def test_executor_checks_guard_before_every_action(service):
     assert adapter.read_state().ac_target_temp_c == 26.0
 
 
+def test_executor_reports_readback_errors_as_action_failures(service, monkeypatch):
+    adapter = service._devices[SPACE]
+    action = DeviceAction(action_id="a1", device="light", command="set_brightness", value=10, label="l")
+
+    def fail_read(_device):
+        raise TimeoutError("device read timeout")
+
+    monkeypatch.setattr(adapter, "read_value", fail_read)
+    results = Executor(adapter).run([action], lambda: None, lambda a, r: None)
+    assert results[0].outcome == "failed"
+    assert results[0].observed_value is None
+    assert results[0].reason == "设备写入后回读失败：device read timeout"
+
+
 # 6
 def test_illegal_person_is_rejected(client):
     res = client.post("/api/plans/rest", json={"context": ctx("intruder"), "utterance": "我想休息"})

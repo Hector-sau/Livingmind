@@ -23,7 +23,7 @@ DECK = "汇报演示/LivingMind_presentationV1（10 页）"
 ROWS: list[tuple[str, str, str, str, str, str]] = [
     ("P01", "面向居住空间的主动体验 Agent：持续理解居住者，主动组织空间服务", "部分实现",
      "家庭卧室原型：一句话 → 计划 → 确认 → 室温事件调整 → 整晚服务。“持续理解”目前是读取本人偏好，不从行为中学习",
-     "backend/app/services/rest_service.py；录屏 01–03；网页端到端 19/19", "后端规则 · 虚拟设备 · 模拟事件 / 时钟"),
+     "backend/app/services/rest_service.py；录屏 01–03；网页端到端 20/20", "后端规则 · 虚拟设备 · 模拟事件 / 时钟"),
     ("P01 / P03", "Home Living 为核心，Smart Stay 为延展", "部分实现",
      "只实现家庭场景：1 个空间（家 · 主卧），3 位成员 + 访客；酒店场景没有实现",
      "backend/app/demo/seed.py；docs/test-data.md", "设计的模拟数据"),
@@ -38,7 +38,7 @@ ROWS: list[tuple[str, str, str, str, str, str]] = [
      "设计的模拟数据；演示 PIN 不是认证"),
     ("P03", "用户信任与控制权", "已实现",
      "先确认后执行；随时可停止；停止后旧计划失效；重复确认不会重复执行",
-     "backend/app/services/rest_service.py；tests/test_rest_flow.py（17 项）", "后端规则"),
+     "backend/app/services/rest_service.py；tests/test_rest_flow.py（18 项）", "后端规则"),
     ("P04", "一句话形成方案：柔和灯光、关闭窗帘、舒适温控、勿扰设置", "部分实现",
      "灯光、窗帘、空调已实现（家庭场景）；勿扰设置没有实现",
      "backend/app/rules/rest_rule.py；backend/app/agents/space_execution/agent.py；录屏 01", "虚拟设备"),
@@ -75,9 +75,9 @@ ROWS: list[tuple[str, str, str, str, str, str]] = [
      "室温事件后的重新规划已实现；设备动作失败后的自动重规划没有实现（只记录并提示）",
      "tests/test_events.py", "模拟事件"),
     ("补充", "一次表达，持续服务：整晚服务", "已实现",
-     "一个服务贯穿整晚：23:00 关灯、01:00 空调调高 1°C、06:30–07:00 三步唤醒；每步只执行一次；停止取消剩余步骤；07:00 后服务结束",
-     "rest_service.py::advance_clock；tests/test_night_service.py（10 项，含并发）；端到端 http-night、mock-night、http-night-stop-phone；录屏 03",
-     "模拟时钟（按钮或自动播放推进）"),
+     "一个服务贯穿整晚：模拟入睡后关灯、01:00 空调调高 1°C、所选起床时间前 30 / 15 / 0 分钟三步唤醒；每步只执行一次；停止取消剩余步骤；任一设备动作失败都不会误标完成",
+     "rest_service.py::advance_clock；tests/test_night_service.py（15 项，含并发、重置竞态、部分失败）；端到端 http-night、mock-night、http-night-stop-phone；录屏 03",
+     "模拟时钟 / 明确的模拟入睡信号"),
     ("P07", "24 小时家庭并网仿真：规则策略与 MATD3 对比；净运行成本 -$0.02；舒适违规 0 / 0", "已实现（离线展示）",
      "已迁入给定的家庭能源研究快照与其已提供结果；App 只读展示固定日对比。MATD3 框架在该结果中为单智能体，不参与在线设备控制",
      "simulation/home-energy/data/provided-day-comparison.json；provenance/manifest.json；GET /api/spaces/{spaceId}/energy/simulation；空间页“24 小时能源仿真”卡", "离线仿真：固定预设日、已提供结果；未重训或重新评估"),
@@ -97,9 +97,9 @@ CLIPS = [
 ]
 
 TESTS = [
-    ("后端 pytest", "108 项", "backend/tests/"),
-    ("前端逻辑测试 + 类型检查", "30 项", "apps/mobile/tests/"),
-    ("网页端到端（平板 / 手机尺寸，前端模拟与后端两种模式）", "19 个场景", "apps/mobile/e2e/run_e2e.py"),
+    ("后端 pytest", "115 项", "backend/tests/"),
+    ("前端逻辑测试 + 类型检查", "31 项", "apps/mobile/tests/"),
+    ("网页端到端（平板 / 手机尺寸，前端模拟与后端两种模式）", "20 个场景", "apps/mobile/e2e/run_e2e.py"),
     ("契约一致性（后端模型 → 前端类型）", "通过", "scripts/gen-api.sh"),
     ("干净副本 CI 模拟", "通过", ".github/workflows/"),
 ]

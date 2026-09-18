@@ -59,7 +59,15 @@ class Executor:
             self._adapter.write(action.device, action.command, action.value)
         except Exception as exc:  # device failure is reported, not hidden
             return ActionResult(**base, outcome="failed", reason=str(exc), observed_value=None)
-        observed = self._adapter.read_value(action.device)
+        try:
+            observed = self._adapter.read_value(action.device)
+        except Exception as exc:
+            return ActionResult(
+                **base,
+                outcome="failed",
+                reason=f"设备写入后回读失败：{exc}",
+                observed_value=None,
+            )
         if float(observed) != float(action.value):
             return ActionResult(**base, outcome="failed", reason="回读值与目标不一致", observed_value=observed)
         return ActionResult(**base, outcome="succeeded", reason=None, observed_value=observed)

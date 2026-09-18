@@ -34,12 +34,14 @@ class VirtualDeviceAdapter:
         self._updated_at = clock()
         # Device-level lock: state reads/writes are atomic even when the service lock is not held.
         self._lock = threading.Lock()
+        self._generation = 0
 
     def list_capabilities(self) -> list[Capability]:
         return list(CAPABILITIES)
 
     def reset(self) -> None:
         with self._lock:
+            self._generation += 1
             self._state = _State(version=0, **self._initial)
             self._updated_at = self._clock()
 
@@ -61,8 +63,12 @@ class VirtualDeviceAdapter:
 
     def write(self, device: DeviceType, command: DeviceCommand, value: float) -> None:
         """Low-level write. Only the executor should call this. May be slow for real hardware."""
+        with self._lock:
+            generation = self._generation
         self._before_write(device, command, value)
         with self._lock:
+            if generation != self._generation:
+                raise RuntimeError("设备已重置，本次写入已失效")
             if (device, command) == ("light", "set_brightness"):
                 self._state.light_brightness = int(value)
             elif (device, command) == ("ac", "set_target_temperature"):

@@ -1,6 +1,6 @@
 # 实现状态
 
-更新：2026-09-18 · 第一批（步骤 0–4）完成；B 并发修正完成；⑤ Experience Agent **已完成并验证真实调用**（2026-09-17 在用户 Mac 上运行 `scripts/try_model.py`，deepseek-flash，2035 ms）。评审修正 R1 完成；⑥ 一次事件调整完成；⑥b 对话外壳完成；C 视觉整理完成；⑧ 补齐模块完成（1+2 Agent 编排已实现）。⑨ 演示打磨完成；⑦ 整晚服务完成（模拟时钟）。本轮已补：自动操作互斥、停止期间的旧计划失效、设备全失败状态、模拟入睡、可选起床时间、设备/语音接口预留及团队协作文档。D 演示打包的云端部分完成（网页版录屏、主张证据表、开发版构建配置）；P07 给定的家庭能源研究快照、只读 API 与 App 展示已迁入。平板构建与真机录屏待有设备后做。
+更新：2026-09-18 · 第一批（步骤 0–4）完成；B 并发修正完成；⑤ Experience Agent **已完成并验证真实调用**（2026-09-17 在用户 Mac 上运行 `scripts/try_model.py`，deepseek-flash，2035 ms）。评审修正 R1 完成；⑥ 一次事件调整完成；⑥b 对话外壳完成；C 视觉整理完成；⑧ 补齐模块完成（1+2 Agent 编排已实现）。⑨ 演示打磨完成；⑦ 整晚服务完成（模拟时钟）。稳定性收尾已补：停止期间的旧计划失效、调整等待时仍可停止、迟到响应不回写、重置代次隔离、任一设备动作失败即不完成、回读异常结果化、能源绘图导入修复。D 演示打包的云端部分完成（网页版录屏、主张证据表、开发版构建配置）；P07 给定的家庭能源研究快照、只读 API 与 App 展示已迁入。平板构建与真机录屏待有设备后做。
 
 ## 已实现
 
@@ -49,11 +49,11 @@
 | ⑨：信息类提示 3 秒自动淡出（警告、错误常驻）；空态改为大图标 + 引导语（对话、服务、设备、证据、场景时间线） | `features/shell/notices.ts`、`components/EmptyState.tsx` | `tests/notices.test.ts`；端到端 `http-prepare-demo` |
 | ⑨：3 分钟演示讲稿 | `docs/demo-script.md` | — |
 | ⑦：整晚安排（5 步：23:00 关灯、01:00 空调 +1°C、所选起床时间前 30 / 15 / 0 分钟三步唤醒），Space Execution Agent 规则生成、Harness 预检、随休息计划确认 | `backend/app/rules/night_rule.py`、`agents/space_execution/agent.py` | `tests/test_night_service.py` |
-| ⑦：模拟时钟推进与模拟入睡；锁内认领保证每步只执行一次；时钟与事件自动操作互斥；停止取消剩余步骤；设备全失败时服务 `failed`，全部成功才 `completed` | `backend/app/services/rest_service.py` | `tests/test_night_service.py`（13 项）、`tests/test_concurrency.py`；前端 Mock 同步 `tests/night.test.ts` |
+| ⑦：模拟时钟推进与模拟入睡；锁内认领保证每步只执行一次；时钟与事件自动操作互斥；停止取消剩余步骤；任一设备动作失败时该步取消，全部动作成功才 `completed`；重置隔离在途旧任务 | `backend/app/services/rest_service.py`、`adapters/virtual/devices.py` | `tests/test_night_service.py`（15 项）、`tests/test_concurrency.py`；前端 Mock 同步 `tests/night.test.ts` |
 | ⑦：App 运行条“快进 / 自动播放整晚”、计划卡整晚安排、空间页整晚时间线、对话系统消息；场景“起床渐进唤醒”改为已实现；场景时间线按触发来源归类动作 | `apps/mobile/features/night/`、`features/chat/ServiceStrip.tsx`、`features/scenes/timeline.ts` | 端到端 `http-night`、`mock-night`、`http-night-stop-phone`；`tests/conversation.test.ts` |
 | D：三段网页版演示录屏（字幕标注网页版 / 虚拟设备 / 规则模式） | `apps/mobile/e2e/record_demo.py` | 已生成 `01-user-trigger`、`02-event-adjust`、`03-night-stop`（mp4，不入库；已放到用户 Mac 的 `Livingmind/演示打包/`） |
 | D：汇报主张与证据对照表（23 条，逐条写明原型实际情况、证据、来源类型） | `scripts/build_evidence.py` → `docs/evidence.md`、PDF | 路径逐一核对存在；PDF 4 页 |
-| D：平板安装说明与开发版配置（`eas.json`、`expo-dev-client`、包名 `com.livingmind.demo`、iOS 本地网络设置） | `docs/device-build.md`、`apps/mobile/eas.json`、`app.json` | **未实际构建**；网页端到端 19/19 在加入依赖后重跑通过 |
+| D：平板安装说明与开发版配置（`eas.json`、`expo-dev-client`、包名 `com.livingmind.demo`、iOS 本地网络设置） | `docs/device-build.md`、`apps/mobile/eas.json`、`app.json` | **未实际构建**；iOS / Android JS 与 Hermes 导出成功；网页端到端 20/20 通过 |
 | 真实模型端到端脚本（后端：5 句话 → 计划 → 确认 → 回读 → 停止，延迟统计；浏览器：`--real-model`） | `backend/scripts/e2e_real_model.py`（含 `--eval`）、`apps/mobile/e2e/run_e2e.py --real-model` | 已用本地桩空跑通过；真实模型运行为**可选项**（开发环境无法访问 api.deepseek.com，需在用户 Mac 终端运行） |
 
 ## 步骤 4 的 7 项验证
@@ -68,7 +68,7 @@
 | 6 | 非法人物 / 空间 / 账户 / 参数 / 过期 / 版本不符被拒绝 | 自动化测试通过 |
 | 7 | 后端断开时 App 明确反馈 | 前端单元测试 + 端到端场景 `http-offline`（关掉后端后点确认，出现“无法连接后端，显示的状态可能已过期”，设备数值变灰，没有假装成功） |
 
-浏览器端到端：`apps/mobile/e2e/run_e2e.py`（已入库，可复现）。用 Expo 网页导出，在 1180×820 和 390×844 两种尺寸下跑前端模拟与后端两种模式的完整流程，外加模型计划、超时降级、偏离降级、模拟模式降级、断网反馈，共 19 个场景（对话操作；含 PIN、证据面板、访客、场景库、1+2 Agent 协作、设备指令、节能模式、偏好编辑、准备演示、整晚服务），最近一次 19/19 通过，无页面错误。模型路径连的是本地桩，不是 DeepSeek。
+浏览器端到端：`apps/mobile/e2e/run_e2e.py`（已入库，可复现）。用 Expo 网页导出，在 1180×820 和 390×844 两种尺寸下跑前端模拟与后端两种模式的完整流程，共 20 个场景（含 PIN、证据面板、访客、场景库、1+2 Agent 协作、设备指令、节能模式、偏好编辑、准备演示、可选起床时间、模拟入睡、整晚服务、调整等待时停止与迟到响应隔离、断网反馈），最近一次 20/20 通过，无页面错误。模型路径连的是本地桩，不是 DeepSeek。
 
 ## ⑤ 的验证情况
 

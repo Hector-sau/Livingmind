@@ -97,7 +97,7 @@ export function ServiceCard({ service, persons, loading, disabled, onStop, acTar
                 testID="inject-event"
               />
             ) : null}
-            <Button label="停止服务" icon="stop-circle-outline" variant="danger" onPress={onStop} loading={loading} disabled={disabled} testID="stop-service" />
+            <Button label="停止服务" icon="stop-circle-outline" variant="danger" onPress={onStop} loading={loading} disabled={loading} testID="stop-service" />
           </View>
           <Text style={styles.muted}>模拟时钟与模拟事件用于演示整晚服务，没有真实时间和传感器。停止后未执行的步骤会取消，设备保持当前状态。</Text>
         </>

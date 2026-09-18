@@ -31,7 +31,7 @@ export interface FlowError {
   code: string | null;
 }
 
-export type Outcome<T> = { ok: true; value: T } | { ok: false; error: FlowError };
+export type Outcome<T> = { ok: true; value: T; stale?: boolean } | { ok: false; error: FlowError; stale?: boolean };
 
 export interface RestFlowState {
   phase: 'loading' | 'error' | 'ready';
@@ -79,10 +79,12 @@ function toFlowError(e: unknown): FlowError {
 }
 
 const NO_CONTEXT: Outcome<never> = { ok: false, error: { message: '还没有选择人物', connectivity: false, code: null } };
+const STALE_REQUEST: FlowError = { message: '请求已被停止操作取代', connectivity: false, code: 'STALE_REQUEST' };
 
 export function useRestFlow(api: LivingMindApi) {
   const [state, setState] = useState<RestFlowState>(initial);
   const stateRef = useRef(state);
+  const lifecycleRef = useRef(0);
   stateRef.current = state;
 
   const patch = useCallback((p: Partial<RestFlowState>) => setState((s) => ({ ...s, ...p })), []);
@@ -305,6 +307,9 @@ export function useRestFlow(api: LivingMindApi) {
     const ctx = context();
     const service = stateRef.current.service;
     if (!ctx || !service) return NO_CONTEXT;
+    // Stop supersedes an event or clock request already awaiting a response.
+    // Their late responses may still arrive, but cannot restore stale UI state.
+    lifecycleRef.current += 1;
     patch({ busy: 'stop', error: null, info: null });
     try {
       const res = await api.stopService(service.serviceId, { context: ctx });
@@ -320,9 +325,11 @@ export function useRestFlow(api: LivingMindApi) {
     async (roomTempC: number): Promise<Outcome<EventResult>> => {
       const ctx = context();
       if (!ctx) return NO_CONTEXT;
+      const lifecycle = lifecycleRef.current;
       patch({ busy: 'event', error: null, info: null });
       try {
         const res = await api.injectEvent(ctx.spaceId, { context: ctx, type: 'room_temperature_changed', roomTempC });
+        if (lifecycle !== lifecycleRef.current) return { ok: true, value: res, stale: true };
         patch({
           service: res.service ?? stateRef.current.service,
           deviceState: res.deviceState,
@@ -332,6 +339,7 @@ export function useRestFlow(api: LivingMindApi) {
         await loadActivity(ctx.spaceId);
         return { ok: true, value: res };
       } catch (e) {
+        if (lifecycle !== lifecycleRef.current) return { ok: false, error: STALE_REQUEST, stale: true };
         return fail(e);
       }
     },
@@ -344,13 +352,16 @@ export function useRestFlow(api: LivingMindApi) {
       const ctx = context();
       const service = stateRef.current.service;
       if (!ctx || !service) return NO_CONTEXT;
+      const lifecycle = lifecycleRef.current;
       patch({ busy: 'clock', error: null });
       try {
         const res = await api.advanceClock(service.serviceId, { context: ctx, minutes });
+        if (lifecycle !== lifecycleRef.current) return { ok: true, value: res, stale: true };
         patch({ service: res.service, deviceState: res.deviceState, deviceStale: false, busy: null });
         await loadActivity(ctx.spaceId);
         return { ok: true, value: res };
       } catch (e) {
+        if (lifecycle !== lifecycleRef.current) return { ok: false, error: STALE_REQUEST, stale: true };
         return fail(e);
       }
     },
@@ -362,13 +373,16 @@ export function useRestFlow(api: LivingMindApi) {
     const ctx = context();
     const service = stateRef.current.service;
     if (!ctx || !service) return NO_CONTEXT;
+    const lifecycle = lifecycleRef.current;
     patch({ busy: 'clock', error: null });
     try {
       const res = await api.simulateSleep(service.serviceId, { context: ctx });
+      if (lifecycle !== lifecycleRef.current) return { ok: true, value: res, stale: true };
       patch({ service: res.service, deviceState: res.deviceState, deviceStale: false, busy: null, info: res.note });
       await loadActivity(ctx.spaceId);
       return { ok: true, value: res };
     } catch (e) {
+      if (lifecycle !== lifecycleRef.current) return { ok: false, error: STALE_REQUEST, stale: true };
       return fail(e);
     }
   }, [api, context, fail, loadActivity, patch]);
@@ -388,6 +402,7 @@ export function useRestFlow(api: LivingMindApi) {
 
   /** Reset demo data. With keepPerson=false the first member (林悦) becomes active again. */
   const resetDemo = useCallback(async (keepPerson = true, info = '演示数据已重置'): Promise<Outcome<true>> => {
+    lifecycleRef.current += 1;
     patch({ busy: 'reset', error: null, info: null });
     try {
       const data = await api.resetDemo();

@@ -7,6 +7,7 @@ Behaviour is chosen by words in the user message:
 """
 
 import json
+import threading
 import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
@@ -20,6 +21,25 @@ VALID = {
     "clarification_question": None,
 }
 
+_hold_adjustment = threading.Event()
+_adjustment_started = threading.Event()
+_release_adjustment = threading.Event()
+
+
+def hold_next_adjustment() -> None:
+    """Test control: pause one adjustment model call until the scenario releases it."""
+    _adjustment_started.clear()
+    _release_adjustment.clear()
+    _hold_adjustment.set()
+
+
+def wait_for_adjustment(timeout: float = 3) -> bool:
+    return _adjustment_started.wait(timeout)
+
+
+def release_adjustment() -> None:
+    _release_adjustment.set()
+
 
 class Handler(BaseHTTPRequestHandler):
     def do_POST(self):  # noqa: N802
@@ -30,6 +50,10 @@ class Handler(BaseHTTPRequestHandler):
             return
         user = body["messages"][1]["content"]
         reply = dict(VALID)
+        if _hold_adjustment.is_set() and "【模拟环境事件】" in user:
+            _hold_adjustment.clear()
+            _adjustment_started.set()
+            _release_adjustment.wait(timeout=5)
         if "慢" in user:
             time.sleep(8)
         if "很亮" in user:

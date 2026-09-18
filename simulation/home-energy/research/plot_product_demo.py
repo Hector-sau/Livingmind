@@ -23,6 +23,7 @@ plot_product_demo.py
 """
 
 import random
+import os
 from pathlib import Path
 
 import matplotlib.pyplot as plt

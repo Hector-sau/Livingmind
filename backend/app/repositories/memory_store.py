@@ -40,9 +40,16 @@ class MemoryStore:
         return None
 
     def clear(self) -> None:
+        # Reset invalidates work that may still be outside the service lock in a
+        # slow device adapter. Never clear epochs back to zero: an old request
+        # must not become valid again after the demo state is recreated.
+        space_ids = set(self.epochs)
+        space_ids.update(record.plan.space_id for record in self.plans.values())
+        space_ids.update(service.space_id for service in self.services.values())
+        next_epochs = {space_id: self.epoch(space_id) + 1 for space_id in space_ids}
         self.plans.clear()
         self.services.clear()
         self.activity.clear()
-        self.epochs.clear()
+        self.epochs = next_epochs
         self.replanning.clear()
         self.advancing.clear()

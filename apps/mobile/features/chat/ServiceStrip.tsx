@@ -109,7 +109,7 @@ export function ServiceStrip({
                 testID="clock-auto"
               />
             ) : null}
-            <Button label="停止服务" icon="stop-circle-outline" variant="danger" compact onPress={onStop} loading={stopLoading} disabled={busy && !autoPlay} testID="stop-service" />
+            <Button label="停止服务" icon="stop-circle-outline" variant="danger" compact onPress={onStop} loading={stopLoading} disabled={stopLoading} testID="stop-service" />
           </View>
         </View>
       </LinearGradient>
