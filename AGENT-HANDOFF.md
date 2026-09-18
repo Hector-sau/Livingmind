@@ -16,7 +16,7 @@
 - **目标架构**（汇报口径）：主 Agent + 两个专业 Agent（Experience、Space Execution）+ 共享 Memory + Harness；SpaceMind 为“拟对接能力”，具体接口待官方文档与联调确认。
 - **团队约束**：学生团队，出发点是“演示有原型支持、简历有技术可讲”。深度标准：**演示可见、面试可答、代码可指**，够用即停。
 - **数据约定（用户已确认）**：测试与演示数据用设计的模拟数据即可，重点是讲清方案与验证方法、体现测试意识；数据设计见 `docs/test-data.md`。真实模型的多次统计是可选项。
-- **相关材料**：`docs/technology-architecture.md` 是当前仓库的工程化升级设计与技术上手指南；`../汇报演示/LivingMind_presentationV1.pdf`（10 页）和 `../架构评审/LivingMind-架构评审与迁移步骤-v0.2.md` 只作只读背景，不是执行授权。
+- **相关材料**：`docs/technology-architecture.md` 是当前仓库的工程化升级设计与技术上手指南；`docs/project-metrics.md` 说明每项技术解决的问题、指标公式、现有证据、DeepSeek 多轮评测和前后对比方法；`../汇报演示/LivingMind_presentationV1.pdf`（10 页）和 `../架构评审/LivingMind-架构评审与迁移步骤-v0.2.md` 只作只读背景，不是执行授权。
 
 ### 0.2 已完成（有代码、有测试、有提交）
 
@@ -38,6 +38,7 @@
 | 稳定性与接口预留 | 自动时钟与环境调整互斥；调整等待时仍可停止且迟到响应不回写；重置通过服务代次和设备代次隔离旧任务；设备回读异常结果化；模拟入睡、三档起床时间；真实设备 / 语音协议预留；能源研究绘图使用迁入后的权重路径 | 后端 115 项测试；端到端 `http-stop-during-event`；`adapters/protocol.py`、`adapters/voice.py`、`docs/team-workflow.md`、`docs/demo-freeze.md` |
 | D（云端） | 三段网页版录屏脚本（每帧字幕标注来源）；主张证据表生成脚本（23 条，Markdown + PDF）；`eas.json` 开发版配置、`expo-dev-client`、包名、iOS 本地网络设置；平板安装与真机验收清单 | `apps/mobile/e2e/record_demo.py`、`scripts/build_evidence.py`、`docs/evidence.md`、`docs/device-build.md` |
 | 工程化升级设计 | 明确 LangGraph、PostgreSQL、Redis、Kafka、Docker 的职责、边界、目标数据流、数据表 / Redis Key / Kafka Topic、Outbox 一致性方案、分阶段验收和面试问答；**只是设计完成，不代表这些组件已接入** | `docs/technology-architecture.md` |
+| 项目指标指南 | 汇总当前可用数字、技术—问题—功能—指标映射、指标公式、DeepSeek 45次基线与50条扩展评测方案、优化前后对比模板和简历口径；**本轮未运行真实模型、未产生新的百分比** | `docs/project-metrics.md` |
 | 文档 | 本交接文档、README、architecture、acceptance、status、ui-polish；产品界面方向（第 12 节） | `587d7aa`、`8525718`、`c58a29f` |
 
 检查基线：后端 115 项 pytest、前端 31 项测试 + 类型检查、契约一致性；网页端到端 20/20（含调整等待时停止与迟到响应隔离）；iOS / Android JS 与 Hermes 导出成功。真机安装与 GitHub 托管 CI 尚未执行。本机默认 Python 3.9 不满足项目的 Python 3.10+ 前提；以 Python 3.12 运行测试通过。
@@ -53,7 +54,7 @@
 | T5 Kafka + Outbox | 未开始 | 只传播已发生的领域事件，先做 Activity Projector；不进入设备同步控制关键路径 |
 | T6 集成与冻结 | 未开始 | Compose、迁移、健康检查、集成测试、CI 与完整端到端重新验收 |
 | A 真机验收 | 未做 | 用户暂无 iPad；所有界面验证来自网页版，不能替代真机 |
-| 真实模型的多次统计 / 评测集打分 | 可选 | 脚本已入库（`e2e_real_model.py`、`--eval`）；用户确认不作为前提 |
+| 真实模型的多次统计 / 评测集打分 | 已规划、未执行 | 用户已同意后续多次调用并做优化前后对比；当前仍只有2035 ms单次样本。方法和结果模板见 `docs/project-metrics.md`，不得提前填写百分比 |
 | C 视觉整理 | 已完成 | 未做项见 `docs/ui-polish.md` 顶部 |
 | ⑦ 整晚服务 | **已完成** | 模拟时钟，由按钮或自动播放推进；不是真实定时器 |
 | ⑧ 主 Agent / 执行 Agent / 记忆 / 能源规则 | **已完成** | 如何如实描述见 0.4 |
@@ -128,13 +129,14 @@ Expo App：对话 / 空间 / 场景 / 我的（计划来源开关：规则 / 模
 1. 本文件其余部分：边界和下一任务。
 2. `README.md`：启动方法和三条架构边界。
 3. `docs/technology-architecture.md`：工程化目标、每项技术的真实用途、数据设计、故障降级和 T1–T6 验收。
-4. `docs/status.md`：已实现、证据、未实现内容。
-5. `docs/acceptance.md`：每阶段达到什么程度就停止。
-6. `docs/architecture.md`：当前代码链路和目录职责。
-7. 第 12 节：产品界面方向，执行 ⑥b、C、⑨ 前必读。
-8. `docs/ui-polish.md`：视觉整理清单，执行 C 时必读。
-9. `docs/test-data.md`：演示与测试数据的设计。
-10. 修改 `apps/mobile/` 前阅读 `apps/mobile/AGENTS.md`，并查看其要求的 Expo SDK 57 版本文档。
+4. `docs/project-metrics.md`：现有指标证据、未来补测方法、前后对比模板与简历口径。
+5. `docs/status.md`：已实现、证据、未实现内容。
+6. `docs/acceptance.md`：每阶段达到什么程度就停止。
+7. `docs/architecture.md`：当前代码链路和目录职责。
+8. 第 12 节：产品界面方向，执行 ⑥b、C、⑨ 前必读。
+9. `docs/ui-polish.md`：视觉整理清单，执行 C 时必读。
+10. `docs/test-data.md`：演示与测试数据的设计。
+11. 修改 `apps/mobile/` 前阅读 `apps/mobile/AGENTS.md`，并查看其要求的 Expo SDK 57 版本文档。
 
 不得把架构评审、PDF 或演讲稿中的描述直接当成“代码已经实现”。以仓库、测试和 `docs/status.md` 为准。
 
@@ -294,7 +296,7 @@ git status --short
 
 ### ⑤ 的验证范围
 
-`tests/test_experience_agent.py` 全部使用测试替身。真实调用已由用户在 Mac 上用 `backend/scripts/try_model.py` 验证一次（deepseek-flash，2035 ms，输出合法）。这是单次样本：8 秒目标在 Agent 层满足。多次统计、评测集打分与端到端计时的脚本已入库（`backend/scripts/e2e_real_model.py [--eval]`、`apps/mobile/e2e/run_e2e.py --real-model`），已用本地桩空跑通过；用户确认这些是**可选项**。注意：开发用的云端环境和 Mac 上的沙箱都无法访问 `api.deepseek.com`，真实模型只能在用户 Mac 的终端里跑。密钥只在用户本机 `backend/.env`，仓库和对话中都不应出现。
+`tests/test_experience_agent.py` 全部使用测试替身。真实调用已由用户在 Mac 上用 `backend/scripts/try_model.py` 验证一次（deepseek-flash，2035 ms，输出合法）。这是单次样本：8 秒目标在 Agent 层满足。多次统计、评测集打分与端到端计时的脚本已入库（`backend/scripts/e2e_real_model.py [--eval]`、`apps/mobile/e2e/run_e2e.py --real-model`），并已用本地桩空跑通过。用户已批准后续按 `docs/project-metrics.md` 建立45次真实调用基线、扩展50条设计用例并做优化前后对比，但本轮没有运行。注意：开发用的云端环境和 Mac 上的沙箱都无法访问 `api.deepseek.com`，真实模型只能在用户 Mac 的终端里跑。密钥只在用户本机 `backend/.env`，仓库和对话中都不应出现。
 
 ## 8. 后续执行顺序
 
@@ -395,7 +397,7 @@ git status --short
 
 可直接给下一位 AI 的指令：
 
-> 请先阅读仓库根目录 `AGENT-HANDOFF.md`，再依次阅读 `README.md`、`docs/technology-architecture.md`、`docs/status.md`、`docs/acceptance.md`、`docs/architecture.md`。保留现有实现和提交历史，重新运行 115 项后端测试、31 项前端测试、类型与契约检查。当前只执行 T1 Docker 基线：容器化 FastAPI、加入只含 API 的 Compose 服务、在容器内跑测试并验证健康检查；不要提前加入 PostgreSQL、LangGraph、Redis 或 Kafka。达到第 9 节验收条件后更新四份文档、提交一次聚焦 commit 并停止。描述能力时遵守 0.4 的如实口径；不要去掉来源标注，不要创建远程、推送或部署。
+> 请先阅读仓库根目录 `AGENT-HANDOFF.md`，再依次阅读 `README.md`、`docs/technology-architecture.md`、`docs/project-metrics.md`、`docs/status.md`、`docs/acceptance.md`、`docs/architecture.md`。保留现有实现和提交历史，重新运行 115 项后端测试、31 项前端测试、类型与契约检查。当前只执行 T1 Docker 基线：容器化 FastAPI、加入只含 API 的 Compose 服务、在容器内跑测试并验证健康检查；不要提前加入 PostgreSQL、LangGraph、Redis 或 Kafka。达到第 9 节验收条件后更新四份文档、提交一次聚焦 commit 并停止。描述能力时遵守 0.4 和 `docs/project-metrics.md` 的如实口径；不要去掉来源标注，不要创建远程、推送或部署。
 
 ## 12. 产品界面方向（用户已确认，2026-09-17）
 
