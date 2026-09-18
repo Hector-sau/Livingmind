@@ -112,7 +112,7 @@
 | 后端镜像（Python 3.12、多阶段、非 root、依赖版本锁定） | `backend/Dockerfile`、`backend/constraints.txt`、`backend/.dockerignore` | 已入库；镜像构建待在 Docker Desktop 上执行 |
 | Compose（只含 api，端口绑 `127.0.0.1`，健康检查用 python 而非 curl） | `compose.yaml` | 已入库；`docker compose config` 解析通过 |
 | 一键验证脚本（构建 → 容器内测试 → 健康检查 → 宿主机走完休息闭环 → 关闭） | `scripts/verify-t1.sh` | HTTP 闭环部分已在本机后端上跑通；Docker 部分待验证 |
-| 锁定版本在 Python 3.12 上的可用性 | `backend/constraints.txt` | 已验证：安装成功，115 项后端测试通过 |
+| 锁定版本在 Python 3.12 上的可用性 | `backend/constraints.txt` | 已验证：安装成功，全部后端测试在 3.12 上通过 |
 
 未验证：`docker compose build/up`、容器内测试、镜像大小与非 root 的实际结果。开发容器没有 Docker 守护进程，必须在用户的 Mac 上执行。
 
@@ -120,7 +120,7 @@
 
 | 项 | 位置 | 证据 |
 |---|---|---|
-| 同步数据库栈：SQLAlchemy 2 + psycopg 3 + Alembic；`LIVINGMIND_DATABASE_URL` 为空时完全走内存，行为不变 | `backend/app/db/`、`backend/alembic/`、`backend/app/config.py` | 未配数据库时原有 115 项测试不变；配上后 122 项通过 |
+| 同步数据库栈：SQLAlchemy 2 + psycopg 3 + Alembic；`LIVINGMIND_DATABASE_URL` 为空时完全走内存，行为不变 | `backend/app/db/`、`backend/alembic/`、`backend/app/config.py` | 未配数据库时原有测试全部不变；配上数据库后新增专项测试一起通过 |
 | 人物偏好持久化：Repository 协议 + 内存实现 + SQL 实现；种子只在缺行时写入，不覆盖用户编辑 | `backend/app/memory/repository.py`、`app/memory/service.py` | `tests/test_persistence.py`：同一套契约测试跑内存与 PostgreSQL 两种实现 |
 | 重启后偏好仍在；演示重置回到种子值；接口层在配置数据库时自动使用 SQL 实现 | `RestService(preferences=...)`、`default_preference_repository()` | 同上（真实 PostgreSQL 16 上运行） |
 | 迁移 `0001_person_preferences`（含数值范围 CHECK 约束） | `backend/alembic/versions/` | `alembic upgrade head` 在 PostgreSQL 16 上执行通过 |
@@ -128,6 +128,7 @@
 | 业务事实落库：计划、服务、整晚步骤、动作结果、活动记录、空间代次、进行中标记 | `backend/app/repositories/store.py`（协议 + 内存实现）、`sql_store.py`、`alembic/versions/0002_business_facts.py` | 整套测试换存储再跑一遍：`LIVINGMIND_TEST_STORE=sql` 下 125 项通过；不配数据库时 117 项通过、8 项跳过 |
 | 数据库层约束：每空间只有一个 active 服务（部分唯一索引）；夜间步骤 `UPDATE … WHERE status='pending' RETURNING` 只认领一次 | 同上 | `tests/test_persistence.py`：绕过服务层直接插入第二个 active 服务被数据库拒绝；两个连接并发认领，每步只被认领一次 |
 | 重启恢复：新进程能读到运行中的服务、整晚步骤状态、活动记录，并能继续停止 | 同上 | `test_plans_services_steps_and_activity_survive_a_restart` |
+| 网页端到端在两种存储下各跑一遍 | `apps/mobile/e2e/run_e2e.py` | 内存模式 20/20；后端接 PostgreSQL 再跑一遍同样 20/20 |
 
 未做：跨实例协调（多 API 实例同时写）仍依赖单进程锁 + 数据库约束，要到 T4 才补 Redis；设备状态仍在内存虚拟适配器里（它模拟硬件，不是业务事实）。
 
