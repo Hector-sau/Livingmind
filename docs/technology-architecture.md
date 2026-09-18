@@ -38,8 +38,8 @@ iPad / Android App                          未来语音入口
 
 PostgreSQL：业务事实、人物记忆、计划、服务、动作、Outbox、Graph checkpoint
 Redis：短期锁、冷却、幂等加速、热点状态；不可作为唯一事实来源
-Kafka：动作完成后的领域事件、审计投影、分析；不在设备控制关键路径
-Docker Compose：在开发机和 CI 中统一启动 API、数据库、缓存、消息系统和 Worker
+事件总线：动作完成后的领域事件、审计投影、分析；默认用 PostgreSQL 队列实现，Kafka 为可选实现；都不在设备控制关键路径
+Docker Compose：在开发机和 CI 中统一启动 API、数据库、缓存和 Worker；消息中间件放在可选 profile，默认不启动
 ```
 
 设计原则：
@@ -48,9 +48,11 @@ Docker Compose：在开发机和 CI 中统一启动 API、数据库、缓存、�
 2. LangGraph 负责理解和规划；`RestService + Harness + Executor` 负责确认、停止和执行安全。
 3. PostgreSQL 是唯一事实来源（source of truth）。
 4. Redis 丢失后系统应能降级运行，不能丢失人物偏好或服务事实。
-5. Kafka 故障不能阻止“确认、停止、设备执行”；待发送事件保存在 PostgreSQL Outbox。
+5. 事件总线故障不能阻止“确认、停止、设备执行”；待发送事件保存在 PostgreSQL Outbox。
 6. 所有消费者按 `event_id` 幂等，不能假设消息绝不会重复。
 7. Expo 原生开发继续在 Mac 运行；Docker 主要承载后端和基础设施。
+8. 后端保持**同步**技术栈（同步路由 + 同步驱动 + 线程池）。要改成异步必须整条链路一起改，单独立项，不在 T1–T6 内混做。
+9. 本文出现的目录树、表名和 Key 都是**建议结构，尚未创建**；实施时以实际代码为准并回来更新本文。
 
 ## 2. 当前实现与目标实现
 
@@ -65,7 +67,8 @@ Docker Compose：在开发机和 CI 中统一启动 API、数据库、缓存、�
 | 并发控制 | Python 锁、space epoch、集合标记 | PostgreSQL 约束 + 行锁；Redis 做快速协调 | 已实现单实例，分布式计划中 |
 | 设备 | 有状态虚拟 Adapter | 保持 Protocol，增加真实厂商 Adapter | 虚拟设备已实现 |
 | 能源 | 在线规则 + 离线固定日仿真 | 保持边界；事件进入 Kafka 分析流 | 已实现规则与只读展示 |
-| 异步事件 | 进程内活动记录 | PostgreSQL Outbox → Kafka → Consumer Projection | 计划 |
+| 异步事件 | 进程内活动记录 | PostgreSQL Outbox → 事件总线 → Consumer Projection（总线默认为数据库队列，Kafka 可选） | 计划 |
+| 语音入口 | `adapters/voice.py` 只有接口定义，没有任何调用方 | 真实网关返回文本与来源后走同一 assistant 契约 | **仅接口预留，未实现** |
 | 容器化 | 无 | Dockerfile + Compose | 计划 |
 | CI | pytest、TS、契约、Playwright | 增加容器集成测试和迁移检查 | 已实现基础版，待扩展 |
 
@@ -136,6 +139,21 @@ account:{account_id}:person:{person_id}:space:{space_id}:conversation:{conversat
 
 LangGraph checkpoint 是“工作流执行记忆”，人物偏好是“产品记忆”，两者不能混用。生产目标使用 PostgreSQL checkpointer；内存 saver 只用于单元测试。
 
+checkpoint 的表由 checkpointer 自己创建（`setup()`），**不归 Alembic 管**。启动流程必须显式调用一次初始化，否则只有在第一次请求时才会暴露缺表问题。checkpointer 与 LangGraph 的版本要一起锁定。
+
+“legacy 与 graph 生成等价 Plan”不能按字面逐字段相等验收（`plan_id`、`action_id`、时间戳、`latency_ms` 必然不同）。等价的定义是：
+
+```text
+比较：intent、summary、notes、source、fallback_reason、
+     actions（device/command/value/label 顺序一致）、
+     schedule（at/phase/title/每步 actions）、
+     energy（模式、电价档、建议温度、是否应用）、
+     trace（agent 名称与顺序）
+忽略：所有 id、created_at/expires_at、latency_ms、trace 内的耗时
+```
+
+对照器实现为一个可在测试里直接调用的函数，并配一个脚本对固定输入集跑双路径比对。
+
 设备执行不放入可随意重放的规划节点。Graph 输出普通 `Plan` 后仍走现有确认接口、计划幂等、服务 epoch、Executor 和设备回读。
 
 ## 4. PostgreSQL：唯一事实来源
@@ -182,14 +200,31 @@ consumer_receipts
 - `outbox_events.event_id`：UUID 主键。
 - 所有业务表记录 `created_at`、`updated_at`；需要并发更新的表增加 `version`。
 
+### 4.2.1 现有并发语义如何落到数据库
+
+当前正确性依赖三件进程内的东西，迁移时必须逐条找到数据库对应物，否则并发测试会失去意义：
+
+| 现在的机制 | 作用 | 数据库表达 |
+|---|---|---|
+| `RLock` 保护簿记 | 同一时刻只有一个写者 | 事务 + `SELECT … FOR UPDATE` 锁定计划行 / 服务行 |
+| 单空间单服务 | 不会同时开两个休息服务 | `services` 上 `status='active'` 的部分唯一索引，插入冲突即为“已有服务” |
+| 空间代次 epoch | 停止后让旧计划与旧任务失效 | `spaces.epoch` 列；计划记录创建时的 epoch，执行前比对；停止时 `epoch = epoch + 1` |
+| 设备代次 | 重置后隔离旧任务的迟到写入 | `spaces.device_epoch` 列，语义同上 |
+| 夜间步骤认领（pending → running） | 每步最多执行一次 | `UPDATE scheduled_steps SET status='running' WHERE step_id=:id AND status='pending' RETURNING step_id`，没有返回行就说明别人已经领走 |
+| 事件冷却 30 秒、调整次数上限 | 限制自动调整频率 | 写在 `services.last_adjusted_at` 与 `services.adjustments`，在同一事务里判断并自增；Redis 只是加速，不是唯一依据 |
+
+迁移时保留现有并发测试的断言，只替换底层实现；测试从“单进程多线程”扩展为“多连接并发事务”。
+
 ### 4.3 如何实现
 
 建议使用：
 
-- SQLAlchemy 2.x：ORM、事务、连接池。
-- PostgreSQL driver：在实施时锁定与 Python 版本兼容的驱动。
+- SQLAlchemy 2.x（**同步 API**）：ORM、事务、连接池。
+- psycopg 3 同步驱动：与现有同步路由和线程池一致，不引入 async 混用。
 - Alembic：数据库结构迁移，每个 schema 变化必须有 migration。
 - Repository Protocol：业务服务不直接写 ORM，方便测试时替换成内存实现。
+
+依赖版本必须锁定。当前 `backend/requirements.txt` 用的是 `>=` 范围，容器每次构建可能装到不同版本；T1 起增加 `constraints.txt`（或锁文件），把 FastAPI、SQLAlchemy、Alembic、psycopg、redis、LangGraph 与 checkpointer 固定到具体版本。
 
 建议目录：
 
@@ -211,6 +246,16 @@ backend/alembic/
 5. 写入 `plan.confirmed` Outbox 事件。
 6. 提交事务。
 7. 在事务外调用设备；每个结果再以独立幂等事务写回。
+
+演示重置（`POST /api/demo/reset`）在数据库下的语义要显式定义，否则会出现“清不干净”或“误删”：
+
+```text
+一个事务内：按 accountId 删除该演示账户的计划、服务、步骤、动作、活动与 Outbox 行
+          → 重置该账户空间的设备状态、能源模式、epoch
+          → 重新写入种子偏好
+```
+
+重置只影响演示账户，且必须有单独测试：重置后活跃服务为空、偏好回到种子值、旧计划不能再被确认。
 
 ### 4.4 人物记忆
 
@@ -254,7 +299,7 @@ device:space:{space_id}:snapshot              TTL 30s
 
 ### 5.3 如何实现
 
-- 使用 `redis-py`，若后端转为异步路由则使用 `redis.asyncio`。
+- 使用 `redis-py` 的**同步**客户端，与后端同步栈保持一致（异步化是独立项目，不在 T1–T6 内）。
 - 在 FastAPI lifespan 创建一个共享连接池，关闭应用时统一释放。
 - 所有非关键缓存访问捕获连接错误并降级到 PostgreSQL。
 - 冷却和计数使用带 TTL 的原子命令或 Lua 脚本，避免“先读再写”的竞态。
@@ -269,22 +314,41 @@ backend/app/cache/
 └── cooldown.py
 ```
 
-## 6. Kafka：领域事件与异步处理
+## 6. 领域事件：Outbox 与事件总线（Kafka 可选）
 
-### 6.1 为什么需要 Kafka
+### 6.1 要解决什么问题
 
-Kafka 用于把“已经发生的事实”发送给不应阻塞主请求的下游：
+需要把“已经发生的事实”交给不应该阻塞主请求的下游：
 
 - 审计与活动流投影。
 - Agent / 模型耗时分析。
 - 能源统计与演示数据汇总。
-- 未来通知、主动服务触发器和设备遥测消费。
+- 未来的通知、主动服务触发器和设备遥测消费。
 
-Kafka 不用于同步发送“现在关灯”的核心命令。确认、停止、执行和回读必须通过当前同步控制链路返回明确结果。
+**当前项目实际上还没有这个问题**：只有一个后端进程、一个消费方（App 读活动记录）。因此本阶段的目标不是“部署一个消息中间件”，而是把**事务一致性与异步分发的模式**做对，并留出可替换的实现。
 
-### 6.2 Topic 设计
+事件总线不用于同步发送“现在关灯”。确认、停止、执行和回读必须通过当前同步控制链路返回明确结果。
 
-首版只建少量稳定 Topic：
+**活动记录仍然同步写入 PostgreSQL**，App 的证据面板读的就是这张表。事件投影只是它的异步副本与分析视图；绝不能把活动记录改成“等消费者投影出来再显示”，否则演示时会出现记录延迟或缺失。
+
+### 6.2 事件总线的两种实现
+
+对外只暴露一个接口：
+
+```text
+EventPublisher.publish(batch: list[Envelope]) -> list[event_id]   # 已成功发出的
+```
+
+| 实现 | 何时用 | 代价 |
+|---|---|---|
+| `PostgresQueuePublisher`（默认） | 日常开发、CI、演示 | 不额外占内存；队列就是 `outbox_events` 表本身，消费者用 `FOR UPDATE SKIP LOCKED` 领取 |
+| `KafkaPublisher`（可选） | 想演示或验证 Kafka 时 | 单节点 KRaft 常驻约 1 GB 内存；放在 Compose 的 `kafka` profile，默认不启动 |
+
+这样“至少一次投递、按 `event_id` 幂等、重试与死信、按空间保序、多实例竞争消费”这些真正值钱的部分在默认实现里就完整存在；Kafka 只是换一个 sink，验证过一次后即可保持关闭。对外口径必须如实：默认用数据库队列，Kafka 已验证/未验证要写清楚。
+
+### 6.3 Topic / 通道设计
+
+首版只建少量稳定通道，两种实现共用同一组名字：
 
 ```text
 livingmind.domain-events.v1
@@ -324,21 +388,21 @@ energy.mode.updated
 }
 ```
 
-Kafka message key 使用 `spaceId`，保证同一空间事件进入同一分区并保持顺序。
+顺序按 `spaceId` 保证：Kafka 用它作 message key（同一空间进同一分区）；数据库队列实现按 `spaceId` 分组、按自增序号顺序领取。
 
-### 6.3 Transactional Outbox
+### 6.4 Transactional Outbox
 
-不能先写 PostgreSQL、再直接调用 Kafka；如果进程在两步之间崩溃，会出现数据库成功但事件丢失。采用 Transactional Outbox：
+不能先写 PostgreSQL、再直接发事件；如果进程在两步之间崩溃，会出现数据库成功但事件丢失。采用 Transactional Outbox：
 
 ```text
 业务事务：更新 service + 插入 outbox_events
                          ↓
-Outbox Publisher：读取未发送行 → Kafka publish → 标记 published_at
+Outbox Publisher：读取未发送行 → EventPublisher.publish → 标记 published_at
                          ↓
 Consumer：按 event_id 幂等处理 → 写 consumer_receipts
 ```
 
-Publisher 使用 `FOR UPDATE SKIP LOCKED` 领取任务，可运行多个实例。Kafka 默认按至少一次思路设计消费者，因此重复消息是正常情况；消费者必须使用 `event_id` 去重。
+Publisher 使用 `FOR UPDATE SKIP LOCKED` 领取任务，可运行多个实例。无论哪种实现都按至少一次设计消费者，重复消息是正常情况，必须用 `event_id` 去重。
 
 建议目录：
 
@@ -346,7 +410,8 @@ Publisher 使用 `FOR UPDATE SKIP LOCKED` 领取任务，可运行多个实例�
 backend/app/events/
 ├── envelope.py
 ├── outbox.py
-├── producer.py
+├── publisher.py        # EventPublisher 协议 + Postgres 队列实现
+├── kafka_publisher.py  # 可选实现
 └── topics.py
 backend/workers/
 ├── outbox_publisher.py
@@ -354,7 +419,7 @@ backend/workers/
 └── energy_analytics.py
 ```
 
-Kafka 不可用时：
+总线不可用时（Kafka 停机，或数据库队列积压）：
 
 - API、停止和设备控制继续工作。
 - Outbox 行保持 `pending`。
@@ -367,15 +432,19 @@ Kafka 不可用时：
 ### 7.1 服务组成
 
 ```text
-services:
+默认启动：
   api                 FastAPI + LangGraph + 业务服务
   postgres            业务数据 + LangGraph checkpoint
   redis               缓存、锁、冷却
-  kafka               KRaft 单节点开发环境
+  outbox-worker       Outbox → 事件总线（默认数据库队列）
+  activity-projector  事件 → 活动流投影
+
+profile: kafka（默认不启动，仅在需要验证 Kafka 时开启）
+  kafka               KRaft 单节点
   kafka-init          创建 Topic 后退出
-  outbox-worker       PostgreSQL Outbox → Kafka
-  activity-projector  Kafka → 活动流投影
 ```
+
+每个阶段只加入当前代码真正用到的服务；端口一律绑 `127.0.0.1`，不要暴露到局域网（App 连的是 API 的 8000 端口，由 README 的局域网说明单独处理）。
 
 Expo Metro、iOS 模拟器和真机调试继续在 Mac 上运行，不进入 Linux 容器。App 通过 `http://<Mac 局域网 IP>:8000` 访问映射出来的 API。
 
@@ -387,6 +456,8 @@ compose.yaml
 backend/Dockerfile
 backend/Dockerfile.worker
 ```
+
+`.dockerignore` 至少排除：`.git/`、`apps/`（含 `node_modules`）、`packages/`、`dist/`、`docs/`、`simulation/`、`**/.venv/`、`**/__pycache__/`、`apps/mobile/e2e/.out/`。仓库里有约 28 MB 的仿真权重和图片、几百 MB 的前端依赖，不排除会让构建上下文无谓变大。
 
 容器启动顺序依赖健康检查，不依赖固定 sleep：
 
@@ -415,7 +486,7 @@ kafka healthy ────┘                │
 11. 用户确认后，API 在 PostgreSQL 事务中幂等创建 Service。
 12. Executor 每个动作前检查服务状态和版本，经 Adapter 写设备并回读。
 13. 结果写入 PostgreSQL，并插入 `device.action.completed` Outbox。
-14. Publisher 异步发送 Kafka；Consumer 更新活动投影和分析数据。
+14. Publisher 异步发送到事件总线；Consumer 更新活动投影和分析数据（活动记录本身在第 13 步已经同步写好）。
 15. App 从同步响应看到当前结果，从活动接口看到后续事件轨迹。
 
 ## 9. 故障与降级策略
@@ -425,7 +496,7 @@ kafka healthy ────┘                │
 | DeepSeek 超时 | Graph 走规则 fallback；Plan 标明原因 |
 | PostgreSQL 不可用 | 拒绝会改变事实的请求；不能假装执行成功 |
 | Redis 不可用 | 回退到 PostgreSQL 锁与读取；记录告警 |
-| Kafka 不可用 | 主控制链路继续；事件留在 Outbox 等待补发 |
+| 事件总线不可用（Kafka 停机或队列积压） | 主控制链路继续；活动记录照常同步写库；事件留在 Outbox 等待补发 |
 | Consumer 重复收到事件 | `consumer_receipts.event_id` 去重 |
 | 设备写入失败 | `ActionResult=failed`，服务不得误标完成 |
 | 设备回读失败 | 标为“已发送但无法确认”，不自动盲目重试 |
@@ -440,10 +511,12 @@ kafka healthy ────┘                │
 
 - 为 FastAPI 添加 Dockerfile。
 - Compose 先只启动 `api`，不放入尚未被代码使用的装饰性基础设施。
-- 容器内运行现有 115 项测试。
+- 容器内运行现有后端测试（数量以 `docs/status.md` 为准，不在文档里写死）。
 - Expo App 连接容器 API，完整闭环不变。
 
 完成条件：新同学只需要 Docker Desktop、Node 和 Expo Go，即可启动后端。
+
+端到端脚本（`apps/mobile/e2e/run_e2e.py`）默认仍启动本机 venv 后端，这条路径保持不变；容器路径作为另一条集成验证，不替换默认路径。
 
 ### 阶段 B：PostgreSQL 持久化
 
@@ -472,19 +545,20 @@ kafka healthy ────┘                │
 
 完成条件：多 API 实例下同一空间仍只有一个 active service；Redis 停止后核心流程仍可运行。
 
-### 阶段 E：Kafka + Outbox
+### 阶段 E：Outbox 与事件总线（Kafka 可选）
 
-- 建 `outbox_events` migration。
-- 实现 Publisher 和一个真实 Consumer：`activity-projector`。
-- 所有消息携带 `event_id`、`correlation_id` 和 `schema_version`。
-- 测试 Kafka 停机、恢复、重复投递和 Consumer 重启。
+- 建 `outbox_events`、`consumer_receipts` migration。
+- 实现 `EventPublisher` 协议 + 数据库队列实现 + Outbox Publisher + 一个真实 Consumer：`activity-projector`。
+- 所有消息携带 `event_id`、`correlation_id` 和 `schema_version`；消费者按 `event_id` 去重。
+- 测试：总线停摆、恢复补发、重复投递、Consumer 重启、同一空间保序。
+- Kafka 实现与 `kafka` profile 作为可选项；跑通一次即留证据，平时保持关闭。
 
-完成条件：Kafka 停止期间设备仍能执行；恢复后待发送事件补发；重复消息不产生重复活动。
+完成条件：总线停摆期间设备仍能执行；恢复后待发送事件补发；重复消息不产生重复活动；活动记录始终由同步写入保证。
 
 ### 阶段 F：集成与演示冻结
 
 - Compose 一键启动全部后端服务。
-- GitHub CI 增加 migration、容器健康和集成测试。
+- GitHub CI 增加 migration、容器健康和集成测试：PostgreSQL 与 Redis 用 service containers 起；Kafka 相关测试单独一个可选 job 或只在本地跑。
 - Playwright 与真机重新跑完整闭环。
 - 更新证据表，只有真实运行过的能力才写“已实现”。
 
@@ -492,26 +566,30 @@ kafka healthy ────┘                │
 
 | 技术 | 必须证明的测试 |
 |---|---|
-| PostgreSQL | 重启后数据存在；事务回滚不留半个服务；并发确认只有一个成功 |
-| LangGraph | 条件分支正确；模型失败降级；checkpoint 可恢复；节点 trace 与实际一致 |
+| PostgreSQL | 重启后数据存在；事务回滚不留半个服务；并发确认只有一个成功；夜间步骤并发推进只执行一次；演示重置只清演示账户 |
+| LangGraph | 条件分支正确；模型失败降级；checkpoint 可恢复；节点 trace 与实际一致；legacy / graph 双路径按 3.2 的等价定义比对通过 |
 | Redis | 冷却 TTL；锁 token 校验；连接失败时数据库降级；不能因缓存旧值误报设备状态 |
-| Kafka | Outbox 不丢；Publisher 重试；Consumer 幂等；同一空间事件顺序正确 |
+| 事件总线 | Outbox 不丢；Publisher 重试；Consumer 幂等；同一空间事件顺序正确；总线停摆不影响活动记录 |
 | Docker | 全新机器可构建；健康检查有效；Secret 不进入镜像；容器内测试通过 |
 | Executor | 白名单、范围、停止优先、重复确认、设备回读、部分失败 |
 
 ## 12. 面试时如何解释
 
-### 为什么同时用 PostgreSQL、Redis 和 Kafka？
+### 为什么同时用 PostgreSQL、Redis 和事件总线？
 
-PostgreSQL 保存业务事实；Redis 加速短期状态和跨实例协调；Kafka 把已发生的事件异步分发给审计、分析和未来主动服务。三者责任不同，任意一个都不应被当作另外两个的替代品。
+PostgreSQL 保存业务事实；Redis 加速短期状态和跨实例协调；事件总线把已发生的事件异步分发给审计、分析和未来主动服务。三者责任不同，任意一个都不应被当作另外两个的替代品。
 
-### 为什么不让 Kafka 直接控制灯光？
+### 为什么默认没有跑 Kafka？
+
+当前只有一个后端进程和一个消费方，引入常驻中间件（约 1 GB 内存）解决不了任何现有问题。真正需要的是事务一致性与异步分发这套模式，它在 Outbox + 数据库队列里已经完整实现：至少一次投递、`event_id` 幂等、重试、死信、按空间保序、多实例 `SKIP LOCKED` 竞争消费。发布端是一个接口，换成 Kafka 只改一个实现类；需要时开 `kafka` profile 即可。
+
+### 为什么不让事件总线直接控制灯光？
 
 设备控制需要低延迟确认、停止优先和立即回读。Kafka 更适合异步事件传播，且消费者必须处理重复消息。核心控制使用同步 Executor，Kafka 只传播执行后的事实。
 
-### 如何保证数据库更新与 Kafka 事件一致？
+### 如何保证数据库更新与事件一致？
 
-业务数据和 Outbox 行在同一个 PostgreSQL 事务中提交；独立 Publisher 再发送 Kafka。即使 Kafka 暂时不可用，事件仍保存在数据库中，不会静默丢失。
+业务数据和 Outbox 行在同一个 PostgreSQL 事务中提交；独立 Publisher 再发送到总线。即使总线暂时不可用，事件仍保存在数据库中，不会静默丢失。
 
 ### Redis 锁是不是最终安全保证？
 
@@ -534,8 +612,8 @@ PostgreSQL 保存业务事实；Redis 加速短期状态和跨实例协调；Kaf
 5. 阅读 `Executor`，理解为什么模型不能直接操作设备。
 6. 完成阶段 B 后，本地查看 PostgreSQL 中的 plan、service、action 和 outbox 行。
 7. 完成阶段 D 后，用 Redis CLI 查看 cooldown 和 lock 的 TTL。
-8. 完成阶段 E 后，用 Kafka consumer 查看领域事件 envelope。
-9. 手动停止 Redis、Kafka、模型服务，验证降级路径。
+8. 完成阶段 E 后，查看 `outbox_events` 的领取与投递过程；开启 `kafka` profile 时再用 consumer 看同样的 envelope。
+9. 手动停止 Redis、事件总线、模型服务，验证降级路径。
 10. 最后再研究扩容、多实例和真实设备 Adapter。
 
 ## 14. 官方资料

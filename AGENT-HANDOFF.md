@@ -37,11 +37,11 @@
 | ⑦ | 整晚服务：休息计划附带 5 步整晚安排（Space Execution Agent 规则生成、Harness 预检、随计划确认）；模拟时钟推进接口 `POST /api/services/{id}/clock/advance`；每步最多执行一次（锁内认领 + 单服务单推进）；停止取消剩余步骤；只有每步全部设备动作成功才 `completed`；App 运行条“模拟已入睡 / 快进 / 自动播放整晚”、计划卡整晚安排、空间页整晚时间线、场景“起床渐进唤醒”改为已实现 | `backend/tests/test_night_service.py`（15 项）、`apps/mobile/tests/night.test.ts`；端到端 `http-night`、`mock-night`、`http-night-stop-phone` |
 | 稳定性与接口预留 | 自动时钟与环境调整互斥；调整等待时仍可停止且迟到响应不回写；重置通过服务代次和设备代次隔离旧任务；设备回读异常结果化；模拟入睡、三档起床时间；真实设备 / 语音协议预留；能源研究绘图使用迁入后的权重路径 | 后端 115 项测试；端到端 `http-stop-during-event`；`adapters/protocol.py`、`adapters/voice.py`、`docs/team-workflow.md`、`docs/demo-freeze.md` |
 | D（云端） | 三段网页版录屏脚本（每帧字幕标注来源）；主张证据表生成脚本（23 条，Markdown + PDF）；`eas.json` 开发版配置、`expo-dev-client`、包名、iOS 本地网络设置；平板安装与真机验收清单 | `apps/mobile/e2e/record_demo.py`、`scripts/build_evidence.py`、`docs/evidence.md`、`docs/device-build.md` |
-| 工程化升级设计 | 明确 LangGraph、PostgreSQL、Redis、Kafka、Docker 的职责、边界、目标数据流、数据表 / Redis Key / Kafka Topic、Outbox 一致性方案、分阶段验收和面试问答；**只是设计完成，不代表这些组件已接入** | `docs/technology-architecture.md` |
+| 工程化升级设计 | 明确 LangGraph、PostgreSQL、Redis、事件总线、Docker 的职责、边界、目标数据流、数据表 / Redis Key / 事件通道、Outbox 一致性方案、并发语义到数据库的映射、分阶段验收和面试问答；**只是设计完成，不代表这些组件已接入** | `docs/technology-architecture.md` |
 | 项目指标指南 | 聚焦面试最常见的响应效率、Redis缓存、稳定性规模与能源效果；提供DeepSeek 45次延迟基线和Redis缓存前后对比方案，其他模块以机制与测试事实说明；**尚未运行新的性能评测** | `docs/project-metrics.md` |
 | 文档 | 本交接文档、README、architecture、acceptance、status、ui-polish；产品界面方向（第 12 节） | `587d7aa`、`8525718`、`c58a29f` |
 
-检查基线：后端 115 项 pytest、前端 31 项测试 + 类型检查、契约一致性；网页端到端 20/20（含调整等待时停止与迟到响应隔离）；iOS / Android JS 与 Hermes 导出成功。真机安装与 GitHub 托管 CI 尚未执行。本机默认 Python 3.9 不满足项目的 Python 3.10+ 前提；以 Python 3.12 运行测试通过。
+检查基线：后端 pytest、前端测试 + 类型检查、契约一致性、网页端到端全通过（各项数量以 `docs/status.md` 为准，不在本文写死）；最近一次为后端 115、前端 31、端到端 20/20（含调整等待时停止与迟到响应隔离）；iOS / Android JS 与 Hermes 导出成功。真机安装与 GitHub 托管 CI 尚未执行。本机默认 Python 3.9 不满足项目的 Python 3.10+ 前提；以 Python 3.12 运行测试通过。
 
 ### 0.3 未完成（按第 8 节顺序）
 
@@ -51,7 +51,7 @@
 | T2 PostgreSQL 持久化 | 未开始 | SQLAlchemy 2.x + Alembic；人物记忆、计划、服务、动作、活动和 Outbox 以数据库为事实来源 |
 | T3 LangGraph 规划图 | 未开始 | 包装既有 1+2 Agent 逻辑，使用 PostgreSQL checkpointer；保留 legacy / langgraph 双路径对照 |
 | T4 Redis 协调 | 未开始 | 跨实例短锁、冷却、短期幂等和缓存；PostgreSQL 约束仍是最终正确性保证 |
-| T5 Kafka + Outbox | 未开始 | 只传播已发生的领域事件，先做 Activity Projector；不进入设备同步控制关键路径 |
+| T5 Outbox + 事件总线 | 未开始 | 只传播已发生的领域事件，先做 Activity Projector；默认用 PostgreSQL 队列实现，Kafka 作为同一接口的可选实现（约 1 GB 内存，默认不启动）；活动记录仍同步写库 |
 | T6 集成与冻结 | 未开始 | Compose、迁移、健康检查、集成测试、CI 与完整端到端重新验收 |
 | A 真机验收 | 未做 | 用户暂无 iPad；所有界面验证来自网页版，不能替代真机 |
 | 真实模型的多次延迟统计 | 已规划、未执行 | 用户已同意后续多次调用并做响应效率优化前后对比；当前仍只有2035 ms单次样本。方法和结果模板见 `docs/project-metrics.md`，不为每个模块制造百分比 |
@@ -96,7 +96,7 @@ cd backend && set -a && source .env && set +a && .venv/bin/python scripts/e2e_re
 
 第一批步骤 0–4、B 并发修正、⑤ Experience Agent（含一次真实 DeepSeek 调用验证）、R1 评审修正、⑥ 一次事件调整、⑥b 对话外壳、C 视觉整理、⑧ 补齐模块、⑨ 演示打磨和⑦ 整晚服务已完成。用户目前没有 iPad，真机验收（A）推迟到有设备时。
 
-用户已确认在**不重写现有演示链路**的前提下，把项目分阶段演进为可真实运行、可在面试中解释的工程架构：Docker → PostgreSQL → LangGraph → Redis → Kafka + Outbox → 集成冻结。详细职责和验收见 `docs/technology-architecture.md`。截至演示稳定基线 `5cd8eeb`，这些组件均尚未实现；不得把目标架构写成当前能力。下一位 Agent 一次只执行 T1–T6 中的一步，保留现有路径和测试作为回归基线。
+用户已确认在**不重写现有演示链路**的前提下，把项目分阶段演进为可真实运行、可在面试中解释的工程架构：Docker → PostgreSQL → LangGraph → Redis → Outbox + 事件总线 → 集成冻结。详细职责和验收见 `docs/technology-architecture.md`。截至演示稳定基线 `5cd8eeb`，这些组件均尚未实现；不得把目标架构写成当前能力。下一位 Agent 一次只执行 T1–T6 中的一步，保留现有路径和测试作为回归基线。
 
 当前产品是一条可工作的纵向链路，规划阶段可选规则或模型：
 
@@ -119,9 +119,9 @@ Expo App：对话 / 空间 / 场景 / 我的（计划来源开关：规则 / 模
   → 同一执行器 → 回读 → 记录；停止后事件一律忽略。夜间时钟与环境调整不会并发写设备。
 ```
 
-场景范围只有 Home Living 的“我想休息”。**当前实现**仍没有持久化数据库、LangGraph、Redis、Kafka、真实认证、真实传感器、SpaceMind 或真实设备接入；事件只有模拟室温一种；在线能源建议是规则，MATD3 仅作为固定日的只读离线仿真展示。模型调用已用真实 DeepSeek 密钥验证过一次（deepseek-flash，2035 ms）；延迟为单次样本。
+场景范围只有 Home Living 的“我想休息”。**当前实现**仍没有持久化数据库、LangGraph、Redis、事件总线、真实认证、真实传感器、SpaceMind 或真实设备接入；事件只有模拟室温一种；在线能源建议是规则，MATD3 仅作为固定日的只读离线仿真展示。模型调用已用真实 DeepSeek 密钥验证过一次（deepseek-flash，2035 ms）；延迟为单次样本。
 
-**目标实现**使用 PostgreSQL 保存业务事实、人物记忆与 LangGraph checkpoint；Redis 负责短期协调与缓存；Kafka 通过 Transactional Outbox 异步分发领域事件；Docker Compose 提供可复现的后端开发环境。LangGraph 只编排规划，不允许节点绕过 Harness / Executor 直接操作设备。
+**目标实现**使用 PostgreSQL 保存业务事实、人物记忆与 LangGraph checkpoint；Redis 负责短期协调与缓存；Transactional Outbox 把领域事件异步分发到事件总线（默认 PostgreSQL 队列实现，Kafka 可选）；Docker Compose 提供可复现的后端开发环境。后端保持同步技术栈，异步化另立项目。LangGraph 只编排规划，不允许节点绕过 Harness / Executor 直接操作设备。
 
 ## 2. 接手后的必读顺序
 
@@ -306,11 +306,11 @@ git status --short
 
 | 顺序 | 内容 | 达到即停 | 关键边界 |
 |---|---|---|---|
-| T1 Docker 基线 | FastAPI Dockerfile、`.dockerignore`、Compose API 服务、健康检查与容器内测试 | 全新容器可启动 API；115 项基线测试通过；Expo 仍能连通 | 本阶段不添加未被代码使用的 PostgreSQL / Redis / Kafka |
+| T1 Docker 基线 | FastAPI Dockerfile、`.dockerignore`、依赖版本锁定、Compose API 服务（端口绑 `127.0.0.1`）、健康检查与容器内测试 | 全新容器可启动 API；基线测试在容器内全部通过；Expo 仍能连通；端到端默认路径不变 | 本阶段不添加未被代码使用的 PostgreSQL / Redis / 事件总线 |
 | T2 PostgreSQL 持久化 | Compose 加 PostgreSQL；SQLAlchemy 2.x、Alembic、Repository / Unit of Work；迁移人物记忆、计划、服务、动作、活动和 Outbox 表 | 重启后数据存在；失败事务不留半个服务；并发确认只有一个成功 | PostgreSQL 是业务事实来源；保留内存 Repository 供快速单元测试 |
 | T3 LangGraph 规划图 | 用节点包装既有 Memory、Experience、Energy、Space Execution、Harness；接 PostgreSQL checkpointer | legacy / graph 对相同输入生成等价 Plan；checkpoint 可恢复；节点轨迹可见 | `LIVINGMIND_ORCHESTRATOR=legacy|langgraph`；Graph 不执行设备副作用 |
 | T4 Redis 协调 | 空间短锁、冷却、短期幂等与缓存；断连降级 | 多 API 实例同一空间仍只有一个 active service；Redis 停止后核心链路可走 PostgreSQL | Redis 不是事实来源，锁必须有 token 与 TTL，数据库约束是最终防线 |
-| T5 Kafka + Outbox | Outbox Publisher、领域事件 envelope、首个真实 `activity-projector` Consumer、死信和幂等消费 | Kafka 停机不阻断设备执行；恢复后补发；重复事件不产生重复活动 | Kafka 只传播事实，不发送设备控制命令；按 `spaceId` 分区 |
+| T5 Outbox + 事件总线 | `EventPublisher` 协议、Outbox Publisher、PostgreSQL 队列实现、领域事件 envelope、首个真实 `activity-projector` Consumer、死信和幂等消费；Kafka 为可选实现与可选 profile | 总线停摆不阻断设备执行；恢复后补发；重复事件不产生重复活动；活动记录始终由同步写入保证 | 事件只传播事实，不发送设备控制命令；按 `spaceId` 保序；默认不启动常驻中间件 |
 | T6 集成与冻结 | Compose 全栈、迁移与健康检查、CI 集成测试、Playwright 和真机回归、证据更新 | 一键启动；失败场景均有测试；只有实际跑过的能力写“已实现” | 不新增业务范围，集中消除集成缺陷 |
 
 严格顺序：**T1 → T2 → T3 → T4 → T5 → T6**。每阶段保留当前演示路径；新增组件必须有一条真实工作路径、故障测试和可观察证据，不能只添加依赖、容器或空目录。
@@ -343,12 +343,12 @@ git status --short
 - 新增后端多阶段 `Dockerfile` 和 `.dockerignore`；以非 root 用户运行。
 - 新增仓库根目录 `compose.yaml`，T1 只定义真正投入使用的 `api` 服务与健康检查。
 - 容器启动命令、端口和环境变量继续遵循现有 README；密钥通过运行时注入，不能复制进镜像。
-- 在容器内运行 115 项后端测试；从宿主机验证 `/health`；用现有 App HTTP 模式或 API 测试验证闭环未变。
+- 在容器内运行全部后端测试（数量以 `docs/status.md` 为准）；从宿主机验证 `/health`；用现有 App HTTP 模式或 API 测试验证闭环未变。
 - 更新 `README.md`、`docs/status.md`、`docs/technology-architecture.md` 和本文件，把 T1 从“计划”改为有证据的“已实现”。
 
 ### T1 不允许顺带做
 
-- 不安装或配置 LangGraph、PostgreSQL、Redis、Kafka；它们分别属于 T2–T5。
+- 不安装或配置 LangGraph、PostgreSQL、Redis、事件总线；它们分别属于 T2–T5。
 - 不重构 Agent、Memory、Harness 或 Executor。
 - 不新建远程仓库、不推送、不部署。
 - 不因 Docker 配置存在就宣称 T2–T5 已实现。
@@ -374,9 +374,9 @@ git status --short
 ## 10. 禁止事项
 
 - 不整体重写现有 App 或 FastAPI 服务。
-- 不在一个批次里同时引入 LangGraph、PostgreSQL、Redis 和 Kafka；严格按 T1–T6 逐步验收。
+- 不在一个批次里同时引入 LangGraph、PostgreSQL、Redis 和事件总线；严格按 T1–T6 逐步验收。
 - 不让 LangGraph 节点绕过 Harness / Executor 直接写设备。
-- 不用 Redis 保存唯一业务事实，不用 Kafka 发送设备控制命令。
+- 不用 Redis 保存唯一业务事实，不用事件总线发送设备控制命令。
 - 不为“技术栈看起来丰富”增加没有真实调用、测试和故障路径的服务。
 - 不复制旧项目的 `.env`、密钥、数据库或大批无关代码。
 - 不把 Mock、预录结果、测试替身描述成在线模型调用。
@@ -397,7 +397,7 @@ git status --short
 
 可直接给下一位 AI 的指令：
 
-> 请先阅读仓库根目录 `AGENT-HANDOFF.md`，再依次阅读 `README.md`、`docs/technology-architecture.md`、`docs/project-metrics.md`、`docs/status.md`、`docs/acceptance.md`、`docs/architecture.md`。保留现有实现和提交历史，重新运行 115 项后端测试、31 项前端测试、类型与契约检查。当前只执行 T1 Docker 基线：容器化 FastAPI、加入只含 API 的 Compose 服务、在容器内跑测试并验证健康检查；不要提前加入 PostgreSQL、LangGraph、Redis 或 Kafka。达到第 9 节验收条件后更新四份文档、提交一次聚焦 commit 并停止。描述能力时遵守 0.4 和 `docs/project-metrics.md` 的如实口径；不要去掉来源标注，不要创建远程、推送或部署。
+> 请先阅读仓库根目录 `AGENT-HANDOFF.md`，再依次阅读 `README.md`、`docs/technology-architecture.md`、`docs/project-metrics.md`、`docs/status.md`、`docs/acceptance.md`、`docs/architecture.md`。保留现有实现和提交历史，重新运行后端测试、前端测试、类型与契约检查（数量以 `docs/status.md` 为准）。当前只执行 T1 Docker 基线：容器化 FastAPI、加入只含 API 的 Compose 服务、在容器内跑测试并验证健康检查；不要提前加入 PostgreSQL、LangGraph、Redis 或事件总线。达到第 9 节验收条件后更新四份文档、提交一次聚焦 commit 并停止。描述能力时遵守 0.4 和 `docs/project-metrics.md` 的如实口径；不要去掉来源标注，不要创建远程、推送或部署。
 
 ## 12. 产品界面方向（用户已确认，2026-09-17）
 
