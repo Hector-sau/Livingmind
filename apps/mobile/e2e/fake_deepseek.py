@@ -69,7 +69,12 @@ class Handler(BaseHTTPRequestHandler):
         pass
 
 
-def serve(port: int) -> ThreadingHTTPServer:
-    server = ThreadingHTTPServer(("127.0.0.1", port), Handler)
+def serve(port: int, host: str = "127.0.0.1") -> ThreadingHTTPServer:
+    """Create the stub server; loopback remains the safe local default.
+
+    Linux Docker containers reach a host-side test stub through the bridge
+    gateway, so CI explicitly passes ``0.0.0.0`` while the server is running.
+    """
+    server = ThreadingHTTPServer((host, port), Handler)
     server.daemon_threads = True
     return server

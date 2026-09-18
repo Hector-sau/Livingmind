@@ -137,7 +137,10 @@ jobs:
           docker compose logs
           exit 1
       - name: run 20 browser scenarios against Docker API
-        run: python apps/mobile/e2e/run_e2e.py --external-backend http://127.0.0.1:8000
+        # Linux containers cannot reach a host service bound only to 127.0.0.1.
+        # The runner is ephemeral; expose the fake model stub on its bridge
+        # interface for this step so host.docker.internal resolves correctly.
+        run: python apps/mobile/e2e/run_e2e.py --external-backend http://127.0.0.1:8000 --stub-bind 0.0.0.0
       - if: always()
         run: |
           docker compose logs --no-color > container-e2e.log || true

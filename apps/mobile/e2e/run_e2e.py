@@ -644,6 +644,11 @@ def main() -> int:
     parser.add_argument("--skip-build", action="store_true")
     parser.add_argument("--real-model", action="store_true", help="use backend/.env (real DeepSeek) instead of the stub")
     parser.add_argument("--external-backend", help="use an already running API through a stoppable local proxy")
+    parser.add_argument(
+        "--stub-bind",
+        default="127.0.0.1",
+        help="model-stub bind address; use 0.0.0.0 only when a Docker API must reach the host stub",
+    )
     args = parser.parse_args()
     if args.real_model and args.external_backend:
         parser.error("--real-model and --external-backend cannot be combined")
@@ -657,7 +662,7 @@ def main() -> int:
         build(http_dir, API)
 
     servers = [static_server(mock_dir, MOCK_PORT), static_server(http_dir, HTTP_PORT)]
-    stub = fake_deepseek.serve(STUB_PORT)
+    stub = fake_deepseek.serve(STUB_PORT, host=args.stub_bind)
     threading.Thread(target=stub.serve_forever, daemon=True).start()
     backend = start_external_backend(args.external_backend) if args.external_backend else start_backend(args.real_model)
 
