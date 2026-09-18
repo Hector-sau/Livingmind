@@ -660,7 +660,7 @@ class RestService:
             if service.last_adjusted_at and now - service.last_adjusted_at < self._cooldown:
                 left = int((self._cooldown - (now - service.last_adjusted_at)).total_seconds()) + 1
                 return ignored(event_id, f"冷却中，约 {left} 秒后才会再次调整", service)
-            cached_left = self._cooldown_cache.remaining(service.service_id)
+            cached_left = self._cooldown_cache.remaining(service.service_id, now)
             if cached_left:
                 # Redis knows about an adjustment another instance made moments ago.
                 return ignored(event_id, f"冷却中，约 {cached_left} 秒后才会再次调整", service)
@@ -713,7 +713,7 @@ class RestService:
                         )
                     ],
                 )
-                self._cooldown_cache.start(service.service_id)
+                self._cooldown_cache.start(service.service_id, self._clock())
                 label = {"model": "模型", "rule": "规则", "rule_fallback": "规则降级"}.get(plan.source, plan.source)
                 self._log(
                     space_id,

@@ -2,7 +2,7 @@
 
 对照材料：`汇报演示/LivingMind_presentationV1（10 页）`。更新：2026-09-18。由 `scripts/build_evidence.py` 生成，改表请改脚本。
 
-状态统计：已实现 11，部分实现 6，未接入 1，未实现 1，外部数据 2，待验证 1，计划 1。
+状态统计：已实现 16，部分实现 6，未接入 1，未实现 1，外部数据 2，待验证 1，计划 1。
 
 | 页 | 主张 | 状态 | 原型实际情况 | 证据 | 来源标注 |
 |---|---|---|---|---|---|
@@ -29,6 +29,11 @@
 | P08 | 一套能力，两种商业路径；拟收费单位 | 待验证 | 幻灯片已标“待验证” | — | 商业假设 |
 | P10 | 下一步：官方接口联调、家庭样板、酒店试点、规模化推广 | 计划 | 尚未开始 | — | 计划 |
 | 补充 | 平板 App | 部分实现 | Expo 应用，平板横竖屏布局；所有界面验证来自网页版；尚未在 iPad 或安卓平板上运行；开发版构建配置已入库 | apps/mobile/；docs/device-build.md | 网页版验证 |
+| 工程证据 | Docker 可复现后端 | 已实现 | Python 3.12 多阶段非 root 镜像；Compose 启动 PostgreSQL、Redis、迁移、API 与两个 Worker；宿主机健康检查与休息闭环通过 | backend/Dockerfile；compose.yaml；scripts/verify-t1.sh；docs/status.md | 2026-09-18 Mac Docker Desktop 实测 |
+| 工程证据 | PostgreSQL 业务事实与迁移 | 已实现 | 人物偏好、计划、服务、整晚步骤、动作与活动落库；Alembic 0001→0003 可从空库升级，0003→0002→0003 回退再恢复实测通过 | backend/alembic/；backend/app/repositories/sql_store.py；tests/test_persistence.py | 隔离 PostgreSQL 16 测试库 |
+| 工程证据 | LangGraph + Redis 协调 | 已实现 | legacy / LangGraph 可切换；checkpoint 存 PostgreSQL；Redis 提供 token+TTL 空间锁和冷却快速判断，断连时降级到数据库路径 | backend/app/graph/；backend/app/cache/；tests/test_graph_orchestrator.py；tests/test_cache_coordination.py | 真实 PostgreSQL 16 + Redis 7 测试 |
+| 工程证据 | Transactional Outbox 与幂等投影 | 已实现 | 业务事实和 Outbox 同事务；Publisher 重试/死信；Consumer 按 event_id 去重。Compose 实测 7/7 事件发布并消费，重启 Worker 后数量不变 | backend/app/events/；backend/workers/；tests/test_outbox_events.py；docs/status.md | PostgreSQL 数据库队列，非 Kafka |
+| 工程证据 | T6 完整集成回归 | 已实现（本地） | 默认、PostgreSQL、PostgreSQL+Redis+LangGraph 三套后端组合通过；20 个浏览器场景全部连接 Docker API 通过；GitHub Actions 已写入但未在远程运行 | .github/workflows/ci.yml；apps/mobile/e2e/run_e2e.py；docs/status.md | 本地 Docker / Playwright 实测；非 GitHub 运行记录 |
 
 ## 录屏（网页版，`apps/mobile/e2e/record_demo.py` 生成）
 
@@ -44,11 +49,15 @@
 
 | 检查 | 结果 | 位置 |
 |---|---|---|
-| 后端 pytest | 115 项 | backend/tests/ |
+| 后端：内存 + legacy | 127 通过 / 18 跳过 | backend/tests/ |
+| 后端：PostgreSQL + legacy | 141 通过 / 4 跳过 | backend/tests/ |
+| 后端：PostgreSQL + Redis + LangGraph | 145 通过 | backend/tests/ |
+| Alembic 迁移 | 0001→0003，0003→0002→0003 通过 | backend/alembic/ |
+| Outbox / Consumer Compose 链路 | 7/7 发布并消费；Worker 重启无重复 | backend/workers/ |
 | 前端逻辑测试 + 类型检查 | 31 项 | apps/mobile/tests/ |
-| 网页端到端（平板 / 手机尺寸，前端模拟与后端两种模式） | 20 个场景 | apps/mobile/e2e/run_e2e.py |
+| 网页端到端（平板 / 手机，前端模拟 + Docker API） | 20/20 场景 | apps/mobile/e2e/run_e2e.py |
 | 契约一致性（后端模型 → 前端类型） | 通过 | scripts/gen-api.sh |
-| 干净副本 CI 模拟 | 通过 | .github/workflows/ |
+| GitHub Actions 三组合 + Docker E2E | 配置已入库，待远程首次运行 | .github/workflows/ci.yml |
 
 ## 来源标注说明
 

@@ -7,17 +7,70 @@ on:
 
 jobs:
   backend:
+    name: backend (${{ matrix.profile }})
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - profile: memory-legacy
+            test_store: ""
+            database_url: ""
+            redis_url: ""
+            orchestrator: legacy
+          - profile: postgres-legacy
+            test_store: sql
+            database_url: postgresql+psycopg://livingmind:livingmind@127.0.0.1:5432/livingmind
+            redis_url: ""
+            orchestrator: legacy
+          - profile: postgres-redis-langgraph
+            test_store: sql
+            database_url: postgresql+psycopg://livingmind:livingmind@127.0.0.1:5432/livingmind
+            redis_url: redis://127.0.0.1:6379/15
+            orchestrator: langgraph
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: livingmind
+          POSTGRES_PASSWORD: livingmind
+          POSTGRES_DB: livingmind
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U livingmind -d livingmind"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
     defaults:
       run:
         working-directory: backend
+    env:
+      LIVINGMIND_TEST_STORE: ${{ matrix.test_store }}
+      LIVINGMIND_TEST_DATABASE_URL: ${{ matrix.database_url }}
+      LIVINGMIND_TEST_REDIS_URL: ${{ matrix.redis_url }}
+      LIVINGMIND_DATABASE_URL: ${{ matrix.database_url }}
+      LIVINGMIND_REDIS_URL: ${{ matrix.redis_url }}
+      LIVINGMIND_ORCHESTRATOR: ${{ matrix.orchestrator }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
-          python-version: "3.11"
-      - run: pip install -r requirements-dev.txt
-      - run: pytest
+          python-version: "3.12"
+      - run: pip install -r requirements-dev.txt -c constraints.txt
+      - name: migration up, down, up
+        if: matrix.profile == 'postgres-legacy'
+        run: alembic upgrade head && alembic downgrade 0002 && alembic upgrade head
+      - run: pytest -p no:cacheprovider
 
   contracts:
     name: contract consistency
@@ -52,3 +105,47 @@ jobs:
       - run: npm ci --no-audit --no-fund
       - run: npm run typecheck
       - run: npm test
+
+  container-e2e:
+    name: Docker API + browser E2E
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - run: npm ci --no-audit --no-fund
+        working-directory: apps/mobile
+      - run: pip install -r apps/mobile/e2e/requirements.txt
+      - run: python -m playwright install --with-deps chromium
+      - name: start full backend stack
+        env:
+          DEEPSEEK_API_KEY: e2e-stub-key
+          DEEPSEEK_BASE_URL: http://host.docker.internal:8195
+          LIVINGMIND_MODEL_TIMEOUT_S: "2"
+          LIVINGMIND_CORS_ORIGINS: http://localhost:8191,http://127.0.0.1:8191
+        run: docker compose up -d --build
+      - name: wait for API
+        run: |
+          for attempt in {1..40}; do
+            curl -fsS http://127.0.0.1:8000/health && exit 0
+            sleep 2
+          done
+          docker compose logs
+          exit 1
+      - name: run 20 browser scenarios against Docker API
+        run: python apps/mobile/e2e/run_e2e.py --external-backend http://127.0.0.1:8000
+      - if: always()
+        run: |
+          docker compose logs --no-color > container-e2e.log || true
+          docker compose down -v
+      - if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: container-e2e-artifacts
+          path: |
+            container-e2e.log
+            apps/mobile/e2e/.out/screens/

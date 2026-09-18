@@ -11,6 +11,7 @@ every test on PostgreSQL instead of process memory:
 import os
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
+from urllib.parse import urlparse
 
 import pytest
 from fastapi.testclient import TestClient
@@ -20,11 +21,41 @@ from app.services.rest_service import RestService, get_rest_service
 
 BACKEND = Path(__file__).resolve().parent.parent
 TEST_DB_URL = os.getenv("LIVINGMIND_TEST_DATABASE_URL", "").strip()
+TEST_REDIS_URL = os.getenv("LIVINGMIND_TEST_REDIS_URL", "").strip()
 SQL_STORE = os.getenv("LIVINGMIND_TEST_STORE", "").strip() == "sql"
 
 
 def sql_mode() -> bool:
     return SQL_STORE and bool(TEST_DB_URL)
+
+
+def _assert_disposable_redis(url: str) -> None:
+    """Never let the test suite flush Redis DB 0 or an ambiguous URL."""
+    parsed = urlparse(url)
+    try:
+        database = int(parsed.path.removeprefix("/") or "0")
+    except ValueError as exc:
+        raise RuntimeError("LIVINGMIND_TEST_REDIS_URL must end with a numeric database") from exc
+    if parsed.scheme not in {"redis", "rediss"} or database <= 0:
+        raise RuntimeError("LIVINGMIND_TEST_REDIS_URL must use a disposable non-zero Redis database")
+
+
+@pytest.fixture(autouse=True)
+def _redis_isolation():
+    """Each test gets an empty, explicitly disposable Redis logical database."""
+    if not TEST_REDIS_URL:
+        yield None
+        return
+    import redis
+
+    _assert_disposable_redis(TEST_REDIS_URL)
+    client = redis.Redis.from_url(TEST_REDIS_URL)
+    client.flushdb()
+    try:
+        yield "redis"
+    finally:
+        client.flushdb()
+        client.close()
 
 
 def migrate_test_database() -> None:

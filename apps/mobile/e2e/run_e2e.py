@@ -9,6 +9,7 @@ Usage (from apps/mobile, after `npm install` and creating backend/.venv):
     pip install -r e2e/requirements.txt && python -m playwright install chromium
     python e2e/run_e2e.py                 # builds web exports, starts servers, runs all scenarios (stub model)
     python e2e/run_e2e.py --skip-build
+    python e2e/run_e2e.py --external-backend http://127.0.0.1:8000  # exercise a Docker API
     python e2e/run_e2e.py --real-model    # uses backend/.env (real DeepSeek key); stub-only scenarios are skipped
 Screenshots go to e2e/.out/screens/.
 """
@@ -23,7 +24,8 @@ import sys
 import threading
 import time
 import urllib.request
-from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
+from http.server import BaseHTTPRequestHandler, SimpleHTTPRequestHandler, ThreadingHTTPServer
+from urllib.error import HTTPError
 from pathlib import Path
 
 from playwright.sync_api import Page, sync_playwright
@@ -67,6 +69,77 @@ def static_server(directory: Path, port: int) -> ThreadingHTTPServer:
     server = ThreadingHTTPServer(("127.0.0.1", port), handler)
     threading.Thread(target=server.serve_forever, daemon=True).start()
     return server
+
+
+class ForwardHandler(BaseHTTPRequestHandler):
+    """Small HTTP forwarder so the offline scenario can stop access to an external API."""
+
+    upstream = ""
+
+    def log_message(self, *args):
+        pass
+
+    def _forward(self) -> None:
+        length = int(self.headers.get("content-length", "0"))
+        data = self.rfile.read(length) if length else None
+        headers = {
+            key: value
+            for key, value in self.headers.items()
+            if key.lower() not in {"host", "content-length", "connection", "transfer-encoding"}
+        }
+        request = urllib.request.Request(self.upstream + self.path, data=data, headers=headers, method=self.command)
+        try:
+            response = urllib.request.urlopen(request, timeout=35)
+        except HTTPError as exc:
+            response = exc
+        except OSError as exc:
+            self.send_error(502, f"external backend unavailable: {exc}")
+            return
+        body = response.read()
+        self.send_response(response.status)
+        for key, value in response.headers.items():
+            if key.lower() not in {"content-length", "connection", "transfer-encoding"}:
+                self.send_header(key, value)
+        self.send_header("content-length", str(len(body)))
+        self.end_headers()
+        self.wfile.write(body)
+
+    do_GET = do_POST = do_PUT = do_PATCH = do_DELETE = do_OPTIONS = _forward
+
+
+class ExternalBackendHandle:
+    """The subset of subprocess.Popen used by the runner and offline scenario."""
+
+    def __init__(self, server: ThreadingHTTPServer):
+        self.server = server
+        self.stopped = False
+
+    def terminate(self) -> None:
+        if not self.stopped:
+            self.server.shutdown()
+            self.server.server_close()
+            self.stopped = True
+
+    def wait(self, timeout=None) -> int:
+        return 0
+
+    def poll(self):
+        return 0 if self.stopped else None
+
+
+def start_external_backend(upstream: str) -> ExternalBackendHandle:
+    handler = type("ConfiguredForwardHandler", (ForwardHandler,), {"upstream": upstream.rstrip("/")})
+    server = ThreadingHTTPServer(("127.0.0.1", API_PORT), handler)
+    threading.Thread(target=server.serve_forever, daemon=True).start()
+    handle = ExternalBackendHandle(server)
+    for _ in range(50):
+        try:
+            urllib.request.urlopen(f"{API}/health", timeout=1)
+            return handle
+        except OSError:
+            time.sleep(0.2)
+    handle.terminate()
+    raise RuntimeError(f"external backend is not healthy: {upstream}")
 
 
 def start_backend(real_model: bool) -> subprocess.Popen:
@@ -570,7 +643,10 @@ def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--skip-build", action="store_true")
     parser.add_argument("--real-model", action="store_true", help="use backend/.env (real DeepSeek) instead of the stub")
+    parser.add_argument("--external-backend", help="use an already running API through a stoppable local proxy")
     args = parser.parse_args()
+    if args.real_model and args.external_backend:
+        parser.error("--real-model and --external-backend cannot be combined")
 
     SCREENS.mkdir(parents=True, exist_ok=True)
     for old in SCREENS.glob("*.png"):  # screenshots always belong to this run only
@@ -583,7 +659,7 @@ def main() -> int:
     servers = [static_server(mock_dir, MOCK_PORT), static_server(http_dir, HTTP_PORT)]
     stub = fake_deepseek.serve(STUB_PORT)
     threading.Thread(target=stub.serve_forever, daemon=True).start()
-    backend = start_backend(args.real_model)
+    backend = start_external_backend(args.external_backend) if args.external_backend else start_backend(args.real_model)
 
     results: list[tuple[str, str]] = []
     errors: list[str] = []

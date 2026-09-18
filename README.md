@@ -88,7 +88,7 @@ cd backend && set -a && source .env && set +a
 
 ```bash
 ./scripts/verify-t1.sh                  # 推荐：构建、测试、健康检查、完整闭环并自动关闭
-docker compose up -d api                # http://127.0.0.1:8000
+docker compose up -d                    # 全栈：PostgreSQL / Redis / migration / API / 两个 Worker
 docker compose down
 ```
 
@@ -161,11 +161,13 @@ LIVINGMIND_TEST_REDIS_URL=redis://127.0.0.1:6379/15 .venv/bin/pytest   # 加跑 
 
 ### 3. 重新生成接口类型
 
-后端契约改动后运行（需先完成后端 venv 安装）：
+后端契约改动后运行：
 
 ```bash
 ./scripts/gen-api.sh
 ```
+
+脚本优先使用 `backend/.venv`；如果本地 Python 环境过旧但已构建 `livingmind-api:dev`，会自动改用 Docker 镜像生成契约。
 
 ## 检查命令
 
@@ -173,14 +175,15 @@ LIVINGMIND_TEST_REDIS_URL=redis://127.0.0.1:6379/15 .venv/bin/pytest   # 加跑 
 cd backend && pytest                      # 后端测试
 cd apps/mobile && npm run typecheck && npm test   # 前端类型检查 + 逻辑测试
 ./scripts/gen-api.sh && git diff --exit-code packages/api-client   # 契约一致性
-python apps/mobile/e2e/run_e2e.py         # 网页端到端（见 apps/mobile/e2e/README.md）
+python apps/mobile/e2e/run_e2e.py         # 本地 Python 后端端到端
+python apps/mobile/e2e/run_e2e.py --external-backend http://127.0.0.1:8000  # Docker API 20 场景
 ```
 
 ## 演示打包（D）
 
 ```bash
 cd apps/mobile && python e2e/record_demo.py      # 三段网页版录屏 → e2e/.out/videos/*.mp4
-python scripts/build_evidence.py --pdf           # 主张证据表 → docs/evidence.md + dist/demo-pack/*.pdf
+python scripts/build_evidence.py --pdf           # 主张证据表 → docs/evidence.md + output/pdf/*.pdf
 ```
 
 录屏每一帧都带“网页版录屏 · 后端虚拟设备 · 规则模式”字幕；证据表逐条对照汇报 PDF，写明原型实际情况、证据位置和来源类型（见 [`docs/evidence.md`](docs/evidence.md)）。

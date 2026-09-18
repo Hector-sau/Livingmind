@@ -55,6 +55,8 @@ services:
     # For tablet testing on a trusted LAN, run with HOST_BIND=0.0.0.0.
     ports:
       - "${HOST_BIND:-127.0.0.1}:8000:8000"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     depends_on:
       migrate:
         condition: service_completed_successfully
@@ -73,6 +75,7 @@ services:
       DEEPSEEK_API_KEY: "${DEEPSEEK_API_KEY:-}"
       DEEPSEEK_BASE_URL: "${DEEPSEEK_BASE_URL:-}"
       DEEPSEEK_MODEL: "${DEEPSEEK_MODEL:-}"
+      LIVINGMIND_MODEL_TIMEOUT_S: "${LIVINGMIND_MODEL_TIMEOUT_S:-6}"
     healthcheck:
       # python instead of curl: the slim image ships no curl on purpose.
       test: ["CMD", "python", "-c", "import urllib.request;urllib.request.urlopen('http://127.0.0.1:8000/health').read()"]

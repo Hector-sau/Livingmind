@@ -8,6 +8,7 @@
 
 import threading
 
+from app import config
 from app.adapters.virtual.devices import VirtualDeviceAdapter
 from app.demo import seed
 from tests.conftest import ctx
@@ -146,8 +147,17 @@ def test_concurrent_advances_never_run_a_step_twice():
     t = threading.Thread(target=lambda: out.setdefault("first", advance(client, svc["serviceId"], minutes=720)))
     t.start()
     assert adapter.started.wait(timeout=5)
-    second = advance(client, svc["serviceId"], minutes=720)  # lands while the first is mid-write
-    assert second["executed"] == [] and second["note"] == "上一次推进仍在进行"
+    # Without Redis the in-process flag returns a successful no-op. With Redis the outer
+    # cross-instance lock rejects the competing request earlier; both prevent a second run.
+    if config.REDIS_URL:
+        response = client.post(
+            f"/api/services/{svc['serviceId']}/clock/advance",
+            json={"context": ctx("person-lin"), "minutes": 720},
+        )
+        assert response.status_code == 409 and response.json()["error"]["code"] == "SPACE_BUSY"
+    else:
+        second = advance(client, svc["serviceId"], minutes=720)
+        assert second["executed"] == [] and second["note"] == "上一次推进仍在进行"
     adapter.release.set()
     t.join(timeout=5)
     first = out["first"]

@@ -1,6 +1,6 @@
 # 实现状态
 
-更新：2026-09-18 · 第一批（步骤 0–4）完成；B 并发修正完成；⑤ Experience Agent **已完成并验证真实调用**（2026-09-17 在用户 Mac 上运行 `scripts/try_model.py`，deepseek-flash，2035 ms）。评审修正 R1 完成；⑥ 一次事件调整完成；⑥b 对话外壳完成；C 视觉整理完成；⑧ 补齐模块完成（1+2 Agent 编排已实现）。⑨ 演示打磨完成；⑦ 整晚服务完成（模拟时钟）。稳定性收尾已补：停止期间的旧计划失效、调整等待时仍可停止、迟到响应不回写、重置代次隔离、任一设备动作失败即不完成、回读异常结果化、能源绘图导入修复。D 演示打包的云端部分完成（网页版录屏、主张证据表、开发版构建配置）；P07 给定的家庭能源研究快照、只读 API 与 App 展示已迁入。平板构建与真机录屏待有设备后做。
+更新：2026-09-18 · 第一批、⑤–⑨演示能力、稳定性收尾、能源快照与 **T1–T6 本地工程化冻结均已完成**。Experience Agent 已在用户 Mac 验证一次真实 DeepSeek 调用（deepseek-flash，2035 ms）。Docker Compose 全栈、Worker 事件链、迁移升降、三套后端组合与 Docker API 浏览器端到端已实测。仍待外部条件：GitHub 托管 CI 首次运行、iPad / 安卓平板真机构建与录屏。
 
 ## 已实现
 
@@ -22,7 +22,7 @@
 | 真实设备与语音接口预留 | `backend/app/adapters/protocol.py`、`voice.py` | 仅接口预留；未接入真实设备、SpaceMind 或音箱 |
 | 服务状态、确认幂等、单空间单服务、停止失效、计划过期 | `backend/app/services/rest_service.py` | 同上 |
 | 活动记录（按实际发生写入，标注来源） | 同上 | 同上 |
-| PR 模板 + CI（后端测试、契约一致性、前端类型检查与测试） | `.github/` | 尚未在 GitHub 上运行（没有远程仓库） |
+| PR 模板 + CI（三套后端组合、迁移升降、契约、前端与 Docker API E2E） | `.github/` | 配置已入库；尚未在 GitHub 上运行（没有远程仓库） |
 | B：设备写入在服务锁外执行；停止可中途抢占慢设备批次 | `backend/app/services/rest_service.py`、`adapters/virtual/devices.py` | `tests/test_concurrency.py`（服务层 + HTTP 线程池各一） |
 | ⑤：Experience Agent（提示词、Pydantic 输出校验、DeepSeek Provider） | `backend/app/agents/experience/` | `tests/test_experience_agent.py`（14 项，用测试替身，不调 DeepSeek） |
 | ⑤：规则/模型切换、降级为规则并标注原因、延迟记录 | `backend/app/services/planner.py`、`rules/rest_rule.py` | 同上；本地 HTTP 桩验证了真实 HTTP 路径与 2 秒超时降级 |
@@ -52,7 +52,7 @@
 | ⑦：模拟时钟推进与模拟入睡；锁内认领保证每步只执行一次；时钟与事件自动操作互斥；停止取消剩余步骤；任一设备动作失败时该步取消，全部动作成功才 `completed`；重置隔离在途旧任务 | `backend/app/services/rest_service.py`、`adapters/virtual/devices.py` | `tests/test_night_service.py`（15 项）、`tests/test_concurrency.py`；前端 Mock 同步 `tests/night.test.ts` |
 | ⑦：App 运行条“快进 / 自动播放整晚”、计划卡整晚安排、空间页整晚时间线、对话系统消息；场景“起床渐进唤醒”改为已实现；场景时间线按触发来源归类动作 | `apps/mobile/features/night/`、`features/chat/ServiceStrip.tsx`、`features/scenes/timeline.ts` | 端到端 `http-night`、`mock-night`、`http-night-stop-phone`；`tests/conversation.test.ts` |
 | D：三段网页版演示录屏（字幕标注网页版 / 虚拟设备 / 规则模式） | `apps/mobile/e2e/record_demo.py` | 已生成 `01-user-trigger`、`02-event-adjust`、`03-night-stop`（mp4，不入库；已放到用户 Mac 的 `Livingmind/演示打包/`） |
-| D：汇报主张与证据对照表（23 条，逐条写明原型实际情况、证据、来源类型） | `scripts/build_evidence.py` → `docs/evidence.md`、PDF | 路径逐一核对存在；PDF 4 页 |
+| D：汇报主张与证据对照表（28 条，含 T1–T6 工程证据） | `scripts/build_evidence.py` → `docs/evidence.md`、`output/pdf/` | 2026-09-18 重新生成并逐页渲染检查；PDF 5 页 |
 | D：平板安装说明与开发版配置（`eas.json`、`expo-dev-client`、包名 `com.livingmind.demo`、iOS 本地网络设置） | `docs/device-build.md`、`apps/mobile/eas.json`、`app.json` | **未实际构建**；iOS / Android JS 与 Hermes 导出成功；网页端到端 20/20 通过 |
 | 真实模型端到端脚本（后端：5 句话 → 计划 → 确认 → 回读 → 停止，延迟统计；浏览器：`--real-model`） | `backend/scripts/e2e_real_model.py`（含 `--eval`）、`apps/mobile/e2e/run_e2e.py --real-model` | 已用本地桩空跑通过；真实模型运行为**可选项**（开发环境无法访问 api.deepseek.com，需在用户 Mac 终端运行） |
 
@@ -68,7 +68,7 @@
 | 6 | 非法人物 / 空间 / 账户 / 参数 / 过期 / 版本不符被拒绝 | 自动化测试通过 |
 | 7 | 后端断开时 App 明确反馈 | 前端单元测试 + 端到端场景 `http-offline`（关掉后端后点确认，出现“无法连接后端，显示的状态可能已过期”，设备数值变灰，没有假装成功） |
 
-浏览器端到端：`apps/mobile/e2e/run_e2e.py`（已入库，可复现）。用 Expo 网页导出，在 1180×820 和 390×844 两种尺寸下跑前端模拟与后端两种模式的完整流程，共 20 个场景（含 PIN、证据面板、访客、场景库、1+2 Agent 协作、设备指令、节能模式、偏好编辑、准备演示、可选起床时间、模拟入睡、整晚服务、调整等待时停止与迟到响应隔离、断网反馈），最近一次 20/20 通过，无页面错误。模型路径连的是本地桩，不是 DeepSeek。
+浏览器端到端：`apps/mobile/e2e/run_e2e.py`（已入库，可复现）。用 Expo 网页导出，在 1180×820 和 390×844 两种尺寸下跑 20 个场景。2026-09-18 最新一次通过 `--external-backend` 连接 Docker Compose API，**20/20 通过**；末尾断网场景只关闭本地代理，不伪造后端成功。模型路径连的是本地桩，不是 DeepSeek。
 
 ## ⑤ 的验证情况
 
@@ -89,7 +89,7 @@
 ## 未验证 / 限制
 
 - **未在 iPad、安卓平板或手机真机上运行**，也未在 iOS 模拟器上运行；上面的界面验证来自网页版（react-native-web），真机效果需要团队用 Expo Go 确认。
-- 数据全部在内存中，后端重启即重置。
+- 未配置 `LIVINGMIND_DATABASE_URL` 时使用内存模式，后端重启即重置；Compose 默认使用 PostgreSQL，人物偏好、计划、服务、动作、活动和事件会持久化。虚拟设备适配器的即时状态仍属于单个 API 进程，不代表真实硬件状态。
 - 身份只是演示账户，没有正式认证；后端不要部署到公网。
 - 设备全部是虚拟的，不代表真实硬件接入。
 - 模拟事件没有真实传感器；室温数值由按钮或 API 直接给出。
@@ -152,7 +152,7 @@
 | 第二个 API 实例在空间被驱动时收到 `SPACE_BUSY`，释放后同一计划仍可确认 | `app/services/rest_service.py::confirm_plan`、`advance_clock` | 同上 |
 | 事件冷却的快速判断：Redis 键带 TTL，删掉它也不会绕过规则（服务行仍是权威） | `app/cache/cooldown.py` | 同上 |
 | 降级：未配置 Redis、或配了但连不上，都不影响主流程 | `app/cache/client.py` | `test_without_redis_...`、`test_unreachable_redis_degrades_instead_of_failing` |
-| 与其他两层组合运行 | — | PostgreSQL + LangGraph + Redis 同时开启，139 项后端测试通过 |
+| 与其他两层组合运行 | — | PostgreSQL + LangGraph + Redis 同时开启，145 项后端测试通过 |
 
 未做：设备状态缓存（会带来过期风险，收益为零）；幂等结果缓存（数据库已幂等）。
 
@@ -165,15 +165,24 @@
 | Publisher：`FOR UPDATE SKIP LOCKED` 领取、至少一次投递、重复投递不产生重复行、失败退避、超限进死信不删除 | `app/events/outbox.py`、`workers/outbox_publisher.py` | `test_publisher_delivers_once_and_marks_rows`、`test_bus_outage_keeps_events_and_never_blocks_devices` |
 | Consumer（activity-projector）：按 `event_id` 去重、投影到 `service_projection`、同空间事件保序 | `workers/activity_projector.py` | `test_projection_is_idempotent_and_ordered` |
 | 总线停摆不影响设备执行与停止；活动记录仍由 API 同步写库 | 同上 | 同上 |
-| Compose 增加 `outbox-publisher` 与 `activity-projector` 两个 worker | `compose.yaml` | `docker compose config` 通过；**运行待宿主机验证** |
+| Compose 增加 `outbox-publisher` 与 `activity-projector` 两个 worker | `compose.yaml` | 宿主机常驻运行验证：7/7 Outbox 发布与消费；重启两个 Worker 后事件与回执数不变 |
 
 未做：Kafka 实现（按用户决定，非必要不上常驻中间件；接口已留在 `EventPublisher`）。
 
-## 未开始
+## T6 本地集成与冻结（已完成）
+
+- Compose 全栈一次启动：PostgreSQL、Redis、migration、API、Outbox Publisher、Activity Projector 均健康。
+- 迁移：空库 0001→0003，以及 0003→0002→0003 回退再升级通过。
+- 后端组合：内存+legacy `127 passed / 18 skipped`；PostgreSQL+legacy `141 passed / 4 skipped`；PostgreSQL+Redis+LangGraph `145 passed`。
+- Redis 测试仅允许清理显式配置的非 0 号逻辑库；冷却到期同时尊重服务时钟与 Redis TTL。
+- Legacy / LangGraph 5 组输入全部等价；前端 31/31；契约重新生成无 diff；Docker API Playwright 20/20。
+- GitHub Actions 已写入三套后端 matrix、迁移、契约、前端与 Docker E2E；**没有远程仓库，尚未在 GitHub 托管环境运行**。
+
+## 本地冻结后仍待完成
 
 A 真机验收（有 iPad 时） · D 的设备部分（EAS 开发版构建、平板录屏） · 旧 HTML 前端清单（用户尚未提供旧文件）
 
 ## 下一步接口
 
-- 下一步见 `AGENT-HANDOFF.md` 第 9 节。
+- 下一步只剩外部验收：有设备时做真机；用户授权建远程后跑 GitHub CI。
 - 若以后换成真实定时器：由定时器调用 `advance_clock`，认领与守卫逻辑不变。

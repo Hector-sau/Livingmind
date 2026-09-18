@@ -64,13 +64,13 @@ Docker Compose：在开发机和 CI 中统一启动 API、数据库、缓存和 
 | Experience Agent | DeepSeek Provider；结构化输出；失败降级 | 作为 LangGraph 节点复用 | 已实现 |
 | 人物记忆 | `MemoryService` + 内存/SQL两种Repository，按人物与空间隔离 | 继续完善认证与权限边界 | PostgreSQL持久化已实现 |
 | 运行状态 | 内存/SQL两种Store；计划、服务、步骤、动作、活动与代次可落库 | 真实设备状态仍由Adapter负责 | PostgreSQL持久化已实现 |
-| 并发控制 | Python锁、PostgreSQL约束与行级认领、Redis空间锁/冷却 | 多API实例压测留到T6 | 已实现并验证降级 |
+| 并发控制 | Python锁、PostgreSQL约束与行级认领、Redis空间锁/冷却 | 生产级多机压测仍是后续项 | 本地组合与降级已验证 |
 | 设备 | 有状态虚拟 Adapter | 保持 Protocol，增加真实厂商 Adapter | 虚拟设备已实现 |
 | 能源 | 在线规则 + 离线固定日仿真 | 保持边界；事件进入 Kafka 分析流 | 已实现规则与只读展示 |
 | 异步事件 | PostgreSQL Transactional Outbox → 数据库队列 → 幂等Consumer Projection；活动仍同步写入 | Kafka仅保留可选接口 | 已实现数据库队列 |
 | 语音入口 | `adapters/voice.py` 只有接口定义，没有任何调用方 | 真实网关返回文本与来源后走同一 assistant 契约 | **仅接口预留，未实现** |
-| 容器化 | Python 3.12多阶段非root镜像 + Compose | T6补CI与容器端到端 | T1宿主机验证通过 |
-| CI | pytest、TS、契约、Playwright | 增加容器集成测试和迁移检查 | 已实现基础版，待扩展 |
+| 容器化 | Python 3.12多阶段非root镜像 + Compose | 保持可复现冻结 | 宿主机全栈与容器E2E通过 |
+| CI | 三套后端matrix、迁移升降、TS、契约、Docker E2E | 远程仓库创建后首次实跑 | 配置已完成，GitHub托管运行待验证 |
 
 ## 3. 1+2 Agent 与 LangGraph
 
@@ -568,6 +568,8 @@ kafka healthy ────┘                │
 完成条件：总线停摆期间设备仍能执行；恢复后待发送事件补发；重复消息不产生重复活动；活动记录始终由同步写入保证。
 
 ### 阶段 F：集成与演示冻结
+
+状态：**本地集成冻结已完成**。Compose 全栈启动及两个 Worker 实际运行通过；Outbox 7/7 发布消费，Worker 重启后无重复；Alembic 0001→0003 与 0003→0002→0003 通过；三套后端组合分别为 127/141/145 项通过；Docker API 浏览器端到端 20/20。证据表已重新生成并检查。**尚未完成的是 GitHub 托管 CI 首次运行和平板真机验收**，它们需要远程仓库或物理设备。
 
 - Compose 一键启动全部后端服务。
 - GitHub CI 增加 migration、容器健康和集成测试：PostgreSQL 与 Redis 用 service containers 起；Kafka 相关测试单独一个可选 job 或只在本地跑。

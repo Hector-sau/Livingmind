@@ -38,6 +38,14 @@
 | ⑧ 补齐模块 | 每个模块一条真实工作路径 + 输入输出 + 调用证据（已达成：主 Agent、Space Execution Agent、人物记忆、能源规则、Harness 预检；后端 `tests/test_agents.py` 33 项、前端 Mock 对齐测试、端到端 `*-agents`、`http-energy-memory`） |
 | ⑨ 演示打磨 | 一键准备演示、协作说明卡、提示淡出、空态（已达成：端到端 `http-prepare-demo`） |
 
+## 工程化升级 T1–T6
+
+| 阶段 | 通过条件 | 当前结论 |
+|---|---|---|
+| T1–T5 | Docker、PostgreSQL、LangGraph、Redis、Outbox 各有真实路径、测试和降级边界 | 已完成 |
+| T6 本地集成冻结 | Compose 全栈健康；Worker 真实投递/消费；迁移可升降；三套后端组合通过；Docker API 端到端 20/20；证据文档更新 | **已完成（2026-09-18）** |
+| 外部验收 | GitHub Actions 在远程实跑；iPad / 安卓平板真机验收 | 待远程与设备，不写作已完成 |
+
 ## 深度标准（够用即停）
 
 | 模块 | 够用 | 不必做 |
