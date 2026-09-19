@@ -13,7 +13,7 @@ from app.contracts import RequestContext
 from app.graph.compare import fingerprint_diff, plan_equivalent
 from app.graph.runtime import GraphOrchestrator, thread_id
 from app.services.rest_service import RestService
-from tests.conftest import FakeClock
+from tests.conftest import FakeClock, sql_mode
 
 UTTERANCES = ["我想休息", "我想休息，有点热", "想早点睡，灯再暗一点"]
 
@@ -112,3 +112,32 @@ def test_event_adjustments_use_the_legacy_stage_and_say_so():
     result = service.inject_event("space-home-bedroom", _ctx(), "room_temperature_changed", 30)
     assert result.outcome == "adjusted"
     assert [s.agent for s in result.plan.trace][0] == "orchestrator"
+
+
+def test_many_graph_services_share_one_checkpoint_connection():
+    """Regression: a saver per orchestrator exhausted PostgreSQL before the suite finished.
+
+    PostgresSaver opens a psycopg connection outside SQLAlchemy, so the NullPool the tests
+    use for the engine never applied to it. This asserts the count, not the wiring, because
+    the count is what CI ran out of.
+    """
+    if not sql_mode():
+        pytest.skip("needs a real PostgreSQL to count connections")
+    from sqlalchemy import text
+
+    from app.db.session import engine
+
+    def open_connections() -> int:
+        with engine().connect() as connection:
+            return connection.execute(
+                text("select count(*) from pg_stat_activity where datname = current_database()")
+            ).scalar_one()
+
+    _graph_service(FakeClock())  # the first one pays for the connection
+    before = open_connections()
+    held = [_graph_service(FakeClock()) for _ in range(12)]
+    after = open_connections()
+
+    assert len(held) == 12
+    # Allow a little slack for the engine's own connection; twelve more would be the bug.
+    assert after - before <= 2, f"{after - before} extra connections for 12 more services"

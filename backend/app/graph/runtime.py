@@ -24,18 +24,46 @@ def thread_id(account_id: str, person_id: str, space_id: str, conversation_id: s
     return f"account:{account_id}:person:{person_id}:space:{space_id}:conversation:{conversation_id}"
 
 
+# One checkpointer per process, cached like the SQLAlchemy engine in app/db/session.py.
+# PostgresSaver opens a psycopg connection of its own, outside SQLAlchemy, so the pool
+# settings there do not reach it: a saver per orchestrator meant a connection per
+# RestService, held until the process exited. The suite builds a service per test and
+# exhausted a stock PostgreSQL (max_connections = 100) long before the run finished.
+# Sharing is safe because PostgresSaver guards its connection with its own threading.Lock.
+_saver = None
+_saver_ctx = None
+_saver_url: Optional[str] = None
+
+
 def _checkpointer():
     """PostgresSaver keeps its own tables (created by setup()), separate from business data."""
+    global _saver, _saver_ctx, _saver_url
     if not database_configured():
-        return InMemorySaver(), None
-    from langgraph.checkpoint.postgres import PostgresSaver
+        # No connection to share; every graph gets its own scratch memory.
+        return InMemorySaver()
 
     # psycopg-style URL: strip the SQLAlchemy driver marker.
     url = config.DATABASE_URL.replace("postgresql+psycopg://", "postgresql://")
+    if _saver is not None and _saver_url == url:
+        return _saver
+    # A different database means the cached connection points at the wrong place.
+    close_checkpointer()
+
+    from langgraph.checkpoint.postgres import PostgresSaver
+
     context = PostgresSaver.from_conn_string(url)
     saver = context.__enter__()
     saver.setup()
-    return saver, context
+    _saver, _saver_ctx, _saver_url = saver, context, url
+    return saver
+
+
+def close_checkpointer() -> None:
+    """Release the shared checkpoint connection. Tests and shutdown only."""
+    global _saver, _saver_ctx, _saver_url
+    if _saver_ctx is not None:
+        _saver_ctx.__exit__(None, None, None)
+    _saver, _saver_ctx, _saver_url = None, None, None
 
 
 class GraphOrchestrator:
@@ -56,7 +84,7 @@ class GraphOrchestrator:
         self._legacy = orchestrator
         self._account_id = account_id
         self._adapter_for = adapter_for
-        self._saver, self._saver_ctx = _checkpointer()
+        self._saver = _checkpointer()
         self._new_id_holder: Callable[[str], str] = lambda prefix: f"{prefix}-{uuid.uuid4().hex[:8]}"
         self._graph = build_graph(orchestrator, adapter_for, lambda prefix: self._new_id_holder(prefix))
         self._app = self._graph.compile(checkpointer=self._saver)
@@ -115,8 +143,3 @@ class GraphOrchestrator:
     def last_checkpoint(self, request_thread_id: str):
         """Read a finished run back from the checkpointer (used by tests and debugging)."""
         return self._app.get_state({"configurable": {"thread_id": request_thread_id}})
-
-    def close(self) -> None:
-        if self._saver_ctx is not None:
-            self._saver_ctx.__exit__(None, None, None)
-            self._saver_ctx = None

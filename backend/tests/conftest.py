@@ -43,6 +43,15 @@ def _assert_disposable_redis(url: str) -> None:
         raise RuntimeError("LIVINGMIND_TEST_REDIS_URL must use a disposable non-zero Redis database")
 
 
+@pytest.fixture(scope="session", autouse=True)
+def _release_checkpoint_connection():
+    """The graph checkpointer holds one psycopg connection for the whole process."""
+    yield
+    from app.graph.runtime import close_checkpointer
+
+    close_checkpointer()
+
+
 @pytest.fixture(autouse=True)
 def _redis_isolation():
     """Each test gets an empty, explicitly disposable Redis logical database."""
