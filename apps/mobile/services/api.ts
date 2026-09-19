@@ -13,6 +13,8 @@ import type {
   ConfirmPlanRequest,
   ConfirmPlanResponse,
   CreateRestPlanRequest,
+  DeviceControlRequest,
+  DeviceControlResponse,
   DeviceState,
   ErrorCode,
   EventResult,
@@ -22,6 +24,8 @@ import type {
   Plan,
   ScenesResponse,
   StopServiceRequest,
+  UndoRequest,
+  UndoResponse,
   UnlockPersonResponse,
   StopServiceResponse,
 } from './types';
@@ -51,6 +55,14 @@ export interface LivingMindApi {
   simulateSleep(serviceId: string, req: SimulateSleepRequest): Promise<AdvanceClockResponse>;
   /** Simulated environment event (demo only). May lead to one automatic adjustment. */
   injectEvent(spaceId: string, req: InjectEventRequest): Promise<EventResult>;
+  /**
+   * Direct control from the device panel. Executes straight away — the safety net is the
+   * returned undo window, not a confirmation dialog. Still goes through the backend
+   * executor: whitelist, range, epoch guard, write, read back.
+   */
+  controlDevice(spaceId: string, req: DeviceControlRequest): Promise<DeviceControlResponse>;
+  /** Put the device back on the exact value it held before, while the window is open. */
+  undoDeviceControl(undoId: string, req: UndoRequest): Promise<UndoResponse>;
   getActivity(spaceId: string, limit?: number): Promise<ActivityResponse>;
   resetDemo(): Promise<BootstrapResponse>;
 }

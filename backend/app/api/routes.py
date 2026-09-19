@@ -23,8 +23,12 @@ from app.contracts import (
     DeviceState,
     EventResult,
     InjectEventRequest,
+    DeviceControlRequest,
+    DeviceControlResponse,
     Plan,
     RecoveryStatus,
+    UndoRequest,
+    UndoResponse,
     ScenesResponse,
     StopServiceRequest,
     UnlockPersonRequest,
@@ -63,6 +67,23 @@ def get_scenes(account_id: str = Query(alias="accountId"), svc: RestService = Sv
 @router.get("/spaces/{space_id}/devices", response_model=DeviceState, operation_id="getDeviceState", tags=["devices"])
 def get_device_state(space_id: str, account_id: str = Query(alias="accountId"), svc: RestService = Svc) -> DeviceState:
     return svc.device_state(account_id, space_id)
+
+
+@router.post(
+    "/spaces/{space_id}/devices/control",
+    response_model=DeviceControlResponse,
+    operation_id="controlDevice",
+    tags=["devices"],
+)
+def control_device(space_id: str, body: DeviceControlRequest, svc: RestService = Svc) -> DeviceControlResponse:
+    """Direct control from the device panel: executes at once, then offers an undo window."""
+    return svc.control_device(space_id, body.context, body.device, body.value)
+
+
+@router.post("/devices/undo/{undo_id}", response_model=UndoResponse, operation_id="undoDeviceControl", tags=["devices"])
+def undo_device_control(undo_id: str, body: UndoRequest, svc: RestService = Svc) -> UndoResponse:
+    """Restore the exact value the device held before the write, while the window is open."""
+    return svc.undo_device_control(undo_id, body.context)
 
 
 @router.post("/assistant/messages", response_model=AssistantReply, operation_id="sendMessage", tags=["assistant"])

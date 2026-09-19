@@ -58,6 +58,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/devices/undo/{undo_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Undo Device Control
+         * @description Restore the exact value the device held before the write, while the window is open.
+         */
+        post: operations["undoDeviceControl"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/memory": {
         parameters: {
             query?: never;
@@ -257,6 +277,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/spaces/{space_id}/devices/control": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Control Device
+         * @description Direct control from the device panel: executes at once, then offers an undo window.
+         */
+        post: operations["controlDevice"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/spaces/{space_id}/energy-mode": {
         parameters: {
             query?: never;
@@ -390,7 +430,7 @@ export interface components {
              * Kind
              * @enum {string}
              */
-            kind: "plan_created" | "plan_fallback" | "event_received" | "event_ignored" | "service_adjusted" | "plan_confirmed" | "plan_confirm_repeated" | "plan_rejected" | "action_executed" | "action_rejected" | "service_stopped" | "memory_updated" | "energy_mode_changed" | "demo_reset" | "clock_advanced" | "schedule_step_executed" | "schedule_cancelled" | "service_completed" | "service_failed" | "clarification_requested" | "clarification_resolved" | "clarification_cancelled";
+            kind: "plan_created" | "plan_fallback" | "event_received" | "event_ignored" | "service_adjusted" | "plan_confirmed" | "plan_confirm_repeated" | "plan_rejected" | "action_executed" | "action_rejected" | "service_stopped" | "memory_updated" | "energy_mode_changed" | "demo_reset" | "clock_advanced" | "schedule_step_executed" | "schedule_cancelled" | "service_completed" | "service_failed" | "clarification_requested" | "clarification_resolved" | "clarification_cancelled" | "device_controlled" | "device_control_undone";
             /** Message */
             message: string;
             /** Personid */
@@ -588,6 +628,27 @@ export interface components {
             /** Value */
             value: number;
         };
+        /**
+         * DeviceControlRequest
+         * @description Direct control from the device panel. Still goes through the Harness executor.
+         */
+        DeviceControlRequest: {
+            context: components["schemas"]["RequestContext"];
+            /**
+             * Device
+             * @enum {string}
+             */
+            device: "light" | "ac" | "curtain";
+            /** Value */
+            value: number;
+        };
+        /** DeviceControlResponse */
+        DeviceControlResponse: {
+            deviceState: components["schemas"]["DeviceState"];
+            result: components["schemas"]["ActionResult"];
+            /** @description Null when the write did not succeed */
+            undo: components["schemas"]["UndoWindow"] | null;
+        };
         /** DeviceState */
         DeviceState: {
             /** Actargettempc */
@@ -672,7 +733,7 @@ export interface components {
              * Code
              * @enum {string}
              */
-            code: "NOT_EDITABLE" | "VALIDATION_ERROR" | "NOT_FOUND" | "FORBIDDEN_CONTEXT" | "PLAN_EXPIRED" | "PLAN_INVALIDATED" | "PLAN_VERSION_MISMATCH" | "SERVICE_ALREADY_ACTIVE" | "SERVICE_NOT_ACTIVE" | "SPACE_BUSY" | "PIN_INVALID" | "INTERNAL_ERROR";
+            code: "NOT_EDITABLE" | "VALIDATION_ERROR" | "NOT_FOUND" | "FORBIDDEN_CONTEXT" | "PLAN_EXPIRED" | "PLAN_INVALIDATED" | "PLAN_VERSION_MISMATCH" | "SERVICE_ALREADY_ACTIVE" | "SERVICE_NOT_ACTIVE" | "SPACE_BUSY" | "PIN_INVALID" | "UNDO_EXPIRED" | "UNDO_INVALIDATED" | "INTERNAL_ERROR";
             /** Details */
             details: {
                 [key: string]: unknown;
@@ -1246,6 +1307,51 @@ export interface components {
             deviceState: components["schemas"]["DeviceState"];
             service: components["schemas"]["Service"];
         };
+        /** UndoRequest */
+        UndoRequest: {
+            context: components["schemas"]["RequestContext"];
+        };
+        /** UndoResponse */
+        UndoResponse: {
+            deviceState: components["schemas"]["DeviceState"];
+            /** Restoredvalue */
+            restoredValue: number;
+            result: components["schemas"]["ActionResult"];
+        };
+        /**
+         * UndoWindow
+         * @description A short chance to put a device back exactly where it was.
+         *
+         *     Low-risk device writes execute immediately and offer this instead of a confirmation
+         *     dialog: on a control people touch dozens of times a day, a dialog trains them to
+         *     dismiss it without reading. The window lives in the running process only — after a
+         *     restart there is nothing to undo, which is the intended semantic, not an omission.
+         */
+        UndoWindow: {
+            /** Appliedvalue */
+            appliedValue: number;
+            /**
+             * Device
+             * @enum {string}
+             */
+            device: "light" | "ac" | "curtain";
+            /**
+             * Expiresat
+             * Format: date-time
+             */
+            expiresAt: string;
+            /** Label */
+            label: string;
+            /**
+             * Previousvalue
+             * @description Exact value read back before the write; undo restores this
+             */
+            previousValue: number;
+            /** Spaceid */
+            spaceId: string;
+            /** Undoid */
+            undoId: string;
+        };
         /**
          * UnlockPersonRequest
          * @description Demo PIN check before switching person on a shared tablet. NOT authentication.
@@ -1433,6 +1539,77 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["BootstrapResponse"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    undoDeviceControl: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                undo_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UndoRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UndoResponse"];
                 };
             };
             /** @description Forbidden */
@@ -2201,6 +2378,77 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["DeviceState"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    controlDevice: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                space_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DeviceControlRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DeviceControlResponse"];
                 };
             };
             /** @description Forbidden */

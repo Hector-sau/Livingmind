@@ -21,6 +21,9 @@ from app.services.rest_service import RestService, get_rest_service
 
 BACKEND = Path(__file__).resolve().parent.parent
 TEST_DB_URL = os.getenv("LIVINGMIND_TEST_DATABASE_URL", "").strip()
+# Each test builds and disposes its own engine; pooling would let the suite outlive a
+# stock PostgreSQL connection limit. See app/db/session.py.
+os.environ.setdefault("LIVINGMIND_DB_DISABLE_POOL", "1")
 TEST_REDIS_URL = os.getenv("LIVINGMIND_TEST_REDIS_URL", "").strip()
 SQL_STORE = os.getenv("LIVINGMIND_TEST_STORE", "").strip() == "sql"
 

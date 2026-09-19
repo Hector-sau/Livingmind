@@ -8,6 +8,7 @@ import type {
   Space,
   BootstrapResponse,
   ConfirmPlanResponse,
+  DeviceControlResponse,
   DeviceState,
   ErrorResponse,
   EventResult,
@@ -15,6 +16,7 @@ import type {
   Plan,
   ScenesResponse,
   StopServiceResponse,
+  UndoResponse,
   UnlockPersonResponse,
 } from '../types';
 
@@ -110,6 +112,10 @@ export function createHttpApi(options: HttpOptions): LivingMindApi {
     // An event may trigger model re-planning, so it gets the plan timeout too.
     injectEvent: (spaceId, req) =>
       request<EventResult>('POST', `/api/spaces/${encodeURIComponent(spaceId)}/events`, req, planTimeoutMs),
+    controlDevice: (spaceId, req) =>
+      request<DeviceControlResponse>('POST', `/api/spaces/${encodeURIComponent(spaceId)}/devices/control`, req),
+    undoDeviceControl: (undoId, req) =>
+      request<UndoResponse>('POST', `/api/devices/undo/${encodeURIComponent(undoId)}`, req),
     getActivity: (spaceId, limit = 50) =>
       request<ActivityResponse>('GET', `/api/spaces/${encodeURIComponent(spaceId)}/activity?${q}&limit=${limit}`),
     resetDemo: () => request<BootstrapResponse>('POST', `/api/demo/reset?${q}`).then(learnPlannerTimeout),

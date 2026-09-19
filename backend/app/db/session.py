@@ -6,10 +6,11 @@ synchronous (see docs/technology-architecture.md). Async would have to be a sepa
 
 from __future__ import annotations
 
+import os
 from contextlib import contextmanager
-from typing import Iterator, Optional
+from typing import Any, Iterator, Optional
 
-from sqlalchemy import Engine, create_engine
+from sqlalchemy import Engine, NullPool, create_engine
 from sqlalchemy.orm import Session, sessionmaker
 
 from app import config
@@ -28,7 +29,17 @@ def engine() -> Engine:
     if _engine is None:
         if not config.DATABASE_URL:
             raise RuntimeError("LIVINGMIND_DATABASE_URL is not set; the demo runs in memory")
-        _engine = create_engine(config.DATABASE_URL, pool_pre_ping=True, future=True)
+        # The suite builds and disposes an engine per test. A pooled engine leaves any
+        # connection that was still checked out behind, and enough tests then exhaust a
+        # stock PostgreSQL (max_connections = 100) — which is exactly what CI runs.
+        # NullPool closes each connection as it is returned, so nothing accumulates.
+        # Production keeps the pool.
+        kwargs: dict[str, Any] = (
+            {"poolclass": NullPool, "future": True}
+            if os.getenv("LIVINGMIND_DB_DISABLE_POOL") == "1"
+            else {"pool_pre_ping": True, "future": True}
+        )
+        _engine = create_engine(config.DATABASE_URL, **kwargs)
         _factory = sessionmaker(bind=_engine, expire_on_commit=False, future=True)
     return _engine
 

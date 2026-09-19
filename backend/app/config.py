@@ -42,6 +42,9 @@ DEEPSEEK_MODEL = os.getenv("DEEPSEEK_MODEL", "deepseek-flash")
 
 # ---- environment events (step 6) ----
 EVENT_COOLDOWN_S = float(os.getenv("LIVINGMIND_EVENT_COOLDOWN_S", "30"))
+# How long a direct device control can be undone. Short on purpose: long enough to
+# read the bar, short enough that the device state is not left ambiguous.
+UNDO_WINDOW_S = float(os.getenv("LIVINGMIND_UNDO_WINDOW_S", "5"))
 EVENT_MAX_ADJUSTMENTS = int(os.getenv("LIVINGMIND_EVENT_MAX_ADJUSTMENTS", "3"))
 
 # ---- energy (step 8) ----

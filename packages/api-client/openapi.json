@@ -114,7 +114,9 @@
               "service_failed",
               "clarification_requested",
               "clarification_resolved",
-              "clarification_cancelled"
+              "clarification_cancelled",
+              "device_controlled",
+              "device_control_undone"
             ],
             "title": "Kind",
             "type": "string"
@@ -712,6 +714,62 @@
         "title": "DeviceAction",
         "type": "object"
       },
+      "DeviceControlRequest": {
+        "description": "Direct control from the device panel. Still goes through the Harness executor.",
+        "properties": {
+          "context": {
+            "$ref": "#/components/schemas/RequestContext"
+          },
+          "device": {
+            "enum": [
+              "light",
+              "ac",
+              "curtain"
+            ],
+            "title": "Device",
+            "type": "string"
+          },
+          "value": {
+            "title": "Value",
+            "type": "number"
+          }
+        },
+        "required": [
+          "context",
+          "device",
+          "value"
+        ],
+        "title": "DeviceControlRequest",
+        "type": "object"
+      },
+      "DeviceControlResponse": {
+        "properties": {
+          "deviceState": {
+            "$ref": "#/components/schemas/DeviceState"
+          },
+          "result": {
+            "$ref": "#/components/schemas/ActionResult"
+          },
+          "undo": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/UndoWindow"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Null when the write did not succeed"
+          }
+        },
+        "required": [
+          "deviceState",
+          "result",
+          "undo"
+        ],
+        "title": "DeviceControlResponse",
+        "type": "object"
+      },
       "DeviceState": {
         "properties": {
           "acTargetTempC": {
@@ -878,6 +936,8 @@
               "SERVICE_NOT_ACTIVE",
               "SPACE_BUSY",
               "PIN_INVALID",
+              "UNDO_EXPIRED",
+              "UNDO_INVALIDATED",
               "INTERNAL_ERROR"
             ],
             "title": "Code",
@@ -2172,6 +2232,90 @@
         "title": "StopServiceResponse",
         "type": "object"
       },
+      "UndoRequest": {
+        "properties": {
+          "context": {
+            "$ref": "#/components/schemas/RequestContext"
+          }
+        },
+        "required": [
+          "context"
+        ],
+        "title": "UndoRequest",
+        "type": "object"
+      },
+      "UndoResponse": {
+        "properties": {
+          "deviceState": {
+            "$ref": "#/components/schemas/DeviceState"
+          },
+          "restoredValue": {
+            "title": "Restoredvalue",
+            "type": "number"
+          },
+          "result": {
+            "$ref": "#/components/schemas/ActionResult"
+          }
+        },
+        "required": [
+          "deviceState",
+          "result",
+          "restoredValue"
+        ],
+        "title": "UndoResponse",
+        "type": "object"
+      },
+      "UndoWindow": {
+        "description": "A short chance to put a device back exactly where it was.\n\nLow-risk device writes execute immediately and offer this instead of a confirmation\ndialog: on a control people touch dozens of times a day, a dialog trains them to\ndismiss it without reading. The window lives in the running process only — after a\nrestart there is nothing to undo, which is the intended semantic, not an omission.",
+        "properties": {
+          "appliedValue": {
+            "title": "Appliedvalue",
+            "type": "number"
+          },
+          "device": {
+            "enum": [
+              "light",
+              "ac",
+              "curtain"
+            ],
+            "title": "Device",
+            "type": "string"
+          },
+          "expiresAt": {
+            "format": "date-time",
+            "title": "Expiresat",
+            "type": "string"
+          },
+          "label": {
+            "title": "Label",
+            "type": "string"
+          },
+          "previousValue": {
+            "description": "Exact value read back before the write; undo restores this",
+            "title": "Previousvalue",
+            "type": "number"
+          },
+          "spaceId": {
+            "title": "Spaceid",
+            "type": "string"
+          },
+          "undoId": {
+            "title": "Undoid",
+            "type": "string"
+          }
+        },
+        "required": [
+          "undoId",
+          "spaceId",
+          "device",
+          "previousValue",
+          "appliedValue",
+          "label",
+          "expiresAt"
+        ],
+        "title": "UndoWindow",
+        "type": "object"
+      },
       "UnlockPersonRequest": {
         "description": "Demo PIN check before switching person on a shared tablet. NOT authentication.",
         "properties": {
@@ -2488,6 +2632,99 @@
         "summary": "Reset Demo",
         "tags": [
           "demo"
+        ]
+      }
+    },
+    "/api/devices/undo/{undo_id}": {
+      "post": {
+        "description": "Restore the exact value the device held before the write, while the window is open.",
+        "operationId": "undoDeviceControl",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "undo_id",
+            "required": true,
+            "schema": {
+              "title": "Undo Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UndoRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UndoResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          }
+        },
+        "summary": "Undo Device Control",
+        "tags": [
+          "devices"
         ]
       }
     },
@@ -3488,6 +3725,99 @@
           }
         },
         "summary": "Get Device State",
+        "tags": [
+          "devices"
+        ]
+      }
+    },
+    "/api/spaces/{space_id}/devices/control": {
+      "post": {
+        "description": "Direct control from the device panel: executes at once, then offers an undo window.",
+        "operationId": "controlDevice",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "space_id",
+            "required": true,
+            "schema": {
+              "title": "Space Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DeviceControlRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeviceControlResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          }
+        },
+        "summary": "Control Device",
         "tags": [
           "devices"
         ]

@@ -17,7 +17,10 @@ import type {
   ScheduledStep,
   CreateRestPlanRequest,
   DeviceAction,
+  DeviceControlRequest,
+  DeviceControlResponse,
   DeviceState,
+  DeviceType,
   EnergyMode,
   EventResult,
   InjectEventRequest,
@@ -30,7 +33,32 @@ import type {
   Service,
   StopServiceRequest,
   StopServiceResponse,
+  UndoRequest,
+  UndoResponse,
+  UndoWindow,
 } from '../types';
+
+/** Mirrors the backend whitelist: (device) -> [min, max, integerOnly]. */
+const CONTROL_RANGES: Record<DeviceType, [number, number, boolean]> = {
+  light: [0, 100, true],
+  ac: [16, 30, false],
+  curtain: [0, 100, true],
+};
+
+const CONTROL_COMMANDS: Record<DeviceType, DeviceAction['command']> = {
+  light: 'set_brightness',
+  ac: 'set_target_temperature',
+  curtain: 'set_open_percent',
+};
+
+/** Keep in step with LIVINGMIND_UNDO_WINDOW_S on the backend. */
+const MOCK_UNDO_WINDOW_MS = 5_000;
+
+function controlLabel(device: DeviceType, value: number): string {
+  if (device === 'light') return value === 0 ? '灯光关闭' : `灯光亮度调到 ${value}%`;
+  if (device === 'ac') return `空调设定 ${value}°C`;
+  return value === 0 ? '窗帘全部关闭' : `窗帘开到 ${value}%`;
+}
 import {
   adjustmentTarget,
   commandActions,
@@ -106,6 +134,7 @@ export function createMockApi(options: MockOptions = {}): LivingMindApi {
   let prefUpdated: Map<string, string>;
   let energyMode: EnergyMode;
   let clarifications: Map<string, PendingClarificationMock>;
+  let undoWindows: Map<string, { window: UndoWindow; epoch: number }>;
 
   const reset = () => {
     devices = {
@@ -123,6 +152,8 @@ export function createMockApi(options: MockOptions = {}): LivingMindApi {
     prefUpdated = new Map();
     energyMode = MOCK_SPACES[0].energyMode;
     clarifications = new Map();
+    // A reset puts every device back to its seed value, so nothing is left to undo.
+    undoWindows = new Map();
   };
   reset();
 
@@ -169,6 +200,17 @@ export function createMockApi(options: MockOptions = {}): LivingMindApi {
     devices.version += 1;
     devices.updatedAt = now().toISOString();
     return { actionId: action.actionId, device: action.device, command: action.command, value: action.value, outcome: 'succeeded', reason: null, observedValue: action.value };
+  };
+
+  const readDeviceValue = (device: DeviceType): number =>
+    device === 'light' ? devices.lightBrightness : device === 'ac' ? devices.acTargetTempC : devices.curtainOpenPercent;
+
+  /** Same whitelist and ranges the backend executor enforces. */
+  const validateControl = (device: DeviceType, value: number): string | null => {
+    const [low, high, integerOnly] = CONTROL_RANGES[device];
+    if (value < low || value > high) return `参数超出范围：${value}（允许 ${low}–${high}）`;
+    if (integerOnly && !Number.isInteger(value)) return `参数必须是整数：${value}`;
+    return null;
   };
 
   const memoryView = (personId: string): MemoryView => {
@@ -553,6 +595,76 @@ export function createMockApi(options: MockOptions = {}): LivingMindApi {
         res.note = '已模拟入睡，灯光已按计划关闭';
       }
       return res;
+    },
+
+    async controlDevice(_spaceId: string, req: DeviceControlRequest): Promise<DeviceControlResponse> {
+      checkContext(req.context);
+      const previous = readDeviceValue(req.device);
+      const label = controlLabel(req.device, req.value);
+      const action: DeviceAction = {
+        actionId: id('act'),
+        device: req.device,
+        command: CONTROL_COMMANDS[req.device],
+        value: req.value,
+        label,
+      };
+      const invalid = validateControl(req.device, req.value);
+      if (invalid) {
+        const result: ActionResult = {
+          actionId: action.actionId,
+          device: action.device,
+          command: action.command,
+          value: action.value,
+          outcome: 'rejected',
+          reason: invalid,
+          observedValue: null,
+        };
+        note('action_rejected', `${label}：${invalid}`, { personId: req.context.personId, action: result });
+        return delay({ deviceState: devices, result, undo: null });
+      }
+      const result = apply(action);
+      note('device_controlled', label, { personId: req.context.personId, action: result });
+      let undo: UndoWindow | null = null;
+      if (previous !== req.value) {
+        undo = {
+          undoId: id('undo'),
+          spaceId: devices.spaceId,
+          device: req.device,
+          previousValue: previous,
+          appliedValue: req.value,
+          label,
+          expiresAt: new Date(now().getTime() + MOCK_UNDO_WINDOW_MS).toISOString(),
+        };
+        // One live window per space, same as the backend.
+        undoWindows.clear();
+        undoWindows.set(undo.undoId, { window: undo, epoch });
+      }
+      return delay({ deviceState: devices, result, undo });
+    },
+
+    async undoDeviceControl(undoId: string, req: UndoRequest): Promise<UndoResponse> {
+      checkContext(req.context);
+      const entry = undoWindows.get(undoId);
+      if (!entry) throw new ApiError('UNDO_EXPIRED', '撤销窗口已结束', 409);
+      if (new Date(entry.window.expiresAt).getTime() <= now().getTime()) {
+        undoWindows.delete(undoId);
+        throw new ApiError('UNDO_EXPIRED', '撤销窗口已结束', 409);
+      }
+      if (entry.epoch !== epoch) {
+        undoWindows.delete(undoId);
+        throw new ApiError('UNDO_INVALIDATED', '空间状态已变化，无法撤销', 409);
+      }
+      const { window } = entry;
+      const result = apply({
+        actionId: id('act'),
+        device: window.device,
+        command: CONTROL_COMMANDS[window.device],
+        value: window.previousValue,
+        label: `撤销：${controlLabel(window.device, window.previousValue)}`,
+      });
+      undoWindows.delete(undoId);
+      note('device_control_undone', `撤销：${window.label}`, { personId: req.context.personId, action: result });
+      return delay({ deviceState: devices, result, restoredValue: window.previousValue });
     },
 
     async injectEvent(_spaceId: string, req: InjectEventRequest): Promise<EventResult> {

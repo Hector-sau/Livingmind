@@ -46,7 +46,11 @@ from app.contracts import (
     BootstrapResponse,
     ConfirmPlanResponse,
     DeviceAction,
+    DeviceControlResponse,
     DeviceState,
+    DeviceType,
+    UndoResponse,
+    UndoWindow,
     EventResult,
     EventType,
     Person,
@@ -122,6 +126,10 @@ class RestService:
         # constraints and the executor guard remain the real protection.
         self._cooldown_cache = Cooldown(self._cooldown.total_seconds())
         self._energy_modes: dict[str, EnergyMode] = {s.space_id: s.energy_mode for s in seed.SPACES}
+        # Undo windows for direct device control. Deliberately in-process: after a restart
+        # there is nothing to undo, and a window opened on one instance is not offered on
+        # another. Both are stated semantics, not gaps — see docs/architecture.md.
+        self._undo: dict[str, tuple[UndoWindow, int]] = {}
         self._legacy_agent = Orchestrator(
             planner=self._planner,
             memory=self._memory,
@@ -703,6 +711,156 @@ class RestService:
 
         Executor(self._devices[service.space_id]).run(actions, guard, on_result)
 
+    # ---- direct device control with an undo window ----
+
+    _CONTROL_COMMANDS: dict[str, str] = {
+        "light": "set_brightness",
+        "ac": "set_target_temperature",
+        "curtain": "set_open_percent",
+    }
+
+    def _control_label(self, device: DeviceType, value: float) -> str:
+        if device == "light":
+            return "灯光关闭" if value == 0 else f"灯光亮度调到 {value:g}%"
+        if device == "ac":
+            return f"空调设定 {value:g}°C"
+        return "窗帘全部关闭" if value == 0 else f"窗帘开到 {value:g}%"
+
+    def _drop_expired_undo(self) -> None:
+        now = self._clock()
+        for undo_id, (window, _) in list(self._undo.items()):
+            if now > window.expires_at:
+                self._undo.pop(undo_id, None)
+
+    def control_device(
+        self, space_id: str, ctx: RequestContext, device: DeviceType, value: float
+    ) -> DeviceControlResponse:
+        """Write one device straight from the panel.
+
+        Low-risk controls (light, AC, curtain) execute without a confirmation step and
+        offer an undo window instead. Every write still goes through the same executor —
+        whitelist, parameter range, epoch guard, write, read back — so "direct" means
+        "without a dialog", never "without checks".
+        """
+        self._check_context(ctx)
+        if ctx.space_id != space_id:
+            raise ApiError("FORBIDDEN_CONTEXT", "设备空间与请求上下文不一致", {"spaceId": space_id})
+        with self._space_lock(space_id) as space_lock:
+            if space_lock.blocked:
+                raise self._busy(space_id)
+            self._drop_expired_undo()
+            adapter = self._devices[space_id]
+            previous = adapter.read_value(device)
+            epoch_at_start = self._store.epoch(space_id)
+            action = DeviceAction(
+                action_id=self._store.new_id("act"),
+                device=device,
+                command=self._CONTROL_COMMANDS[device],  # type: ignore[arg-type]
+                value=value,
+                label=self._control_label(device, value),
+            )
+
+            def guard() -> Optional[str]:
+                if self._store.epoch(space_id) != epoch_at_start:
+                    return "空间已重置，跳过"
+                return None
+
+            results: list[ActionResult] = []
+
+            def on_result(_action: DeviceAction, result: ActionResult) -> None:
+                results.append(result)
+                self._log(
+                    space_id,
+                    "device_controlled" if result.outcome == "succeeded" else "action_rejected",
+                    "user",
+                    action.label,
+                    person_id=ctx.person_id,
+                    action=result,
+                )
+
+            Executor(adapter).run([action], guard, on_result)
+            result = results[0]
+
+            undo: Optional[UndoWindow] = None
+            if result.outcome == "succeeded" and result.observed_value is not None and previous != result.observed_value:
+                undo = UndoWindow(
+                    undo_id=self._store.new_id("undo"),
+                    space_id=space_id,
+                    device=device,
+                    previous_value=previous,
+                    applied_value=result.observed_value,
+                    label=action.label,
+                    expires_at=self._clock() + timedelta(seconds=config.UNDO_WINDOW_S),
+                )
+                # One live window per space: a newer write supersedes the older offer, so
+                # "undo" is never ambiguous about which change it reverses.
+                for undo_id, (window, _) in list(self._undo.items()):
+                    if window.space_id == space_id:
+                        self._undo.pop(undo_id, None)
+                self._undo[undo.undo_id] = (undo, epoch_at_start)
+
+            return DeviceControlResponse(
+                device_state=adapter.read_state(), result=result, undo=undo
+            )
+
+    def undo_device_control(self, undo_id: str, ctx: RequestContext) -> UndoResponse:
+        """Put the device back exactly where it was.
+
+        A real reverse write of the recorded previous value — not a guessed opposite
+        command. Undoing "off" returns to 30% if that is where the light actually was.
+        """
+        self._check_context(ctx)
+        with self._space_lock(ctx.space_id) as space_lock:
+            if space_lock.blocked:
+                raise self._busy(ctx.space_id)
+            self._drop_expired_undo()
+            entry = self._undo.get(undo_id)
+            if entry is None:
+                raise ApiError("UNDO_EXPIRED", "撤销窗口已结束", {"undoId": undo_id})
+            window, epoch_at_write = entry
+            if window.space_id != ctx.space_id:
+                raise ApiError("FORBIDDEN_CONTEXT", "撤销不属于当前空间", {"undoId": undo_id})
+            if self._store.epoch(window.space_id) != epoch_at_write:
+                self._undo.pop(undo_id, None)
+                raise ApiError("UNDO_INVALIDATED", "空间状态已变化，无法撤销", {"undoId": undo_id})
+
+            adapter = self._devices[window.space_id]
+            action = DeviceAction(
+                action_id=self._store.new_id("act"),
+                device=window.device,
+                command=self._CONTROL_COMMANDS[window.device],  # type: ignore[arg-type]
+                value=window.previous_value,
+                label=f"撤销：{self._control_label(window.device, window.previous_value)}",
+            )
+
+            def guard() -> Optional[str]:
+                if self._store.epoch(window.space_id) != epoch_at_write:
+                    return "空间已重置，跳过"
+                return None
+
+            results: list[ActionResult] = []
+
+            def on_result(_action: DeviceAction, result: ActionResult) -> None:
+                results.append(result)
+                self._log(
+                    window.space_id,
+                    "device_control_undone" if result.outcome == "succeeded" else "action_rejected",
+                    "user",
+                    action.label,
+                    person_id=ctx.person_id,
+                    action=result,
+                )
+
+            Executor(adapter).run([action], guard, on_result)
+            result = results[0]
+            # The offer is consumed either way: a failed undo must not be retried silently.
+            self._undo.pop(undo_id, None)
+            return UndoResponse(
+                device_state=adapter.read_state(),
+                result=result,
+                restored_value=window.previous_value,
+            )
+
     # ---- environment events (step 6) ----
 
     def inject_event(self, space_id: str, ctx: RequestContext, event_type: EventType, room_temp_c: float) -> EventResult:
@@ -1143,6 +1301,9 @@ class RestService:
                     self._store.save_service(active)
             self._store.clear()
             self._memory.reset()
+            # A reset puts every device back to its seed value, so there is nothing left
+            # to undo; leaving the offers around would let one restore a pre-reset value.
+            self._undo.clear()
             self._energy_modes = {sp.space_id: sp.energy_mode for sp in seed.SPACES}
             for adapter in self._devices.values():
                 adapter.reset()

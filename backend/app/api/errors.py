@@ -24,6 +24,8 @@ STATUS_BY_CODE: dict[str, int] = {
     "SPACE_BUSY": 409,
     "PIN_INVALID": 403,
     "NOT_EDITABLE": 409,
+    "UNDO_EXPIRED": 409,
+    "UNDO_INVALIDATED": 409,
     "INTERNAL_ERROR": 500,
 }
 

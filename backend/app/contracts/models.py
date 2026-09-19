@@ -41,6 +41,11 @@ __all__ = [
     "AssistantReply",
     "PendingClarification",
     "RecoveryStatus",
+    "DeviceControlRequest",
+    "DeviceControlResponse",
+    "UndoWindow",
+    "UndoRequest",
+    "UndoResponse",
     "MemoryView",
     "SpaceRule",
     "UpdatePreferenceRequest",
@@ -126,6 +131,8 @@ ActivityKind = Literal[
     "clarification_requested",
     "clarification_resolved",
     "clarification_cancelled",
+    "device_controlled",
+    "device_control_undone",
 ]
 ActivitySource = Literal[
     "user", "rule_engine", "experience_agent", "executor", "virtual_device", "system", "simulated_event", "simulated_clock", "frontend_mock"
@@ -149,6 +156,8 @@ ErrorCode = Literal[
     "SERVICE_NOT_ACTIVE",
     "SPACE_BUSY",
     "PIN_INVALID",
+    "UNDO_EXPIRED",
+    "UNDO_INVALIDATED",
     "INTERNAL_ERROR",
 ]
 
@@ -414,6 +423,48 @@ class ActionResult(Contract):
     outcome: ActionOutcome
     reason: Optional[str]
     observed_value: Optional[float] = Field(description="Value read back from the device after the write")
+
+
+class UndoWindow(Contract):
+    """A short chance to put a device back exactly where it was.
+
+    Low-risk device writes execute immediately and offer this instead of a confirmation
+    dialog: on a control people touch dozens of times a day, a dialog trains them to
+    dismiss it without reading. The window lives in the running process only — after a
+    restart there is nothing to undo, which is the intended semantic, not an omission.
+    """
+
+    undo_id: str
+    space_id: str
+    device: DeviceType
+    previous_value: float = Field(description="Exact value read back before the write; undo restores this")
+    applied_value: float
+    label: str
+    expires_at: datetime
+
+
+class DeviceControlRequest(Contract):
+    """Direct control from the device panel. Still goes through the Harness executor."""
+
+    context: "RequestContext"
+    device: DeviceType
+    value: float
+
+
+class DeviceControlResponse(Contract):
+    device_state: "DeviceState"
+    result: "ActionResult"
+    undo: Optional[UndoWindow] = Field(description="Null when the write did not succeed")
+
+
+class UndoRequest(Contract):
+    context: "RequestContext"
+
+
+class UndoResponse(Contract):
+    device_state: "DeviceState"
+    result: "ActionResult"
+    restored_value: float
 
 
 class ActivityRecord(Contract):

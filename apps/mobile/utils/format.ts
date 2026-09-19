@@ -55,4 +55,6 @@ export const ACTIVITY_KIND_LABEL: Record<ActivityKind, string> = {
   clarification_requested: '请求澄清',
   clarification_resolved: '继续请求',
   clarification_cancelled: '取消请求',
+  device_controlled: '直接控制设备',
+  device_control_undone: '撤销设备控制',
 };
