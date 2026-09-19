@@ -7,6 +7,60 @@
 当前范围：**平板优先、手机兼容的 Home Living 演示闭环**。场景只有“我想休息”：计划 → 确认 → 虚拟设备回读 → 模拟入睡 / 室温事件 → 整晚模拟时钟 → 渐进唤醒或停止。
 接手或协作前先读 [AGENT-HANDOFF.md](AGENT-HANDOFF.md)（统一交接文档，在仓库根目录持续维护）。实际完成情况以 [docs/status.md](docs/status.md) 为准；验收标准见 [docs/acceptance.md](docs/acceptance.md)。
 
+## 系统架构
+
+一个 Expo App、一个 FastAPI 后端、一层由后端契约生成的共享类型。App 不认识设备，只认识接口；后端不让 Agent 碰设备，只让它产出计划。
+
+### 组成部分
+
+| 组件 | 职责 | 位置 |
+|---|---|---|
+| 页面层 | 12 个功能模块（对话、设备、语音、整晚、场景、证据、能源…），只调接口层 | `apps/mobile/features/` |
+| 接口层 | 同一套方法两种实现：前端模拟与真实 HTTP，切换不改页面 | `apps/mobile/services/{mock,http}/` |
+| 共享类型 | 由后端 OpenAPI 生成，禁止手改 | `packages/api-client/` |
+| 路由与错误 | 21 个端点，统一错误结构与错误码 | `backend/app/api/` |
+| 服务编排 | 单空间串行锁、计划生命周期、整晚服务、撤销窗口 | `backend/app/services/rest_service.py` |
+| 主 Agent | 意图路由与三个阶段的编排，产出协作轨迹 | `backend/app/agents/orchestrator/` |
+| 体验 Agent | **唯一会调用大模型的环节**，失败降级为规则并记录原因 | `backend/app/agents/experience/` |
+| 空间执行 Agent | 按空间规则生成整晚安排 | `backend/app/agents/space_execution/` |
+| 图编排（可选） | 同样的阶段跑成 LangGraph 图，多出节点轨迹与 checkpoint | `backend/app/graph/` |
+| Harness | 预检、发放有界授权、执行动作 | `backend/app/harness/{policy,grants,executor}.py` |
+| 设备网关 | 幂等 `actionId`、空间代次（`service_epoch`）fencing、受理/完成/失败/拒绝/未知回执 | `backend/app/adapters/gateway.py` |
+| 虚拟设备 | 有状态的灯 / 空调 / 窗帘，写入后回读 | `backend/app/adapters/virtual/` |
+| 存储 | 同一批用例两种实现：进程内存与 PostgreSQL | `backend/app/repositories/`、`backend/app/db/` |
+| 记忆 / 能源 / 事件 / 缓存 | 人物偏好、可解释能源规则、事件出箱、跨实例短锁 | `backend/app/{memory,energy,events,cache}/` |
+
+### 一次“我想休息”走过哪些环节
+
+1. App 发 `POST /api/plans/rest`，带账户、人物、空间与这句话。
+2. 主 Agent 判定意图，调体验 Agent 产出体验目标——这一步要么走 DeepSeek，要么走规则，结果带 `source` 标注。
+3. 空间执行 Agent 按空间规则把体验目标落成具体设备动作，并生成整晚安排。
+4. Harness 预检：白名单、参数范围、与人物偏好的偏离上限。越界的动作在这里就被拿掉，并写明原因。
+5. 计划返回给 App。**此时设备一动没动。**
+6. 用户确认 → `POST /api/plans/{id}/confirm`。Harness 这时才生成 `ExecutionGrant`：有界、会过期、数值被收窄到已批准的那些。
+7. 执行器凭授权逐个动作写设备，每次写前重查空间代次，写后回读实际值。
+8. 结果、回读值与失败原因一起落进活动记录，返回 App。
+
+### 一次设备直接控制走过哪些环节
+
+1. 用户拖滑块，松手才提交 `POST /api/spaces/{id}/devices/control`。
+2. 后端记下**执行前的原值**，执行，回读，开一个 5 秒撤销窗口。
+3. 用户点撤销 → `POST /api/devices/undo/{undo_id}`，写回记下的原值。不是猜一条相反指令。
+4. 窗口过期、或同一空间来了新动作，旧窗口立即失效（`UNDO_EXPIRED` / `UNDO_INVALIDATED`）。
+
+单个低风险动作（灯、空调、窗帘）走这条路，不弹确认框；多动作的休息计划仍然先确认后执行。
+
+### 四个可切换的轴
+
+| 轴 | 默认 | 可选 | 开关 |
+|---|---|---|---|
+| 存储 | 进程内存，重启即重置 | PostgreSQL，计划 / 服务 / 授权 / 动作账本 / 整晚步骤 / 活动 / 待澄清都可恢复 | `LIVINGMIND_DATABASE_URL` |
+| 编排 | 顺序编排 | LangGraph 图，带节点轨迹与 checkpoint | `LIVINGMIND_ORCHESTRATOR=langgraph` |
+| 跨实例协调 | 关 | Redis 短锁与事件冷却快速判断（**不是事实来源**，挂了功能照常） | `LIVINGMIND_REDIS_URL` |
+| 计划来源 | 规则 | DeepSeek 一次调用，失败降级为规则并标注原因 | `DEEPSEEK_API_KEY` |
+
+前三个轴互不依赖，CI 按内存 / PostgreSQL / PostgreSQL + Redis + LangGraph 三种组合各跑一遍完整测试。第四个轴需要密钥，不进 CI。
+
 ## 三条架构边界
 
 1. **页面不直接控制设备**：页面只调用 `apps/mobile/services/` 的接口；从模拟切到真实 API 不改页面。
@@ -15,24 +69,64 @@
 
 口径按三档区分，不要混用：**已实现并验证**（有代码、有测试、有实跑结果）/ **接口预留**（只有协议与契约替身测试，没有对端）/ **仍待执行**（需用户授权或外部条件）。对照表见 [AGENT-HANDOFF.md](AGENT-HANDOFF.md) 第 9 节。
 
-## 当前做什么 / 不做什么
+## 已实现的功能
 
-| 当前做 | 暂不做（后续批次） |
-|---|---|
-| 对话主页、四个入口、人物切换（演示 PIN）、访客模式、证据面板、场景库 | 真实后台定时器 |
-| 1+2 Agent 编排：主 Agent（路由与编排）+ Experience Agent + Space Execution Agent，共享人物记忆、能源规则、Harness 预检，每个计划附协作过程 | 真实设备 / SpaceMind |
-| Experience Agent 一次模型调用（DeepSeek，规则/模型可切换，失败降级为规则并标注） | 真实睡眠感知 / 传感器 |
-| 模拟室温事件触发一次自动调整（冷却、次数上限、停止后忽略） | 真实传感器 |
-| 歧义请求先澄清再执行：否定、设备冲突、指代不清；待澄清状态按账户/人物/空间/会话隔离，10 分钟过期，可取消 | 通用多轮对话记忆 |
-| 语音回合：按住说话、状态机、真实 TTS 播报与打断、来源标签 | 唤醒词、声纹、免手操作 |
-| 设备面板直接控制：双轨滑块、目标与回读双指示、直接执行 + 5 秒真撤销 | 高风险设备（门锁等） |
-| 启动恢复可查询（`GET /api/system/recovery`）：清理崩溃遗留标记，结果未知的步骤取消而非重放 | 真实硬件状态回读恢复 |
-| `DeviceGateway` V2 已进入虚拟设备执行路径：幂等 `actionId`、`serviceEpoch` fencing、受理/完成/失败/拒绝/未知回执、持久化动作账本；语音与传感器仍为协议预留 | SpaceMind / 厂商设备、音箱和传感器的真实对端接入 |
-| 设备端语音识别适配层（`expo-speech-recognition`，系统引擎、无密钥、可端侧）**代码完整** | **尚未在真机验证**：需 development build，端到端与 CI 都覆盖不到 |
-| 固定规则计划 + 有状态虚拟设备 + 统一执行器；模拟入睡、室温事件与整晚模拟时钟 | 真实设备 / SpaceMind / 音箱接入 |
-| 内存或 PostgreSQL 两种存储（可切换）；配库后计划、服务、执行授权、动作账本、整晚步骤、活动与待澄清状态可恢复 | 正式登录、WebSocket、向量库 |
-| 演示身份（demo account） | 真实设备 / SpaceMind / 音箱接入 |
-| 24 小时家庭能源离线仿真：给定的固定日规则 vs 单智能体 MATD3 结果，只读展示（不参与控制） | 在线 MATD3 控制、重训或重新评估 |
+### 对话与计划
+
+- 对话主页、四个入口、场景库、证据面板。
+- “我想休息”生成计划：**计划产出时设备不动**，确认后才执行并回读实际值。
+- 计划来源在界面上分四档标注：规则计划、模型计划、规则降级（请求了模型但改用规则，附原因）、前端模拟计划。
+- 歧义请求先澄清再执行，覆盖三类：否定、设备冲突、指代不清。待澄清状态按账户 / 人物 / 空间 / 会话隔离，10 分钟过期，可取消。
+
+### Agent 编排
+
+- 1+2 结构：主 Agent 负责路由与编排，体验 Agent 产出体验目标，空间执行 Agent 落成设备动作与整晚安排。
+- 三者共享人物记忆与能源规则，计划经 Harness 预检；每个计划附真实的协作轨迹，“场景”页可展开查看。
+- 体验 Agent 一次模型调用（DeepSeek）。规则与模型可切换；模型不可用时降级为规则并写明原因，链路不中断。
+- 同一套阶段可改由 LangGraph 图执行，多出节点轨迹与 checkpoint；`scripts/compare_orchestrators.py` 验证两条路径产出的计划等价。
+
+### 设备控制与执行
+
+- 受控执行链：`PolicyDecision → ExecutionGrant → ActionExecution`。授权有界、会过期、被收窄到已批准的数值，迁移 `0005_execution_authority` 持久化全过程。
+- `DeviceGateway` V2 已进入虚拟设备执行路径：幂等 `actionId`、空间代次（`service_epoch`）fencing、受理 / 完成 / 失败 / 拒绝 / 未知五种回执、持久化动作账本。
+- 设备面板直接控制：双轨滑块（拖动时本地值优先、松手才提交）、目标值与回读值双指示、直接执行 + 5 秒真撤销。
+- 有状态虚拟设备（灯 / 空调 / 窗帘），每次写入后回读；写设备成功但回读失败时返回明确的动作失败。
+
+### 语音
+
+- 完整语音回合：按住说话 → 状态机（`idle → armed → listening → resolving → sending → speaking`）→ 真实 TTS 播报与打断。
+- **任何超时的默认结果都是不执行**，没有一条超时路径能走到发送。
+- 设备端识别适配层（`expo-speech-recognition`，系统引擎、无密钥、可端侧）代码完整；未接入真实识别器时转写文本带来源标签，界面不出现“识别”字样。
+
+### 整晚服务与事件
+
+- 确认后同一个服务贯穿整晚，跑在**模拟时钟**上（22:30 起），只由接口推进，后端不读真实时间、不开后台定时器。
+- 渐进唤醒三步（起床前 30 / 15 / 0 分钟），深夜空调调高 1°C 且不超出本人偏好 +3°C。
+- 模拟室温事件触发一次自动调整，带冷却与次数上限；停止服务后事件被忽略，剩余步骤记为取消。
+- 启动恢复可查询（`GET /api/system/recovery`）：清理崩溃遗留标记，**结果未知的步骤取消而非重放**。
+
+### 身份、记忆与持久化
+
+- 演示身份（demo account）、人物切换（演示 PIN）、访客模式（不读取任何人的个人偏好）。
+- 内存或 PostgreSQL 两种存储可切换；配库后计划、服务、执行授权、动作账本、整晚步骤、活动与待澄清状态均可恢复，重启后运行中的服务还能继续停止。
+- 可选 Redis 跨实例短锁与事件冷却加速；**Redis 不是事实来源**，正确性由数据库约束和执行器守卫保证。
+
+### 能源展示
+
+- 在线能源建议是 `backend/app/energy/rules.py` 的可解释规则。
+- 24 小时家庭能源离线仿真：给定的固定日结果，规则策略 vs 单智能体 MATD3，只读展示，不参与控制，也不新增可控制设备。
+
+### 演示与证据
+
+- 一键“准备演示”重置；三段网页版录屏，每帧带“网页版录屏 · 后端虚拟设备 · 规则模式”字幕。
+- 主张证据表逐条对照汇报 PDF，写明原型实际情况、证据位置与来源类型。
+- `backend/scripts/model_latency_bench.py` 可复现真实模型的延迟分布与失败分类。
+
+## 暂不做（后续批次）
+
+真实设备 / SpaceMind / 厂商云 / 音箱 / 传感器接入 · 真实后台定时器 · 真实睡眠感知 · 真实硬件状态回读恢复 · 唤醒词、声纹、免手操作 · 高风险设备（门锁等）· 通用多轮对话记忆 · 正式登录、WebSocket、向量库 · 在线 MATD3 控制或重新训练评估
+
+**所有设备都是后端虚拟设备**，执行链路是完整的，对端是模拟的。**设备端语音识别代码完整但未在真机验证**——它需要 development build，端到端测试与 CI 都覆盖不到这一项。
 
 ## 目录
 
@@ -88,7 +182,10 @@ cd backend && set -a && source .env && set +a
 .venv/bin/python scripts/try_model.py "我想休息，有点热"   # 只测 Agent 一次调用
 .venv/bin/python scripts/e2e_real_model.py                 # 可选：后端端到端，5 句话，含延迟统计
 .venv/bin/python scripts/e2e_real_model.py --eval          # 可选：用设计的评测集给真实模型打分
+.venv/bin/python scripts/model_latency_bench.py --samples 24   # 延迟分布与失败分类
 ```
+
+`model_latency_bench.py` 重复调用与产品同一条路径（`ExperienceAgent.plan()`，含 JSON 解析与结构校验），输出 p50 / p90 / p95、模型贡献率、按 kind 的失败分类和按话术的分组，写入 `docs/evidence/model-latency.json`。分位数只统计成功调用——超时那条的耗时等于预算本身，混进去会把中位数做得好看。密钥从环境变量读取，不会打印、也不会写进结果文件。
 
 浏览器端到端也可以用真实模型：`cd apps/mobile && python e2e/run_e2e.py --real-model`。
 
@@ -127,7 +224,7 @@ npx expo start
 
 ### 2b. 持久化（T2，可选）
 
-不配 `LIVINGMIND_DATABASE_URL` 时，后端和以前一样全部在内存里，重启即重置。配上 PostgreSQL 后，人物偏好、计划、服务、整晚步骤、动作结果和活动记录都会持久化，重启后运行中的服务还能继续停止：
+不配 `LIVINGMIND_DATABASE_URL` 时，后端和以前一样全部在内存里，重启即重置。配上 PostgreSQL 后，人物偏好、计划、服务、整晚步骤、动作结果和活动记录都会持久化，重启后运行中的服务还能继续停止。执行授权链也在库里：`0005_execution_authority` 建了 `policy_decisions` / `execution_grants` / `action_executions` 三张表，一次确认发放了什么授权、执行器凭它写了什么、回读到什么，事后都查得到：
 
 ```bash
 cd backend
@@ -158,6 +255,8 @@ LIVINGMIND_ORCHESTRATOR=langgraph .venv/bin/pytest      # 整套测试走图路�
 ```
 
 设备执行不在图里：图只产出计划，确认后仍由 Harness 与执行器写设备。
+
+checkpoint 连接每进程只建一个，按数据库 URL 缓存共享（`PostgresSaver` 自带线程锁）。它由 psycopg 自行持有，不受 SQLAlchemy 连接池设置管辖——每个编排器各开一条的话，一次完整测试运行就能耗尽 PostgreSQL 的 `max_connections`。
 
 ### 2d. 跨实例协调（T4，可选）
 
