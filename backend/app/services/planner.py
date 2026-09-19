@@ -169,7 +169,9 @@ class Planner:
 
 def provider_from_config() -> Optional[ChatProvider]:
     if config.MODEL_PROVIDER == "deepseek" and config.DEEPSEEK_API_KEY:
-        return DeepSeekProvider(config.DEEPSEEK_API_KEY, config.DEEPSEEK_MODEL, config.DEEPSEEK_BASE_URL)
+        return DeepSeekProvider(
+            config.DEEPSEEK_API_KEY, config.DEEPSEEK_MODEL, config.DEEPSEEK_BASE_URL, config.MODEL_MAX_TOKENS
+        )
     return None
 
 

@@ -305,7 +305,7 @@ def test_an_empty_completion_says_why_without_quoting_any_text(monkeypatch):
     )
     with pytest.raises(ProviderError) as ei:
         provider.complete_json("系统提示", "用户说的话", 1.0)
-    assert ei.value.kind == "empty"
+    assert ei.value.kind == "truncated"  # hitting the budget is its own kind; see the test below
     assert "finish_reason=length" in ei.value.message
     assert "reasoning_content" in ei.value.message
     # neither the prompt, the utterance, nor the model's own words ride along
@@ -317,3 +317,61 @@ def test_an_empty_completion_says_why_without_quoting_any_text(monkeypatch):
     with pytest.raises(ProviderError) as ei:
         provider.complete_json("s", "u", 1.0)
     assert ei.value.kind == "empty" and "未给出" in ei.value.message
+
+
+def test_a_completion_cut_off_at_the_budget_is_not_used(monkeypatch):
+    """Hitting max_tokens is its own failure: the model was still writing.
+
+    Measured against the real API, the reasoning alone ran 1280-1387 characters on the harder
+    utterances and spent a 400-token budget before the answer began. Reported apart from an
+    empty reply because the fix is to raise the budget, not to retry.
+    """
+
+    def resp(choice):
+        return httpx.Response(
+            200,
+            json={"choices": [choice]},
+            request=httpx.Request("POST", "https://api.deepseek.com/chat/completions"),
+        )
+
+    provider = DeepSeekProvider("sk-x", "deepseek-flash")
+
+    # cut off with nothing written
+    monkeypatch.setattr(httpx, "post", lambda *a, **kw: resp({"finish_reason": "length", "message": {"content": ""}}))
+    with pytest.raises(ProviderError) as ei:
+        provider.complete_json("s", "u", 1.0)
+    assert ei.value.kind == "truncated"
+
+    # cut off mid-answer: still unusable, even though something came back
+    monkeypatch.setattr(
+        httpx,
+        "post",
+        lambda *a, **kw: resp({"finish_reason": "length", "message": {"content": '{"goal": "安静'}}),
+    )
+    with pytest.raises(ProviderError) as ei:
+        provider.complete_json("s", "u", 1.0)
+    assert ei.value.kind == "truncated"
+
+    # a normal finish is untouched
+    monkeypatch.setattr(
+        httpx,
+        "post",
+        lambda *a, **kw: resp({"finish_reason": "stop", "message": {"content": '{"a":1}'}}),
+    )
+    assert provider.complete_json("s", "u", 1.0) == '{"a":1}'
+
+
+def test_the_token_budget_is_configurable_and_sent(monkeypatch):
+    captured = {}
+
+    def ok(url, headers, json, timeout):
+        captured.update(json)
+        return httpx.Response(
+            200,
+            json={"choices": [{"finish_reason": "stop", "message": {"content": '{"a":1}'}}]},
+            request=httpx.Request("POST", "https://api.deepseek.com/chat/completions"),
+        )
+
+    monkeypatch.setattr(httpx, "post", ok)
+    DeepSeekProvider("sk-x", "deepseek-flash", max_tokens=1234).complete_json("s", "u", 1.0)
+    assert captured["max_tokens"] == 1234

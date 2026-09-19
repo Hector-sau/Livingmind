@@ -39,6 +39,11 @@ MODEL_TIMEOUT_S = float(os.getenv("LIVINGMIND_MODEL_TIMEOUT_S", "6"))
 DEEPSEEK_API_KEY = os.getenv("DEEPSEEK_API_KEY", "")
 DEEPSEEK_BASE_URL = os.getenv("DEEPSEEK_BASE_URL", "https://api.deepseek.com")
 DEEPSEEK_MODEL = os.getenv("DEEPSEEK_MODEL", "deepseek-flash")
+# deepseek-flash writes reasoning before its answer, and that reasoning is charged against the
+# same budget. A measured run (docs/evidence/model-latency.json) produced 1280-1387 characters
+# of reasoning on the harder utterances, which spent a 400-token budget before a single character
+# of the answer was written. 2000 leaves room for the reasoning and the JSON object after it.
+MODEL_MAX_TOKENS = int(os.getenv("LIVINGMIND_MODEL_MAX_TOKENS", "2000"))
 
 # ---- environment events (step 6) ----
 EVENT_COOLDOWN_S = float(os.getenv("LIVINGMIND_EVENT_COOLDOWN_S", "30"))

@@ -9,7 +9,7 @@ from typing import Literal, Protocol
 
 import httpx
 
-ProviderErrorKind = Literal["not_configured", "timeout", "network", "http", "empty"]
+ProviderErrorKind = Literal["not_configured", "timeout", "network", "http", "empty", "truncated"]
 
 
 class ProviderError(Exception):
@@ -32,10 +32,17 @@ class DeepSeekProvider:
 
     name = "deepseek"
 
-    def __init__(self, api_key: str, model: str, base_url: str = "https://api.deepseek.com"):
+    def __init__(
+        self,
+        api_key: str,
+        model: str,
+        base_url: str = "https://api.deepseek.com",
+        max_tokens: int = 2000,
+    ):
         self._api_key = api_key
         self.model = model
         self._base_url = base_url.rstrip("/")
+        self._max_tokens = max_tokens
 
     def complete_json(self, system: str, user: str, timeout_s: float) -> str:
         if not self._api_key:
@@ -45,7 +52,7 @@ class DeepSeekProvider:
             "messages": [{"role": "system", "content": system}, {"role": "user", "content": user}],
             "response_format": {"type": "json_object"},
             "temperature": 0.3,
-            "max_tokens": 400,
+            "max_tokens": self._max_tokens,
             "stream": False,
         }
         try:
@@ -66,6 +73,11 @@ class DeepSeekProvider:
             content = choice["message"]["content"]
         except (ValueError, KeyError, IndexError, TypeError) as exc:
             raise ProviderError("empty", "模型响应格式异常") from exc
+        # A completion cut off at the budget is not a usable answer even when it happens to
+        # parse: the model was still writing. Reported separately from a genuinely empty reply
+        # because the fix is different -- raise LIVINGMIND_MODEL_MAX_TOKENS, not retry.
+        if isinstance(choice, dict) and choice.get("finish_reason") == "length":
+            raise ProviderError("truncated", f"模型输出在预算内没写完（{describe_empty(choice)}）")
         if not isinstance(content, str) or not content.strip():
             raise ProviderError("empty", f"模型没有返回内容（{describe_empty(choice)}）")
         return content

@@ -175,6 +175,8 @@ LIVINGMIND_DEMO_LOCAL_HOUR=20 uvicorn app.main:app --host 0.0.0.0 --port 8000
 
 **启用模型模式（DeepSeek）**：`cp .env.example .env`，填写 `DEEPSEEK_API_KEY`，然后启动时加 `--env-file .env`。密钥只放在后端 `.env`（已被 Git 忽略），绝不写进 App。不填密钥时模型模式会降级为规则计划并标注原因。
 
+`deepseek-flash` 会在答案之前写推理内容，而推理与答案共用同一个 token 预算。实测（`docs/evidence/model-latency.json`）在较难的那句话上推理写了 1280–1387 个字符，400 的预算在答案开始之前就用光了，`content` 返回空。默认预算因此设为 2000，可用 `LIVINGMIND_MODEL_MAX_TOKENS` 调整；换模型时请自己测一遍再往下调。预算耗尽是独立的失败类型（`truncated`），和“模型真的没返回”分开统计。
+
 验证真实模型（需要 `.env` 里的密钥，只能在你自己的电脑上跑）：
 
 ```bash
