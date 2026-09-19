@@ -198,7 +198,14 @@ export function ChatScreen({ api, flow, messages, dispatch }: Props) {
           stale={state.deviceStale}
           loading={state.busy === 'refresh'}
           disabled={busy}
+          pending={state.devicePending}
+          failures={state.deviceFailure}
+          undoWindow={state.undoWindow}
+          undoBusy={state.busy === 'undo'}
           onRefresh={actions.refresh}
+          onControl={(device, value) => void actions.controlDevice(device, value)}
+          onUndo={() => void actions.undoControl()}
+          onUndoExpired={actions.dismissUndo}
           vertical
         />
       </ScrollView>

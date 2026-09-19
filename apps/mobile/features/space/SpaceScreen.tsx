@@ -32,7 +32,14 @@ export function SpaceScreen({ flow, showEvidence }: { flow: RestFlow; showEviden
             stale={state.deviceStale}
             loading={state.busy === 'refresh'}
             disabled={busy}
+            pending={state.devicePending}
+            failures={state.deviceFailure}
+            undoWindow={state.undoWindow}
+            undoBusy={state.busy === 'undo'}
             onRefresh={actions.refresh}
+            onControl={(device, value) => void actions.controlDevice(device, value)}
+            onUndo={() => void actions.undoControl()}
+            onUndoExpired={actions.dismissUndo}
           />
         </View>
         <View style={[wide ? styles.flex : undefined, styles.col]}>

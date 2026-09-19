@@ -20,10 +20,27 @@ import type {
   Scene,
   Service,
   StopServiceResponse,
+  DeviceControlResponse,
+  DeviceType,
+  UndoResponse,
+  UndoWindow,
 } from '../../services/types';
 import { planBlockReason } from './planGate';
 
-export type Busy = null | 'plan' | 'confirm' | 'stop' | 'refresh' | 'reset' | 'event' | 'unlock' | 'memory' | 'energy' | 'clock';
+export type Busy =
+  | null
+  | 'plan'
+  | 'confirm'
+  | 'stop'
+  | 'refresh'
+  | 'reset'
+  | 'event'
+  | 'unlock'
+  | 'memory'
+  | 'energy'
+  | 'clock'
+  | 'control'
+  | 'undo';
 
 export interface FlowError {
   message: string;
@@ -49,6 +66,12 @@ export interface RestFlowState {
   activity: ActivityRecord[];
   /** Supplied fixed-day evidence, separate from the online energy-rule plan advice. */
   energySimulation: OfflineEnergySimulation | null;
+  /** Values sent to a device and not yet read back. Holds the slider handle in place. */
+  devicePending: Partial<Record<DeviceType, number>>;
+  /** Devices whose last direct write was refused, with the reason to show on the tile. */
+  deviceFailure: Partial<Record<DeviceType, string>>;
+  /** The one open undo offer, or null. */
+  undoWindow: UndoWindow | null;
   busy: Busy;
   error: FlowError | null;
   info: string | null;
@@ -68,6 +91,9 @@ const initial: RestFlowState = {
   deviceStale: false,
   activity: [],
   energySimulation: null,
+  devicePending: {},
+  deviceFailure: {},
+  undoWindow: null,
   busy: null,
   error: null,
   info: null,
@@ -327,6 +353,95 @@ export function useRestFlow(api: LivingMindApi) {
     }
   }, [api, context, fail, loadActivity, patch]);
 
+  /**
+   * Write one device straight from the panel.
+   *
+   * The handle is held at the sent value until the backend reads the device back, so
+   * the slider does not snap around while the write is in flight. A refused write keeps
+   * its reason on the tile instead of raising a banner — the person is looking at the
+   * control they just touched.
+   */
+  const controlDevice = useCallback(
+    async (device: DeviceType, value: number): Promise<Outcome<DeviceControlResponse>> => {
+      const ctx = context();
+      if (!ctx) return NO_CONTEXT;
+      const lifecycle = lifecycleRef.current;
+      setState((s) => ({
+        ...s,
+        busy: 'control',
+        error: null,
+        info: null,
+        devicePending: { ...s.devicePending, [device]: value },
+        deviceFailure: { ...s.deviceFailure, [device]: undefined },
+      }));
+      try {
+        const res = await api.controlDevice(ctx.spaceId, { context: ctx, device, value });
+        if (lifecycle !== lifecycleRef.current) return { ok: true, value: res, stale: true };
+        setState((s) => ({
+          ...s,
+          busy: null,
+          deviceState: res.deviceState,
+          deviceStale: false,
+          devicePending: { ...s.devicePending, [device]: undefined },
+          deviceFailure:
+            res.result.outcome === 'succeeded'
+              ? { ...s.deviceFailure, [device]: undefined }
+              : { ...s.deviceFailure, [device]: res.result.reason ?? '操作失败，点击重试' },
+          undoWindow: res.undo ?? s.undoWindow,
+        }));
+        await loadActivity(ctx.spaceId);
+        return { ok: true, value: res };
+      } catch (e) {
+        if (lifecycle !== lifecycleRef.current) return { ok: false, error: STALE_REQUEST, stale: true };
+        setState((s) => ({ ...s, devicePending: { ...s.devicePending, [device]: undefined } }));
+        return fail(e);
+      }
+    },
+    [api, context, fail, loadActivity],
+  );
+
+  /** Put the device back on the value it held before the last direct write. */
+  const undoControl = useCallback(async (): Promise<Outcome<UndoResponse>> => {
+    const ctx = context();
+    const window = stateRef.current.undoWindow;
+    if (!ctx || !window) return NO_CONTEXT;
+    const lifecycle = lifecycleRef.current;
+    setState((s) => ({
+      ...s,
+      busy: 'undo',
+      error: null,
+      devicePending: { ...s.devicePending, [window.device]: window.previousValue },
+    }));
+    try {
+      const res = await api.undoDeviceControl(window.undoId, { context: ctx });
+      if (lifecycle !== lifecycleRef.current) return { ok: true, value: res, stale: true };
+      setState((s) => ({
+        ...s,
+        busy: null,
+        deviceState: res.deviceState,
+        deviceStale: false,
+        devicePending: { ...s.devicePending, [window.device]: undefined },
+        undoWindow: null,
+      }));
+      await loadActivity(ctx.spaceId);
+      return { ok: true, value: res };
+    } catch (e) {
+      if (lifecycle !== lifecycleRef.current) return { ok: false, error: STALE_REQUEST, stale: true };
+      // The offer is gone either way; leaving it on screen would promise something
+      // the backend has already refused.
+      setState((s) => ({
+        ...s,
+        undoWindow: null,
+        devicePending: { ...s.devicePending, [window.device]: undefined },
+      }));
+      return fail(e);
+    }
+  }, [api, context, fail, loadActivity]);
+
+  const dismissUndo = useCallback(() => {
+    setState((s) => (s.undoWindow ? { ...s, undoWindow: null } : s));
+  }, []);
+
   const injectEvent = useCallback(
     async (roomTempC: number): Promise<Outcome<EventResult>> => {
       const ctx = context();
@@ -454,6 +569,9 @@ export function useRestFlow(api: LivingMindApi) {
       confirm,
       stop,
       refresh,
+      controlDevice,
+      undoControl,
+      dismissUndo,
       injectEvent,
       advanceClock,
       simulateSleep,
@@ -461,7 +579,7 @@ export function useRestFlow(api: LivingMindApi) {
       dismissError: () => patch({ error: null }),
       dismissInfo: () => patch({ info: null }),
     }),
-    [load, selectPerson, unlockPerson, sendMessage, updatePreference, setEnergyMode, patch, createPlan, confirm, stop, refresh, injectEvent, advanceClock, simulateSleep, resetDemo],
+    [load, selectPerson, unlockPerson, sendMessage, updatePreference, setEnergyMode, patch, createPlan, confirm, stop, refresh, controlDevice, undoControl, dismissUndo, injectEvent, advanceClock, simulateSleep, resetDemo],
   );
 
   return { state, person, space, activeService, blockReason, actions };

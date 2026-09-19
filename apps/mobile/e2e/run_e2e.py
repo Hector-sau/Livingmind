@@ -456,6 +456,61 @@ def scenario_clarification(page: Page, url: str, label: str) -> None:
     shot(page, f"{label}-clarify-resolved")
 
 
+def scenario_device_control(page: Page, url: str, label: str) -> None:
+    """A device is controlled straight from the panel: no dialog, then a real undo."""
+    open_app(page, url)
+    tab(page, "space")
+
+    tile = page.get_by_test_id("device-tile-light")
+    tile.wait_for()
+    before = page.get_by_test_id("device-value-light").inner_text()
+    assert before == "80%", before
+
+    # Tapping the icon is the one-tap action. Nothing should stand between it and the device.
+    page.get_by_test_id("device-toggle-light").click()
+    page.get_by_test_id("undo-bar").wait_for(timeout=10000)
+    assert page.get_by_test_id("device-value-light").inner_text() == "0%"
+    body_text = body(page)
+    for word in ("确定吗", "请确认", "是否继续"):
+        assert word not in body_text, f"a low-risk control must not raise a dialog ({word})"
+    assert "撤销将回到 80%" in body_text, body_text
+    shot(page, f"{label}-control-undo-offer")
+
+    # The countdown is visible, and it is counting down.
+    first = int(page.get_by_test_id("undo-count").inner_text())
+    assert 1 <= first <= 5, first
+
+    page.get_by_test_id("undo-button").click()
+    # The handle jumps back optimistically, so wait for the offer itself to be consumed
+    # before reading the value — otherwise this races the in-flight request.
+    page.wait_for_selector('[data-testid="undo-bar"]', state="detached", timeout=10000)
+    assert page.get_by_test_id("device-value-light").inner_text() == "80%"
+    shot(page, f"{label}-control-undone")
+
+    # The activity log keeps both halves, so the evidence panel can show what really happened.
+    tab(page, "me")
+    page.get_by_test_id("evidence-switch").click()
+    page.get_by_test_id("evidence-panel").wait_for()
+    evidence = page.get_by_test_id("evidence-panel").inner_text()
+    assert "直接控制设备" in evidence, evidence
+    assert "撤销设备控制" in evidence, evidence
+
+
+def scenario_control_expiry(page: Page) -> None:
+    """When the window closes on its own, the change stands and the offer disappears."""
+    open_app(page, f"http://localhost:{HTTP_PORT}/")
+    tab(page, "space")
+    page.get_by_test_id("device-tile-curtain").wait_for()
+    page.get_by_test_id("device-toggle-curtain").click()
+    page.get_by_test_id("undo-bar").wait_for(timeout=10000)
+    value = page.get_by_test_id("device-value-curtain").inner_text()
+
+    # The backend window is 5 s; wait it out rather than mocking the clock.
+    page.wait_for_selector('[data-testid="undo-bar"]', state="detached", timeout=15000)
+    assert page.get_by_test_id("device-value-curtain").inner_text() == value, "an expired window changes nothing"
+    shot(page, "control-window-closed")
+
+
 def scenario_energy_memory(page: Page) -> None:
     """Eco mode applies advice inside the comfort band; editing one's own preference changes the next plan."""
     open_app(page, f"http://localhost:{HTTP_PORT}/")
@@ -767,6 +822,22 @@ def main() -> int:
 
             run("http-clarification", http_clarification)
             run("mock-clarification", lambda page: scenario_clarification(page, f"http://localhost:{MOCK_PORT}/", "mock"))
+
+            def http_device_control(page):
+                reset_backend()
+                scenario_device_control(page, f"http://localhost:{HTTP_PORT}/", "http")
+
+            run("http-device-control", http_device_control)
+            run(
+                "mock-device-control",
+                lambda page: scenario_device_control(page, f"http://localhost:{MOCK_PORT}/", "mock"),
+            )
+
+            def http_control_expiry(page):
+                reset_backend()
+                scenario_control_expiry(page)
+
+            run("http-control-expiry", http_control_expiry)
 
             def http_energy_memory(page):
                 reset_backend()
