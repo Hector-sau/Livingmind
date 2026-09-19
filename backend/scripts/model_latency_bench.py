@@ -32,7 +32,8 @@ from app.agents.experience import ExperienceAgent, ExperienceError  # noqa: E402
 from app.clock import utc_now  # noqa: E402
 from app.contracts import DeviceState  # noqa: E402
 from app.demo import seed  # noqa: E402
-from app.services.planner import provider_from_config  # noqa: E402
+from app.contracts import RestPreference  # noqa: E402
+from app.services.planner import deviation_violation, provider_from_config  # noqa: E402
 
 # The demo's own utterances, so the prompt distribution is the one the judges will see:
 # a plain request, a request with a reason, a comparative, a vague one, and an off-topic one.
@@ -95,6 +96,19 @@ def main() -> int:
         utterance = UTTERANCES[i % len(UTTERANCES)]
         try:
             result = agent.plan(person, state, utterance)
+            # The agent only validates ranges. The planner additionally refuses a plan that sits
+            # too far from the person's authorised preference, and that refusal is a fallback the
+            # user sees. Counting it here keeps this number equal to "the model's plan was used",
+            # rather than "the model returned well-formed JSON".
+            assert person.rest_preference is not None
+            proposed = RestPreference(
+                light_brightness=result.output.light_brightness,
+                ac_target_temp_c=result.output.ac_target_temp_c,
+                curtain_open_percent=result.output.curtain_open_percent,
+            )
+            too_far = deviation_violation(person.rest_preference, proposed)
+            if too_far:
+                raise ExperienceError("deviation", too_far, result.latency_ms)
         except ExperienceError as exc:
             rows.append(
                 {
