@@ -46,9 +46,17 @@ export function MessageView({ message, livePlan, actionable, blockReason, busy, 
     case 'user':
       return (
         <FadeIn style={[styles.row, styles.right]}>
-          <LinearGradient colors={[...gradients.sky]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.userBubble}>
-            <Text style={styles.userText}>{message.text}</Text>
-          </LinearGradient>
+          <View style={styles.userColumn}>
+            <LinearGradient colors={[...gradients.sky]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.userBubble}>
+              <Text style={styles.userText}>{message.text}</Text>
+            </LinearGradient>
+            {/* Where the words came from, when they did not come from a microphone. */}
+            {message.badge ? (
+              <Text style={styles.userBadge} testID="message-source-badge">
+                {message.badge}
+              </Text>
+            ) : null}
+          </View>
         </FadeIn>
       );
     case 'assistant':
@@ -148,6 +156,17 @@ const styles = StyleSheet.create({
     paddingVertical: space.md,
   },
   userText: { color: '#fff', fontSize: font.body + 1, fontWeight: '500' },
+  userColumn: { alignItems: 'flex-end', gap: 4 },
+  userBadge: {
+    fontSize: font.caption - 1,
+    fontWeight: '700',
+    color: '#8A5A12',
+    backgroundColor: colors.amberTint,
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: radius.pill,
+    overflow: 'hidden',
+  },
   assistantBubble: {
     maxWidth: '82%',
     flexShrink: 1,

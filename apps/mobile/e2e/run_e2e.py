@@ -456,6 +456,38 @@ def scenario_clarification(page: Page, url: str, label: str) -> None:
     shot(page, f"{label}-clarify-resolved")
 
 
+def scenario_voice(page: Page, url: str, label: str) -> None:
+    """The voice path without a recogniser: it says what it is, and still runs the pipeline."""
+    open_app(page, url)
+    set_mode(page, "rule")
+
+    assert page.get_by_test_id("voice-sheet").count() == 0, "the sheet is only up during a turn"
+    page.get_by_test_id("mic-button").click()
+    sheet = page.get_by_test_id("voice-sheet")
+    sheet.wait_for(timeout=10000)
+
+    # No recogniser in a web export, so the sheet must ask rather than pretend to transcribe.
+    status = page.get_by_test_id("voice-status").inner_text()
+    assert "识别" not in status, f"capturing must not claim recognition: {status}"
+    shot(page, f"{label}-voice-open")
+
+    page.get_by_test_id("voice-example-把灯调到 20%").click()
+    page.get_by_text("设备指令：灯光亮度调到 20%", exact=False).first.wait_for(timeout=20000)
+
+    # The transcript is badged, because it came from a tap and not from speech.
+    badge = page.get_by_test_id("message-source-badge").last
+    badge.wait_for()
+    assert badge.inner_text() == "示例指令", badge.inner_text()
+    page.wait_for_selector('[data-testid="voice-sheet"]', state="detached", timeout=15000)
+    shot(page, f"{label}-voice-result")
+
+    # Cancelling leaves nothing behind.
+    page.get_by_test_id("mic-button").click()
+    page.get_by_test_id("voice-sheet").wait_for()
+    page.get_by_test_id("voice-cancel").click()
+    page.wait_for_selector('[data-testid="voice-sheet"]', state="detached", timeout=10000)
+
+
 def scenario_device_control(page: Page, url: str, label: str) -> None:
     """A device is controlled straight from the panel: no dialog, then a real undo."""
     open_app(page, url)
@@ -822,6 +854,13 @@ def main() -> int:
 
             run("http-clarification", http_clarification)
             run("mock-clarification", lambda page: scenario_clarification(page, f"http://localhost:{MOCK_PORT}/", "mock"))
+
+            def http_voice(page):
+                reset_backend()
+                scenario_voice(page, f"http://localhost:{HTTP_PORT}/", "http")
+
+            run("http-voice", http_voice)
+            run("mock-voice", lambda page: scenario_voice(page, f"http://localhost:{MOCK_PORT}/", "mock"))
 
             def http_device_control(page):
                 reset_backend()

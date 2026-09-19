@@ -2,7 +2,9 @@
 import type { ActionResult, AgentStep, DeviceState, Plan } from '../../services/types';
 
 export type Message =
-  | { kind: 'user'; id: string; text: string; at: string }
+  // `badge` names where the text came from when it was not typed: a tapped example or
+  // the keyboard inside the voice sheet. Text a real recogniser produced carries none.
+  | { kind: 'user'; id: string; text: string; at: string; badge?: string | null }
   | { kind: 'assistant'; id: string; text: string; trace: AgentStep[]; at: string }
   | { kind: 'plan'; id: string; plan: Plan; at: string }
   | { kind: 'result'; id: string; plan: Plan; results: ActionResult[]; deviceState: DeviceState; repeated: boolean; at: string }

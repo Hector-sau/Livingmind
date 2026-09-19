@@ -12,6 +12,12 @@ import { Composer } from './Composer';
 import { AssistantText, MessageView } from './MessageView';
 import { ServiceStrip } from './ServiceStrip';
 import { advanceMessages, AUTO_PLAY_MS } from '../night/schedule';
+import { needsSourceBadge, sourceLabel, type TranscriptSource } from '../voice/machine';
+import { useVoice } from '../voice/useVoice';
+import { VoiceSheet } from '../voice/VoiceSheet';
+
+/** Offered inside the voice sheet when this build has no recogniser to produce a transcript. */
+const VOICE_EXAMPLES = ['我想休息', '把灯调到 20%', '把空调调到 24 度', '卧室现在几度'] as const;
 
 interface Props {
   api: LivingMindApi;
@@ -38,14 +44,35 @@ export function ChatScreen({ api, flow, messages, dispatch }: Props) {
   const system = (text: string, tone: 'info' | 'success' | 'warning' | 'error') =>
     push({ kind: 'system', id: messageId(), text, tone, at: now() });
 
-  const send = async (text: string, wakeTime: '06:30' | '07:00' | '07:30') => {
-    push({ kind: 'user', id: messageId(), text, at: now() });
+  const send = async (
+    text: string,
+    wakeTime: '06:30' | '07:00' | '07:30',
+    voiceSource: TranscriptSource | null = null,
+  ) => {
+    const badge = voiceSource && needsSourceBadge(voiceSource) ? sourceLabel(voiceSource) : null;
+    push({ kind: 'user', id: messageId(), text, badge, at: now() });
     const res = await actions.sendMessage(text, wakeTime);
-    if (!res.ok) return system(`没能处理：${res.error.message}`, res.error.connectivity ? 'warning' : 'error');
+    if (!res.ok) {
+      if (voiceSource) voice.settle(false, null);
+      return system(`没能处理：${res.error.message}`, res.error.connectivity ? 'warning' : 'error');
+    }
     const reply = res.value;
     if (reply.plan) push({ kind: 'plan', id: messageId(), plan: reply.plan, at: now() });
     else push({ kind: 'assistant', id: messageId(), text: reply.text, trace: reply.trace, at: now() });
+    // Speak short answers and clarifying questions; a plan is read on screen, not aloud.
+    if (voiceSource) voice.settle(true, reply.plan ? null : reply.text);
   };
+
+  const voice = useVoice();
+  const wakeTimeRef = useRef<'06:30' | '07:00' | '07:30'>('07:00');
+
+  useEffect(() => {
+    if (voice.state.status !== 'sending' || !voice.state.transcript) return;
+    const { transcript, source } = voice.state;
+    void send(transcript, wakeTimeRef.current, source);
+    // Only the transition into `sending` starts a request.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [voice.state.status]);
 
   const confirm = async () => {
     const res = await actions.confirm();
@@ -159,6 +186,14 @@ export function ChatScreen({ api, flow, messages, dispatch }: Props) {
           <AssistantText testID="assistant-typing" text={state.mode === 'model' ? '正在理解你的需求…' : '正在思考…'} />
         ) : null}
       </ScrollView>
+      <VoiceSheet
+        state={voice.state}
+        asrConnected={voice.asrConnected}
+        examples={VOICE_EXAMPLES}
+        onExample={(text) => voice.submit(text, 'example')}
+        onCancel={voice.cancel}
+        onSkipSpeech={voice.skipSpeech}
+      />
       <Composer
         disabled={busy || !state.personId}
         sending={state.busy === 'plan'}
@@ -167,7 +202,7 @@ export function ChatScreen({ api, flow, messages, dispatch }: Props) {
         apiMode={api.mode}
         onModeChange={actions.setMode}
         onSend={send}
-        onVoice={() => system('语音输入后续接入，现在请先打字', 'info')}
+        onVoice={voice.press}
       />
     </View>
   );
