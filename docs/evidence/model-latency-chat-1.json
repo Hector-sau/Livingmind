@@ -1,0 +1,267 @@
+{
+  "summary": {
+    "generated_at": "2026-09-19T17:15:17+00:00",
+    "provider": "deepseek",
+    "model": "deepseek-chat",
+    "host": "api.deepseek.com",
+    "timeout_s": 6.0,
+    "samples": 24,
+    "ok": 24,
+    "success_rate": 1.0,
+    "fallback_rate": 0.0,
+    "latency_ms": {
+      "p50": 1115,
+      "p90": 1380,
+      "p95": 1394,
+      "max": 1489,
+      "mean": 1134
+    },
+    "failures_by_kind": {},
+    "by_utterance": {
+      "我想休息": {
+        "n": 5,
+        "ok": 5,
+        "kinds": {}
+      },
+      "我想休息，有点热": {
+        "n": 5,
+        "ok": 5,
+        "kinds": {}
+      },
+      "想早点睡，灯再暗一点": {
+        "n": 5,
+        "ok": 5,
+        "kinds": {}
+      },
+      "把那个弄一下": {
+        "n": 5,
+        "ok": 5,
+        "kinds": {}
+      },
+      "今天股市怎么样": {
+        "n": 4,
+        "ok": 4,
+        "kinds": {}
+      }
+    },
+    "needs_clarification": 9
+  },
+  "calls": [
+    {
+      "i": 1,
+      "person": "person-lin",
+      "utterance": "我想休息",
+      "outcome": "ok",
+      "latency_ms": 966,
+      "detail": null,
+      "needs_clarification": false
+    },
+    {
+      "i": 2,
+      "person": "person-chen",
+      "utterance": "我想休息，有点热",
+      "outcome": "ok",
+      "latency_ms": 1066,
+      "detail": null,
+      "needs_clarification": false
+    },
+    {
+      "i": 3,
+      "person": "person-zhou",
+      "utterance": "想早点睡，灯再暗一点",
+      "outcome": "ok",
+      "latency_ms": 1303,
+      "detail": null,
+      "needs_clarification": false
+    },
+    {
+      "i": 4,
+      "person": "person-guest",
+      "utterance": "把那个弄一下",
+      "outcome": "ok",
+      "latency_ms": 1063,
+      "detail": null,
+      "needs_clarification": true
+    },
+    {
+      "i": 5,
+      "person": "person-lin",
+      "utterance": "今天股市怎么样",
+      "outcome": "ok",
+      "latency_ms": 1115,
+      "detail": null,
+      "needs_clarification": true
+    },
+    {
+      "i": 6,
+      "person": "person-chen",
+      "utterance": "我想休息",
+      "outcome": "ok",
+      "latency_ms": 1201,
+      "detail": null,
+      "needs_clarification": false
+    },
+    {
+      "i": 7,
+      "person": "person-zhou",
+      "utterance": "我想休息，有点热",
+      "outcome": "ok",
+      "latency_ms": 1054,
+      "detail": null,
+      "needs_clarification": false
+    },
+    {
+      "i": 8,
+      "person": "person-guest",
+      "utterance": "想早点睡，灯再暗一点",
+      "outcome": "ok",
+      "latency_ms": 1197,
+      "detail": null,
+      "needs_clarification": false
+    },
+    {
+      "i": 9,
+      "person": "person-lin",
+      "utterance": "把那个弄一下",
+      "outcome": "ok",
+      "latency_ms": 1171,
+      "detail": null,
+      "needs_clarification": true
+    },
+    {
+      "i": 10,
+      "person": "person-chen",
+      "utterance": "今天股市怎么样",
+      "outcome": "ok",
+      "latency_ms": 1352,
+      "detail": null,
+      "needs_clarification": true
+    },
+    {
+      "i": 11,
+      "person": "person-zhou",
+      "utterance": "我想休息",
+      "outcome": "ok",
+      "latency_ms": 1007,
+      "detail": null,
+      "needs_clarification": false
+    },
+    {
+      "i": 12,
+      "person": "person-guest",
+      "utterance": "我想休息，有点热",
+      "outcome": "ok",
+      "latency_ms": 1489,
+      "detail": null,
+      "needs_clarification": false
+    },
+    {
+      "i": 13,
+      "person": "person-lin",
+      "utterance": "想早点睡，灯再暗一点",
+      "outcome": "ok",
+      "latency_ms": 1209,
+      "detail": null,
+      "needs_clarification": false
+    },
+    {
+      "i": 14,
+      "person": "person-chen",
+      "utterance": "把那个弄一下",
+      "outcome": "ok",
+      "latency_ms": 910,
+      "detail": null,
+      "needs_clarification": true
+    },
+    {
+      "i": 15,
+      "person": "person-zhou",
+      "utterance": "今天股市怎么样",
+      "outcome": "ok",
+      "latency_ms": 975,
+      "detail": null,
+      "needs_clarification": true
+    },
+    {
+      "i": 16,
+      "person": "person-guest",
+      "utterance": "我想休息",
+      "outcome": "ok",
+      "latency_ms": 669,
+      "detail": null,
+      "needs_clarification": false
+    },
+    {
+      "i": 17,
+      "person": "person-lin",
+      "utterance": "我想休息，有点热",
+      "outcome": "ok",
+      "latency_ms": 1089,
+      "detail": null,
+      "needs_clarification": false
+    },
+    {
+      "i": 18,
+      "person": "person-chen",
+      "utterance": "想早点睡，灯再暗一点",
+      "outcome": "ok",
+      "latency_ms": 1032,
+      "detail": null,
+      "needs_clarification": false
+    },
+    {
+      "i": 19,
+      "person": "person-zhou",
+      "utterance": "把那个弄一下",
+      "outcome": "ok",
+      "latency_ms": 1380,
+      "detail": null,
+      "needs_clarification": true
+    },
+    {
+      "i": 20,
+      "person": "person-guest",
+      "utterance": "今天股市怎么样",
+      "outcome": "ok",
+      "latency_ms": 1174,
+      "detail": null,
+      "needs_clarification": true
+    },
+    {
+      "i": 21,
+      "person": "person-lin",
+      "utterance": "我想休息",
+      "outcome": "ok",
+      "latency_ms": 951,
+      "detail": null,
+      "needs_clarification": false
+    },
+    {
+      "i": 22,
+      "person": "person-chen",
+      "utterance": "我想休息，有点热",
+      "outcome": "ok",
+      "latency_ms": 1157,
+      "detail": null,
+      "needs_clarification": false
+    },
+    {
+      "i": 23,
+      "person": "person-zhou",
+      "utterance": "想早点睡，灯再暗一点",
+      "outcome": "ok",
+      "latency_ms": 1298,
+      "detail": null,
+      "needs_clarification": false
+    },
+    {
+      "i": 24,
+      "person": "person-guest",
+      "utterance": "把那个弄一下",
+      "outcome": "ok",
+      "latency_ms": 1394,
+      "detail": null,
+      "needs_clarification": true
+    }
+  ]
+}
