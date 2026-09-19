@@ -1,8 +1,8 @@
 # 汇报主张与证据对照表
 
-对照材料：`汇报演示/LivingMind_presentationV1（10 页）`。更新：2026-09-19。由 `scripts/build_evidence.py` 生成，改表请改脚本。
+对照材料：`汇报演示/LivingMind_presentationV1（10 页）`。更新：2026-09-20。由 `scripts/build_evidence.py` 生成，改表请改脚本。
 
-状态统计：已实现 22，部分实现 7，接口预留 2，未接入 1，未实现 1，外部数据 2，待验证 1，计划 1。
+状态统计：已实现 23，部分实现 7，接口预留 2，未接入 1，未实现 1，外部数据 2，待验证 1，计划 1。
 
 | 页 | 主张 | 状态 | 原型实际情况 | 证据 | 来源标注 |
 |---|---|---|---|---|---|
@@ -23,7 +23,8 @@
 | 补充 | 设备面板直接控制与 5 秒撤销 | 已实现 | 低风险动作不弹确认框，改为立即执行 + 可见倒计时的撤销条；撤销是反向写入记录下来的原值（把「关灯」撤销回 30% 而不是 100%）。仍走同一执行器：白名单、参数范围、代次 guard、写入、回读 | backend/tests/test_device_control.py（14 项）；apps/mobile/tests/deviceSlider.test.ts（11 项）、deviceControl.test.ts（9 项）；端到端 http/mock-device-control、http-control-expiry | 后端虚拟设备；撤销窗口只在进程内，重启后不可撤销 |
 | P05 | 真实传感器事件源 | 接口预留 | EnvironmentEventAdapter 定义事件 ID、去重键、来源、空间、采集时间、类型与值；与演示用的 POST /api/spaces/{id}/events 是两个入口，后者永远标注 simulated | backend/app/adapters/events.py；tests/test_adapter_protocols.py | 接口预留，未接入传感器 |
 | P06 | 目标架构 1+2：一个主 Agent，两个专业 Agent | 已实现 | 主 Agent：规则路由与编排；Experience Agent：可调用大模型；Space Execution Agent：规则（设备能力、空间规则、指令解析、整晚安排）。不是三个大模型 Agent | backend/app/agents/；tests/test_agents.py（24 项）；tests/test_experience_agent.py（14 项）；“场景”页说明卡 | 只有 Experience Agent 调用模型 |
-| P06 | Experience Agent 生成体验目标 | 已实现；真实调用验证 1 次 | 2026-09-17 在团队 Mac 上运行 scripts/try_model.py 成功（deepseek-flash，2035 ms，单次）。未配置、超时、网络、HTTP、非法 JSON、结构不符、超出偏离上限都会降级为规则并写明原因 | backend/app/services/planner.py；tests/test_experience_agent.py（测试替身）；端到端 http-model-paths（本地模型桩） | 真实模型仅单次样本；其余为测试替身 / 模型桩 |
+| P06 | Experience Agent 生成体验目标 | 已实现；真实调用 96 次样本 | 2026-09-19/20 在团队 Mac 上跑 scripts/model_latency_bench.py，共 96 次真实调用（5 句演示话术 × 4 个人设轮转）。留存文件覆盖 flash 两轮 48 次、chat 一轮 24 次；chat 另一轮 24 次结果一致但输出文件被同名路径覆盖，未留存。deepseek-chat：两轮合计 48/48 产出被采纳的计划，p50 1179 ms、p95 1513 ms、最长 2103 ms，无超时、无结构错误、无偏离超限；deepseek-flash：48 次中 2 次超时，p95 3539 ms、最长 5537 ms，13% 的调用超过 2.5 秒。默认模型据此定为 deepseek-chat。统计口径：分位数只含成功调用，失败按 kind 单列；计入 planner 的偏好偏离检查，因此该比例是“计划被采纳”而非“返回了合法 JSON”。未配置、超时、网络、HTTP、非法 JSON、结构不符、预算内没写完、超出偏离上限都会降级为规则并写明原因 | docs/evidence/model-latency-chat.json；docs/evidence/model-latency-flash-2000.json；backend/scripts/model_latency_bench.py；tests/test_experience_agent.py（测试替身）；端到端 http-model-paths（本地模型桩） | 真实模型 96 次样本；自动化测试仍为测试替身 / 模型桩 |
+| P06 | 模型对“该问清楚”与“不该问清楚”的判别稳定 | 已实现 | 同一批真实调用中，两个模型各 24 次成功调用里，指代不清（“把那个弄一下”）与离题（“今天股市怎么样”）全部要求澄清，三句明确的休息指令全部未要求澄清，留存文件中合计 48/48 无误判。这是 5 句固定话术 × 4 个人设的稳定性证据——说明同一句话换人设、换轮次、跨配置改动判定不漂——不是多样语料上的准确率 | docs/evidence/model-latency-chat.json；docs/evidence/model-latency-flash-2000.json（calls[].needsClarification） | 真实模型；固定 5 句话术，非多样语料 |
 | P06 | Context / Memory：当前情境 + 已授权偏好 + 历史反馈 | 部分实现 | 当前设备状态、本人偏好（可在“我的”页编辑）、空间规则已实现；历史反馈没有实现 | backend/app/memory/service.py；端到端 http-energy-memory | 设计的模拟数据 |
 | P06 | Harness：权限、执行约束与异常处理 | 已实现（演示级） | 计划预检生成 PolicyDecision；用户确认后生成绑定人物、空间、计划哈希、代次、能力和时限的 ExecutionGrant；每个动作记录状态转移，停止撤销授权并使旧代次失效。身份仍是演示上下文，不是生产认证 | backend/app/harness/；adapters/gateway.py；tests/test_execution_authority.py（8 项） | 后端确定性策略 + 虚拟网关 |
 | P06 | 已支持空间设备虚拟执行与状态获取 | 已实现 | 有状态虚拟设备（灯光、空调、窗帘），写入后回读，版本号递增 | backend/app/adapters/virtual/devices.py；录屏 01 | 虚拟设备，不代表真实硬件 |
@@ -73,7 +74,7 @@
 | 标注 | 含义 |
 |---|---|
 | 后端规则 | 后端固定规则生成，没有调用模型 |
-| 真实模型 | DeepSeek 真实调用；目前只有 1 次成功样本（2035 ms） |
+| 真实模型 | DeepSeek 真实调用；96 次样本（chat 48 / flash 48），分布见 docs/evidence/model-latency-*.json |
 | 测试替身 / 模型桩 | 自动化测试里代替模型的本地程序，不是真实调用 |
 | 虚拟设备 | 后端内存里的有状态设备，不代表真实硬件 |
 | 模拟事件 / 模拟时钟 | 室温由按钮或接口给出；整晚时间由按钮推进，不是真实时间 |

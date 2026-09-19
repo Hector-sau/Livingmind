@@ -38,7 +38,11 @@ MODEL_PROVIDER = os.getenv("LIVINGMIND_MODEL_PROVIDER", "deepseek")
 MODEL_TIMEOUT_S = float(os.getenv("LIVINGMIND_MODEL_TIMEOUT_S", "6"))
 DEEPSEEK_API_KEY = os.getenv("DEEPSEEK_API_KEY", "")
 DEEPSEEK_BASE_URL = os.getenv("DEEPSEEK_BASE_URL", "https://api.deepseek.com")
-DEEPSEEK_MODEL = os.getenv("DEEPSEEK_MODEL", "deepseek-flash")
+# Measured over 48 real calls each (docs/evidence/model-latency-*.json): deepseek-chat returned
+# a usable plan every time, p95 1513 ms, slowest 2103 ms. deepseek-flash reasons before answering
+# and its tail is much longer -- 13% of calls over 2.5 s, two past the 6 s budget. This task turns
+# one sentence into three bounded numbers; it does not need long reasoning, so it does not pay for it.
+DEEPSEEK_MODEL = os.getenv("DEEPSEEK_MODEL", "deepseek-chat")
 # deepseek-flash writes reasoning before its answer, and that reasoning is charged against the
 # same budget. A measured run (docs/evidence/model-latency.json) produced 1280-1387 characters
 # of reasoning on the harder utterances, which spent a 400-token budget before a single character
