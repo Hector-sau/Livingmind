@@ -10,7 +10,7 @@
 | App API / Mock | `apps/mobile/services/` | Mock 必须标注 `frontend_mock`，与后端可见规则保持一致 |
 | API 契约 | `backend/app/contracts/`、`packages/api-client/` | 改契约后必须运行 `./scripts/gen-api.sh`；不得手改生成文件 |
 | Agent / 业务服务 | `backend/app/agents/`、`services/`、`memory/`、`energy/` | Agent 只生成计划；所有写设备动作必须通过 Harness executor |
-| 设备与接入 | `backend/app/adapters/`、`harness/` | 新厂商实现 `DeviceAdapter`，不允许页面或 Agent 绕过白名单、范围校验与回读 |
+| 设备与接入 | `backend/app/adapters/`、`harness/` | 新厂商实现 `DeviceGateway`，保留 actionId 幂等、serviceEpoch fencing、回执/回读；不允许页面、Agent 或 LangGraph 绕过授权与 Executor |
 | 离线能源证据 | `simulation/home-energy/`、`backend/app/energy/simulation.py` | 只能读取给定结果；不写成实时控制、已重训或多智能体协作 |
 | 文档与演示 | `docs/`、`AGENT-HANDOFF.md`、`README.md` | 每一项“已实现”必须有真实调用路径和测试 / 录屏证据 |
 

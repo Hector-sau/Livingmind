@@ -76,8 +76,9 @@ def truncate_test_database() -> None:
     with engine().begin() as connection:
         connection.execute(
             text(
-                "TRUNCATE plans, services, scheduled_steps, service_flags, "
-                "activity_records, pending_clarifications, space_state, person_preferences RESTART IDENTITY"
+                "TRUNCATE action_executions, execution_grants, policy_decisions, "
+                "plans, services, scheduled_steps, service_flags, activity_records, "
+                "pending_clarifications, space_state, person_preferences RESTART IDENTITY"
             )
         )
         connection.execute(text("ALTER SEQUENCE livingmind_id_seq RESTART WITH 1"))
@@ -171,8 +172,9 @@ def sql_store(sql_repo):
     with engine().begin() as connection:
         connection.execute(
             text(
-                "TRUNCATE plans, services, scheduled_steps, service_flags, "
-                "activity_records, space_state RESTART IDENTITY"
+                "TRUNCATE action_executions, execution_grants, policy_decisions, "
+                "plans, services, scheduled_steps, service_flags, activity_records, "
+                "space_state RESTART IDENTITY"
             )
         )
     return SqlStore()

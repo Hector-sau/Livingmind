@@ -1,73 +1,201 @@
-"""Unified executor: every device write goes through here (rule plans now, model plans later).
+"""Unified executor: every rule- or model-derived device write goes through here.
 
-Checks per action, in order: service still valid (guard) -> tool whitelist -> parameter range
--> write -> read back. The guard runs before EACH action, so a stop that lands mid-plan
-prevents the remaining actions.
+Checks per action, in order: service guard -> platform policy -> bounded grant -> durable
+command transition -> gateway receipt -> readback. The guard runs before EACH action, so a
+stop that lands mid-plan prevents the remaining actions.
 """
 
 from __future__ import annotations
 
+from datetime import datetime
 from typing import Callable, Optional
 
-from app.adapters.protocol import DeviceAdapter
-from app.contracts import ActionResult, DeviceAction
-
-# (device, command) -> (min, max, integer_only)
-ALLOWED_COMMANDS: dict[tuple[str, str], tuple[float, float, bool]] = {
-    ("light", "set_brightness"): (0, 100, True),
-    ("ac", "set_target_temperature"): (16, 30, False),
-    ("curtain", "set_open_percent"): (0, 100, True),
-}
+from app.adapters.gateway import AdapterDeviceGateway
+from app.adapters.protocol import DeviceAdapter, DeviceCommandRequest, DeviceGateway
+from app.clock import Clock, utc_now
+from app.contracts import ActionExecution, ActionResult, DeviceAction, ExecutionGrant
+from app.harness.grants import grant_denial_reason
+from app.harness.policy import validate_action
 
 Guard = Callable[[], Optional[str]]
 OnResult = Callable[[DeviceAction, ActionResult], None]
-
-
-def validate_action(action: DeviceAction) -> Optional[str]:
-    rule = ALLOWED_COMMANDS.get((action.device, action.command))
-    if rule is None:
-        return f"工具不在白名单：{action.device}.{action.command}"
-    low, high, integer_only = rule
-    if not (low <= action.value <= high):
-        return f"参数超出范围：{action.value:g}（允许 {low:g}–{high:g}）"
-    if integer_only and float(action.value) != int(action.value):
-        return f"参数必须是整数：{action.value:g}"
-    return None
+OnExecution = Callable[[ActionExecution], None]
 
 
 class Executor:
-    def __init__(self, adapter: DeviceAdapter):
+    def __init__(
+        self,
+        adapter: DeviceAdapter,
+        *,
+        gateway: Optional[DeviceGateway] = None,
+        clock: Clock = utc_now,
+    ):
         self._adapter = adapter
+        self._gateway = gateway or AdapterDeviceGateway(adapter)
+        self._clock = clock
 
-    def run(self, actions: list[DeviceAction], guard: Guard, on_result: OnResult) -> list[ActionResult]:
+    def run(
+        self,
+        actions: list[DeviceAction],
+        guard: Guard,
+        on_result: OnResult,
+        *,
+        grant: Optional[ExecutionGrant] = None,
+        plan_id: str = "legacy",
+        service_id: Optional[str] = None,
+        service_epoch: int = 0,
+        on_execution: Optional[OnExecution] = None,
+    ) -> list[ActionResult]:
         results: list[ActionResult] = []
         for action in actions:
-            result = self._run_one(action, guard)
+            result = self._run_one(
+                action,
+                guard,
+                grant=grant,
+                plan_id=plan_id,
+                service_id=service_id,
+                service_epoch=service_epoch,
+                on_execution=on_execution,
+            )
             on_result(action, result)
             results.append(result)
         return results
 
-    def _run_one(self, action: DeviceAction, guard: Guard) -> ActionResult:
+    def _run_one(
+        self,
+        action: DeviceAction,
+        guard: Guard,
+        *,
+        grant: Optional[ExecutionGrant],
+        plan_id: str,
+        service_id: Optional[str],
+        service_epoch: int,
+        on_execution: Optional[OnExecution],
+    ) -> ActionResult:
         base = dict(action_id=action.action_id, device=action.device, command=action.command, value=action.value)
+        execution = None
+        if grant is not None:
+            execution = ActionExecution(
+                action_id=action.action_id,
+                grant_id=grant.grant_id,
+                plan_id=plan_id,
+                service_id=service_id,
+                space_id=grant.space_id,
+                device=action.device,
+                command=action.command,
+                requested_value=action.value,
+                service_epoch=service_epoch,
+                status="pending",
+                attempt_count=0,
+                requested_at=self._clock(),
+            )
+            self._transition(execution, on_execution)
         stop_reason = guard()
         if stop_reason:
+            self._finish(execution, "cancelled", error_detail=stop_reason, on_execution=on_execution)
             return ActionResult(**base, outcome="skipped", reason=stop_reason, observed_value=None)
         invalid = validate_action(action)
         if invalid:
+            self._finish(execution, "rejected", error_kind="policy", error_detail=invalid, on_execution=on_execution)
             return ActionResult(**base, outcome="rejected", reason=invalid, observed_value=None)
-        try:
-            self._adapter.write(action.device, action.command, action.value)
-        except Exception as exc:  # device failure is reported, not hidden
-            return ActionResult(**base, outcome="failed", reason=str(exc), observed_value=None)
-        try:
-            observed = self._adapter.read_value(action.device)
-        except Exception as exc:
-            return ActionResult(
-                **base,
-                outcome="failed",
-                reason=f"设备写入后回读失败：{exc}",
-                observed_value=None,
+        if grant is not None:
+            invalid = grant_denial_reason(
+                grant,
+                action,
+                now=self._clock(),
+                service_epoch=service_epoch,
+                service_id=service_id,
             )
-        if float(observed) != float(action.value):
-            return ActionResult(**base, outcome="failed", reason="回读值与目标不一致", observed_value=observed)
+            if invalid:
+                self._finish(execution, "rejected", error_kind="grant", error_detail=invalid, on_execution=on_execution)
+                return ActionResult(**base, outcome="rejected", reason=invalid, observed_value=None)
+
+        if execution is not None:
+            execution.status = "dispatching"
+            execution.attempt_count += 1
+            self._transition(execution, on_execution)
+        receipt = self._gateway.submit(
+            DeviceCommandRequest(
+                action_id=action.action_id,
+                service_id=service_id,
+                service_epoch=service_epoch,
+                device_id=f"{self._adapter.space_id}:{action.device}",
+                device_type=action.device,
+                command=action.command,
+                value=action.value,
+                requested_at=self._clock(),
+            )
+        )
+        if receipt.status == "accepted":
+            if execution is not None:
+                execution.status = "accepted"
+                execution.accepted_at = self._clock()
+                self._transition(execution, on_execution)
+            receipt = self._gateway.query(action.action_id) or receipt
+        if receipt.status in ("accepted", "unknown"):
+            self._finish(
+                execution,
+                "unknown",
+                error_kind=receipt.error_kind or "unknown",
+                error_detail=receipt.detail or "设备结果尚未确定",
+                on_execution=on_execution,
+            )
+            return ActionResult(**base, outcome="unknown", reason=receipt.detail or "设备结果尚未确定", observed_value=None)
+        if receipt.status in ("rejected", "failed"):
+            status = "rejected" if receipt.status == "rejected" else "failed"
+            self._finish(
+                execution,
+                status,
+                error_kind=receipt.error_kind,
+                error_detail=receipt.detail,
+                on_execution=on_execution,
+            )
+            return ActionResult(**base, outcome=status, reason=receipt.detail or "设备拒绝执行", observed_value=None)
+
+        observed = receipt.observed_value
+        if observed is None or float(observed) != float(action.value):
+            reason = "回读值与目标不一致" if observed is not None else "设备完成回执缺少观测值"
+            self._finish(
+                execution,
+                "failed",
+                observed_value=observed,
+                observed_at=receipt.observed_at,
+                error_kind="readback_mismatch",
+                error_detail=reason,
+                on_execution=on_execution,
+            )
+            return ActionResult(**base, outcome="failed", reason=reason, observed_value=observed)
+        self._finish(
+            execution,
+            "completed",
+            observed_value=observed,
+            observed_at=receipt.observed_at,
+            on_execution=on_execution,
+        )
         return ActionResult(**base, outcome="succeeded", reason=None, observed_value=observed)
+
+    @staticmethod
+    def _transition(execution: Optional[ActionExecution], callback: Optional[OnExecution]) -> None:
+        if execution is not None and callback is not None:
+            callback(execution.model_copy(deep=True))
+
+    def _finish(
+        self,
+        execution: Optional[ActionExecution],
+        status,
+        *,
+        observed_value=None,
+        observed_at: Optional[datetime] = None,
+        error_kind=None,
+        error_detail=None,
+        on_execution: Optional[OnExecution],
+    ) -> None:
+        if execution is None:
+            return
+        execution.status = status
+        execution.completed_at = self._clock()
+        execution.observed_value = observed_value
+        execution.observed_at = observed_at
+        execution.error_kind = error_kind
+        execution.error_detail = error_detail
+        self._transition(execution, on_execution)

@@ -20,6 +20,7 @@ from datetime import timedelta
 from typing import Literal, Optional
 
 from app import config
+from app.adapters.gateway import AdapterDeviceGateway
 from app.adapters.virtual.devices import VirtualDeviceAdapter
 from app.cache import Cooldown, SpaceLock
 from app.api.errors import ApiError
@@ -49,6 +50,7 @@ from app.contracts import (
     DeviceState,
     EventResult,
     EventType,
+    ExecutionGrant,
     Person,
     Plan,
     RequestContext,
@@ -63,6 +65,8 @@ from app.energy import EnergyIntelligence
 from app.events.envelope import event as domain_event
 from app.energy.simulation import offline_energy_simulation
 from app.harness.executor import Executor
+from app.harness.grants import create_execution_grant, semantic_plan_hash
+from app.harness.policy import evaluate_plan
 from app.db.session import database_configured
 from app.memory import MemoryService
 from app.memory.repository import InMemoryPreferenceRepository, PreferenceRepository, SqlPreferenceRepository
@@ -104,6 +108,7 @@ class RestService:
             active_services=recovered["active_services"],
             cancelled_unknown_steps=recovered["cancelled_unknown_steps"],
             cleared_inflight_flags=recovered["cleared_inflight_flags"],
+            unknown_actions=recovered.get("unknown_actions", 0),
             device_state_reconciled=False,
             checked_at=clock(),
             note=(
@@ -117,6 +122,7 @@ class RestService:
         self._devices = {
             s.space_id: VirtualDeviceAdapter(s.space_id, seed.INITIAL_DEVICE_STATE, clock) for s in seed.SPACES
         }
+        self._gateways: dict[str, AdapterDeviceGateway] = {}
         self._memory = MemoryService(clock, preferences or default_preference_repository())
         # Redis (optional): a short cross-instance lock and a fast cooldown check. The database
         # constraints and the executor guard remain the real protection.
@@ -160,6 +166,16 @@ class RestService:
     def _space_lock(self, space_id: str) -> SpaceLock:
         """Hold while this request may write devices. A no-op when Redis is not configured."""
         return SpaceLock(space_id)
+
+    def _gateway(self, space_id: str) -> AdapterDeviceGateway:
+        """Keep gateway receipts across calls, while allowing tests to replace an adapter."""
+        adapter = self._devices[space_id]
+        gateway = self._gateways.get(space_id)
+        if gateway is None or gateway.adapter is not adapter:
+            gateway = AdapterDeviceGateway(adapter)
+            gateway.advance_fence(space_id, self._store.epoch(space_id))
+            self._gateways[space_id] = gateway
+        return gateway
 
     @staticmethod
     def _conversation_key(ctx: RequestContext, conversation_id: Optional[str]) -> str:
@@ -525,6 +541,15 @@ class RestService:
                 plan.status = "expired"
                 self._store.save_plan(record)
                 raise self._reject(record, "PLAN_EXPIRED", "计划已过期，请重新生成")
+            decision = evaluate_plan(
+                plan,
+                decision_id=self._store.new_id("decision"),
+                plan_hash=semantic_plan_hash(plan),
+                decided_at=self._clock(),
+            )
+            self._store.save_policy_decision(decision)
+            if decision.decision == "deny":
+                raise self._reject(record, "VALIDATION_ERROR", "；".join(decision.reasons) or "计划未通过安全策略")
             if plan.scenario == "device_command":
                 # Direct device command: no rest service; stop/epoch still guard every write.
                 plan.status = "executed"
@@ -534,6 +559,18 @@ class RestService:
                 )
                 epoch_at_start = self._store.epoch(plan.space_id)
                 actions = list(plan.actions)
+                grant = create_execution_grant(
+                    grant_id=self._store.new_id("grant"),
+                    decision=decision,
+                    plan=plan,
+                    context=ctx,
+                    service_id=None,
+                    service_epoch=epoch_at_start,
+                    capabilities=self._devices[plan.space_id].list_capabilities(),
+                    max_adjustments=0,
+                    now=self._clock(),
+                )
+                self._store.save_grant(grant)
                 command_mode = True
             else:
                 command_mode = False
@@ -599,13 +636,25 @@ class RestService:
                 )
                 epoch_at_start = self._store.epoch(plan.space_id)
                 actions = list(plan.actions)
+                grant = create_execution_grant(
+                    grant_id=self._store.new_id("grant"),
+                    decision=decision,
+                    plan=plan,
+                    context=ctx,
+                    service_id=service.service_id,
+                    service_epoch=epoch_at_start,
+                    capabilities=self._devices[plan.space_id].list_capabilities(),
+                    max_adjustments=self._max_adjustments,
+                    now=self._clock(),
+                )
+                self._store.save_grant(grant)
 
         # Lock released: device writes may be slow, and a stop must be able to land meanwhile.
         if command_mode:
-            self._execute_command(plan, actions, epoch_at_start)
+            self._execute_command(plan, actions, epoch_at_start, grant)
             service = None
         else:
-            self._execute(service, actions, epoch_at_start, plan_id=plan_id)
+            self._execute(service, actions, epoch_at_start, plan_id=plan_id, grant=grant)
 
         with self._lock:
             stored = self._store.get_plan(plan_id)
@@ -618,9 +667,17 @@ class RestService:
                 results=results,
                 device_state=self._devices[plan.space_id].read_state(),
                 repeated=False,
+                policy_decision=decision,
+                execution_grant=grant,
             )
 
-    def _execute_command(self, plan: Plan, actions: list[DeviceAction], epoch_at_start: int) -> None:
+    def _execute_command(
+        self,
+        plan: Plan,
+        actions: list[DeviceAction],
+        epoch_at_start: int,
+        grant: ExecutionGrant,
+    ) -> None:
         def guard() -> Optional[str]:
             with self._lock:
                 if self._store.epoch(plan.space_id) != epoch_at_start:
@@ -643,7 +700,18 @@ class RestService:
                     action=result,
                 )
 
-        Executor(self._devices[plan.space_id]).run(actions, guard, on_result)
+        Executor(
+            self._devices[plan.space_id], gateway=self._gateway(plan.space_id), clock=self._clock
+        ).run(
+            actions,
+            guard,
+            on_result,
+            grant=grant,
+            plan_id=plan.plan_id,
+            service_id=None,
+            service_epoch=epoch_at_start,
+            on_execution=self._store.save_action_execution,
+        )
 
     def _execute(
         self,
@@ -653,6 +721,7 @@ class RestService:
         *,
         plan_id: Optional[str] = None,
         results: Optional[list[ActionResult]] = None,
+        grant: Optional[ExecutionGrant] = None,
     ) -> None:
         """Run device actions outside the lock. State is re-read from the store before every
         write, so a stop that lands meanwhile is seen no matter which store is in use."""
@@ -701,7 +770,21 @@ class RestService:
                     action=result,
                 )
 
-        Executor(self._devices[service.space_id]).run(actions, guard, on_result)
+        active_grant = grant or self._store.grant_for_service(service.service_id)
+        if active_grant is None:
+            raise RuntimeError(f"service {service.service_id} has no execution grant")
+        Executor(
+            self._devices[service.space_id], gateway=self._gateway(service.space_id), clock=self._clock
+        ).run(
+            actions,
+            guard,
+            on_result,
+            grant=active_grant,
+            plan_id=plan_id or service.plan_id,
+            service_id=service.service_id,
+            service_epoch=epoch_at_start,
+            on_execution=self._store.save_action_execution,
+        )
 
     # ---- environment events (step 6) ----
 
@@ -1004,6 +1087,8 @@ class RestService:
                             plan_id=service.plan_id,
                             person_id=service.person_id,
                         )
+                if service.status in ("completed", "failed"):
+                    self._store.revoke_grants(service.space_id, self._clock())
                 if still_tracked:
                     events = []
                     if service.status in ("completed", "failed"):
@@ -1082,7 +1167,9 @@ class RestService:
             service.status = "stopped"
             service.stopped_at = self._clock()
             # Invalidate every plan created before this stop (they cannot restart the service).
-            self._store.bump_epoch(service.space_id)
+            next_epoch = self._store.bump_epoch(service.space_id)
+            self._store.revoke_grants(service.space_id, self._clock())
+            self._gateway(service.space_id).advance_fence(service.space_id, next_epoch)
             self._store.invalidate_proposed_plans(service.space_id)
             pending = [st for st in service.schedule if st.status == "pending"]
             for st in pending:
@@ -1146,6 +1233,7 @@ class RestService:
             self._energy_modes = {sp.space_id: sp.energy_mode for sp in seed.SPACES}
             for adapter in self._devices.values():
                 adapter.reset()
+                self._gateway(adapter.space_id).advance_fence(adapter.space_id, self._store.epoch(adapter.space_id))
                 self._log(adapter.space_id, "demo_reset", "system", "演示数据已重置（内存数据与虚拟设备回到初始状态）")
             return self._bootstrap()
 

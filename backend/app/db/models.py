@@ -124,6 +124,53 @@ class PendingClarificationRow(Base):
     payload: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False)
 
 
+class PolicyDecisionRow(Base):
+    """Immutable Harness decision attached to one plan version."""
+
+    __tablename__ = "policy_decisions"
+
+    decision_id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    plan_id: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
+    space_id: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
+    decision: Mapped[str] = mapped_column(String(32), nullable=False)
+    payload: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+
+
+class ExecutionGrantRow(Base):
+    """Bounded authority created by a concrete confirmation."""
+
+    __tablename__ = "execution_grants"
+
+    grant_id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    plan_id: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
+    service_id: Mapped[str | None] = mapped_column(String(64), nullable=True, index=True)
+    space_id: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
+    status: Mapped[str] = mapped_column(String(32), nullable=False)
+    service_epoch: Mapped[int] = mapped_column(Integer, nullable=False)
+    valid_until: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    payload: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+
+
+class ActionExecutionRow(Base):
+    """Durable state machine for one external device command."""
+
+    __tablename__ = "action_executions"
+
+    action_id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    grant_id: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
+    plan_id: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
+    service_id: Mapped[str | None] = mapped_column(String(64), nullable=True, index=True)
+    space_id: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
+    status: Mapped[str] = mapped_column(String(32), nullable=False)
+    service_epoch: Mapped[int] = mapped_column(Integer, nullable=False)
+    payload: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False
+    )
+
+
 class OutboxEventRow(Base):
     """Written in the same transaction as the business fact it describes."""
 

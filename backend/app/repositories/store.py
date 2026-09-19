@@ -19,7 +19,17 @@ import itertools
 from dataclasses import dataclass, field
 from typing import Optional, Protocol
 
-from app.contracts import ActionResult, ActivityRecord, PendingClarification, Plan, ScheduledStep, Service
+from app.contracts import (
+    ActionExecution,
+    ActionResult,
+    ActivityRecord,
+    ExecutionGrant,
+    PendingClarification,
+    Plan,
+    PolicyDecision,
+    ScheduledStep,
+    Service,
+)
 from app.events.envelope import Envelope
 
 # Flags for work in flight on one service. They are process/transaction level, not user data.
@@ -81,6 +91,25 @@ class Store(Protocol):
 
     def delete_clarification(self, conversation_id: str) -> None: ...
 
+    # ---- execution authority and durable command ledger ----
+    def save_policy_decision(self, decision: PolicyDecision) -> None: ...
+
+    def get_policy_decision(self, decision_id: str) -> Optional[PolicyDecision]: ...
+
+    def save_grant(self, grant: ExecutionGrant) -> None: ...
+
+    def get_grant(self, grant_id: str) -> Optional[ExecutionGrant]: ...
+
+    def grant_for_service(self, service_id: str) -> Optional[ExecutionGrant]: ...
+
+    def revoke_grants(self, space_id: str, revoked_at) -> int: ...
+
+    def save_action_execution(self, execution: ActionExecution) -> None: ...
+
+    def get_action_execution(self, action_id: str) -> Optional[ActionExecution]: ...
+
+    def unresolved_action_executions(self) -> list[ActionExecution]: ...
+
     # ---- activity ----
     def append_activity(self, record: ActivityRecord) -> None: ...
 
@@ -109,6 +138,9 @@ class MemoryStore:
         self._epochs: dict[str, int] = {}
         self._flags: set[tuple[str, str]] = set()
         self._clarifications: dict[str, PendingClarification] = {}
+        self._policy_decisions: dict[str, PolicyDecision] = {}
+        self._grants: dict[str, ExecutionGrant] = {}
+        self._action_executions: dict[str, ActionExecution] = {}
         self._events: list[Envelope] = []
         self._counter = itertools.count(1)
 
@@ -209,6 +241,49 @@ class MemoryStore:
     def delete_clarification(self, conversation_id: str) -> None:
         self._clarifications.pop(conversation_id, None)
 
+    def save_policy_decision(self, decision: PolicyDecision) -> None:
+        self._policy_decisions[decision.decision_id] = decision.model_copy(deep=True)
+
+    def get_policy_decision(self, decision_id: str) -> Optional[PolicyDecision]:
+        item = self._policy_decisions.get(decision_id)
+        return item.model_copy(deep=True) if item else None
+
+    def save_grant(self, grant: ExecutionGrant) -> None:
+        self._grants[grant.grant_id] = grant.model_copy(deep=True)
+
+    def get_grant(self, grant_id: str) -> Optional[ExecutionGrant]:
+        item = self._grants.get(grant_id)
+        return item.model_copy(deep=True) if item else None
+
+    def grant_for_service(self, service_id: str) -> Optional[ExecutionGrant]:
+        matches = [grant for grant in self._grants.values() if grant.service_id == service_id]
+        if not matches:
+            return None
+        return max(matches, key=lambda grant: grant.created_at).model_copy(deep=True)
+
+    def revoke_grants(self, space_id: str, revoked_at) -> int:
+        count = 0
+        for grant in self._grants.values():
+            if grant.space_id == space_id and grant.status == "active":
+                grant.status = "revoked"
+                grant.revoked_at = revoked_at
+                count += 1
+        return count
+
+    def save_action_execution(self, execution: ActionExecution) -> None:
+        self._action_executions[execution.action_id] = execution.model_copy(deep=True)
+
+    def get_action_execution(self, action_id: str) -> Optional[ActionExecution]:
+        item = self._action_executions.get(action_id)
+        return item.model_copy(deep=True) if item else None
+
+    def unresolved_action_executions(self) -> list[ActionExecution]:
+        return [
+            item.model_copy(deep=True)
+            for item in self._action_executions.values()
+            if item.status in ("dispatching", "accepted", "unknown")
+        ]
+
     def append_activity(self, record: ActivityRecord) -> None:
         self._activity.append(record.model_copy(deep=True))
 
@@ -237,7 +312,15 @@ class MemoryStore:
         self._epochs = next_epochs
         self._flags.clear()
         self._clarifications.clear()
+        self._policy_decisions.clear()
+        self._grants.clear()
+        self._action_executions.clear()
         self._events.clear()
 
     def startup_reconcile(self) -> dict[str, int]:
-        return {"active_services": 0, "cancelled_unknown_steps": 0, "cleared_inflight_flags": 0}
+        return {
+            "active_services": 0,
+            "cancelled_unknown_steps": 0,
+            "cleared_inflight_flags": 0,
+            "unknown_actions": 0,
+        }

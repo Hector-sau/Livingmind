@@ -17,12 +17,25 @@ from typing import Optional
 from sqlalchemy import cast, func, select, text, update
 from sqlalchemy.dialects.postgresql import JSONB
 
-from app.contracts import ActionResult, ActivityRecord, PendingClarification, Plan, ScheduledStep, Service
+from app.contracts import (
+    ActionExecution,
+    ActionResult,
+    ActivityRecord,
+    ExecutionGrant,
+    PendingClarification,
+    Plan,
+    PolicyDecision,
+    ScheduledStep,
+    Service,
+)
 from app.db.models import (
+    ActionExecutionRow,
     ActivityRow,
+    ExecutionGrantRow,
     OutboxEventRow,
     PendingClarificationRow,
     PlanRow,
+    PolicyDecisionRow,
     ScheduledStepRow,
     ServiceFlagRow,
     ServiceRow,
@@ -256,6 +269,96 @@ class SqlStore:
             if row is not None:
                 session.delete(row)
 
+    # ---- execution authority and durable command ledger ----
+
+    def save_policy_decision(self, decision: PolicyDecision) -> None:
+        with session_scope() as session:
+            row = session.get(PolicyDecisionRow, decision.decision_id)
+            if row is None:
+                row = PolicyDecisionRow(decision_id=decision.decision_id)
+                session.add(row)
+            row.plan_id = decision.plan_id
+            row.space_id = decision.space_id
+            row.decision = decision.decision
+            row.payload = decision.model_dump(mode="json")
+
+    def get_policy_decision(self, decision_id: str) -> Optional[PolicyDecision]:
+        with session_scope() as session:
+            row = session.get(PolicyDecisionRow, decision_id)
+            return PolicyDecision.model_validate(row.payload) if row else None
+
+    def save_grant(self, grant: ExecutionGrant) -> None:
+        with session_scope() as session:
+            row = session.get(ExecutionGrantRow, grant.grant_id)
+            if row is None:
+                row = ExecutionGrantRow(grant_id=grant.grant_id)
+                session.add(row)
+            row.plan_id = grant.plan_id
+            row.service_id = grant.service_id
+            row.space_id = grant.space_id
+            row.status = grant.status
+            row.service_epoch = grant.service_epoch
+            row.valid_until = grant.valid_until
+            row.payload = grant.model_dump(mode="json")
+
+    def get_grant(self, grant_id: str) -> Optional[ExecutionGrant]:
+        with session_scope() as session:
+            row = session.get(ExecutionGrantRow, grant_id)
+            return ExecutionGrant.model_validate(row.payload) if row else None
+
+    def grant_for_service(self, service_id: str) -> Optional[ExecutionGrant]:
+        with session_scope() as session:
+            row = session.scalar(
+                select(ExecutionGrantRow)
+                .where(ExecutionGrantRow.service_id == service_id)
+                .order_by(ExecutionGrantRow.created_at.desc())
+                .limit(1)
+            )
+            return ExecutionGrant.model_validate(row.payload) if row else None
+
+    def revoke_grants(self, space_id: str, revoked_at) -> int:
+        with session_scope() as session:
+            rows = session.scalars(
+                select(ExecutionGrantRow)
+                .where(ExecutionGrantRow.space_id == space_id, ExecutionGrantRow.status == "active")
+                .with_for_update()
+            ).all()
+            for row in rows:
+                grant = ExecutionGrant.model_validate(row.payload)
+                grant.status = "revoked"
+                grant.revoked_at = revoked_at
+                row.status = "revoked"
+                row.payload = grant.model_dump(mode="json")
+            return len(rows)
+
+    def save_action_execution(self, execution: ActionExecution) -> None:
+        with session_scope() as session:
+            row = session.get(ActionExecutionRow, execution.action_id)
+            if row is None:
+                row = ActionExecutionRow(action_id=execution.action_id)
+                session.add(row)
+            row.grant_id = execution.grant_id
+            row.plan_id = execution.plan_id
+            row.service_id = execution.service_id
+            row.space_id = execution.space_id
+            row.status = execution.status
+            row.service_epoch = execution.service_epoch
+            row.payload = execution.model_dump(mode="json")
+
+    def get_action_execution(self, action_id: str) -> Optional[ActionExecution]:
+        with session_scope() as session:
+            row = session.get(ActionExecutionRow, action_id)
+            return ActionExecution.model_validate(row.payload) if row else None
+
+    def unresolved_action_executions(self) -> list[ActionExecution]:
+        with session_scope() as session:
+            rows = session.scalars(
+                select(ActionExecutionRow).where(
+                    ActionExecutionRow.status.in_(("dispatching", "accepted", "unknown"))
+                )
+            ).all()
+            return [ActionExecution.model_validate(row.payload) for row in rows]
+
     # ---- activity ----
 
     def append_activity(self, record: ActivityRecord) -> None:
@@ -291,6 +394,9 @@ class SqlStore:
             session.query(ServiceRow).delete()
             session.query(ActivityRow).delete()
             session.query(PendingClarificationRow).delete()
+            session.query(ActionExecutionRow).delete()
+            session.query(ExecutionGrantRow).delete()
+            session.query(PolicyDecisionRow).delete()
             session.query(OutboxEventRow).delete()
             # Epochs only ever move forward, so requests still in flight stay invalid.
             for space_id in space_ids:
@@ -310,6 +416,8 @@ class SqlStore:
                 "services": session.scalar(select(func.count()).select_from(ServiceRow)) or 0,
                 "activity": session.scalar(select(func.count()).select_from(ActivityRow)) or 0,
                 "clarifications": session.scalar(select(func.count()).select_from(PendingClarificationRow)) or 0,
+                "grants": session.scalar(select(func.count()).select_from(ExecutionGrantRow)) or 0,
+                "actions": session.scalar(select(func.count()).select_from(ActionExecutionRow)) or 0,
             }
 
     def startup_reconcile(self) -> dict[str, int]:
@@ -324,8 +432,24 @@ class SqlStore:
                 row.status = "cancelled"
                 row.payload = {**row.payload, "status": "cancelled"}
             session.query(ServiceFlagRow).delete()
+            unresolved = session.scalars(
+                select(ActionExecutionRow)
+                .where(ActionExecutionRow.status.in_(("dispatching", "accepted")))
+                .with_for_update()
+            ).all()
+            for row in unresolved:
+                payload = dict(row.payload)
+                payload["status"] = "unknown"
+                payload["error_kind"] = "restart_reconciliation"
+                payload["error_detail"] = "进程重启时设备最终结果不可确定，需通过 actionId 向网关对账"
+                row.status = "unknown"
+                row.payload = payload
+            unknown_actions = session.scalar(
+                select(func.count()).select_from(ActionExecutionRow).where(ActionExecutionRow.status == "unknown")
+            ) or 0
             return {
                 "active_services": int(active),
                 "cancelled_unknown_steps": len(running),
                 "cleared_inflight_flags": int(flags),
+                "unknown_actions": int(unknown_actions),
             }

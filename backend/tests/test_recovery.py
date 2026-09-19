@@ -38,6 +38,13 @@ def test_postgres_restart_cancels_unknown_running_step_instead_of_replaying(clie
         connection.execute(
             text("INSERT INTO service_flags(service_id, flag) SELECT service_id, 'replanning' FROM services LIMIT 1")
         )
+        connection.execute(
+            text(
+                "UPDATE action_executions SET status='accepted', "
+                "payload=jsonb_set(payload, '{status}', '\"accepted\"') "
+                "WHERE action_id=(SELECT action_id FROM action_executions ORDER BY action_id LIMIT 1)"
+            )
+        )
 
     recovered = RestService(clock=clock)
     app = create_app()
@@ -47,8 +54,10 @@ def test_postgres_restart_cancels_unknown_running_step_instead_of_replaying(clie
     assert status["activeServices"] == 1
     assert status["cancelledUnknownSteps"] == 1
     assert status["clearedInflightFlags"] == 1
+    assert status["unknownActions"] == 1
     assert status["deviceStateReconciled"] is False
 
     with engine().connect() as connection:
         assert connection.execute(text("SELECT count(*) FROM scheduled_steps WHERE status='running'")).scalar_one() == 0
         assert connection.execute(text("SELECT count(*) FROM service_flags")).scalar_one() == 0
+        assert connection.execute(text("SELECT count(*) FROM action_executions WHERE status='unknown'")).scalar_one() == 1

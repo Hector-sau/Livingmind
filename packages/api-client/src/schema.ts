@@ -375,7 +375,7 @@ export interface components {
              * Outcome
              * @enum {string}
              */
-            outcome: "succeeded" | "rejected" | "failed" | "skipped";
+            outcome: "succeeded" | "rejected" | "failed" | "skipped" | "unknown";
             /** Reason */
             reason: string | null;
             /** Value */
@@ -521,6 +521,25 @@ export interface components {
             /** Spaces */
             spaces: components["schemas"]["Space"][];
         };
+        /** Capability */
+        Capability: {
+            /**
+             * Command
+             * @enum {string}
+             */
+            command: "set_brightness" | "set_target_temperature" | "set_open_percent";
+            /**
+             * Device
+             * @enum {string}
+             */
+            device: "light" | "ac" | "curtain";
+            /** Integer */
+            integer: boolean;
+            /** Max */
+            max: number;
+            /** Min */
+            min: number;
+        };
         /** ConfirmPlanRequest */
         ConfirmPlanRequest: {
             context: components["schemas"]["RequestContext"];
@@ -530,7 +549,11 @@ export interface components {
         /** ConfirmPlanResponse */
         ConfirmPlanResponse: {
             deviceState: components["schemas"]["DeviceState"];
+            /** @description Bounded authority created by confirmation */
+            executionGrant?: components["schemas"]["ExecutionGrant"] | null;
             plan: components["schemas"]["Plan"];
+            /** @description Harness decision for this confirmation */
+            policyDecision?: components["schemas"]["PolicyDecision"] | null;
             /**
              * Repeated
              * @description True when the plan was already executed; nothing was re-run
@@ -709,6 +732,53 @@ export interface components {
              * @constant
              */
             source: "simulated";
+        };
+        /**
+         * ExecutionGrant
+         * @description Bounded, expiring authority created by confirmation; not a general device credential.
+         */
+        ExecutionGrant: {
+            /** Accountid */
+            accountId: string;
+            /** Capabilities */
+            capabilities: components["schemas"]["Capability"][];
+            /**
+             * Createdat
+             * Format: date-time
+             */
+            createdAt: string;
+            /** Grantid */
+            grantId: string;
+            /** Maxadjustments */
+            maxAdjustments: number;
+            /** Personid */
+            personId: string;
+            /** Planhash */
+            planHash: string;
+            /** Planid */
+            planId: string;
+            /** Planversion */
+            planVersion: number;
+            /** Policydecisionid */
+            policyDecisionId: string;
+            /** Revokedat */
+            revokedAt?: string | null;
+            /** Serviceepoch */
+            serviceEpoch: number;
+            /** Serviceid */
+            serviceId: string | null;
+            /** Spaceid */
+            spaceId: string;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "active" | "revoked" | "expired";
+            /**
+             * Validuntil
+             * Format: date-time
+             */
+            validUntil: string;
         };
         /** HealthResponse */
         HealthResponse: {
@@ -1006,6 +1076,50 @@ export interface components {
             timeoutMs: number;
         };
         /**
+         * PolicyDecision
+         * @description Auditable Harness output. It explains why a plan may proceed to confirmation.
+         */
+        PolicyDecision: {
+            /** Checks */
+            checks: components["schemas"]["PolicyRuleResult"][];
+            /**
+             * Decidedat
+             * Format: date-time
+             */
+            decidedAt: string;
+            /**
+             * Decision
+             * @enum {string}
+             */
+            decision: "allow" | "deny" | "require_confirmation";
+            /** Decisionid */
+            decisionId: string;
+            /** Planhash */
+            planHash: string;
+            /** Planid */
+            planId: string;
+            /** Planversion */
+            planVersion: number;
+            /** Policyversion */
+            policyVersion: string;
+            /** Reasons */
+            reasons: string[];
+            /** Spaceid */
+            spaceId: string;
+        };
+        /**
+         * PolicyRuleResult
+         * @description One deterministic rule evaluated before a plan can receive execution authority.
+         */
+        PolicyRuleResult: {
+            /** Detail */
+            detail: string;
+            /** Passed */
+            passed: boolean;
+            /** Rule */
+            rule: string;
+        };
+        /**
          * RecoveryStatus
          * @description Result of the startup reconciliation; observable evidence, not a claim of exact device recovery.
          */
@@ -1030,6 +1144,12 @@ export interface components {
              * @enum {string}
              */
             store: "memory" | "postgresql";
+            /**
+             * Unknownactions
+             * @description Commands whose final device outcome needs reconciliation
+             * @default 0
+             */
+            unknownActions: number;
         };
         /**
          * RequestContext

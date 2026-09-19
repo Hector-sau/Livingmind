@@ -15,11 +15,13 @@ App 对话 → POST /api/assistant/messages（人物 + 空间稳定 conversation
     → Experience Agent（services/planner.py + agents/experience/）：体验目标（规则或模型，失败降级，偏离上限）
     → 能源智能（energy/）：舒适范围内的空调建议；节能模式才应用
     → Space Execution Agent（agents/space_execution/）：按设备能力和空间规则生成动作
-    → Harness 预检（harness/policy.py）：白名单与参数范围；需用户确认
+    → Harness 预检（harness/policy.py）：生成可审计 `PolicyDecision`；白名单与参数范围；需用户确认
     → Plan（附 trace 与 energy）
   设备指令（简化分支）：主 Agent → Space Execution Agent 解析 → Harness 预检 → Plan（不经过体验与能源）
   状态查询 / 其他：直接回答，不生成动作
-确认 → 执行器（harness/executor.py，每个动作前 guard）→ 虚拟设备 → 回读 → 活动记录
+确认 → 绑定人/空间/计划/代次/能力的 ExecutionGrant
+  → 执行器（harness/executor.py，每个动作前 guard）
+  → ActionExecution 持久化状态机 → DeviceGateway V2 → 回执 + 回读 → 活动记录
 ```
 
 ## 请求链路（步骤 4 时的最初版本）
@@ -56,10 +58,11 @@ App 页面 → services/api（http 实现）→ FastAPI 路由
 | `backend/app/rules/` | 固定休息规则 + 规则/模型共用的动作映射 | 第一批实现 |
 | `backend/app/services/planner.py` | 规则/模型切换与降级 | ⑤ 实现 |
 | `backend/app/agents/experience/` | Experience Agent：提示词、输出结构校验、DeepSeek Provider | ⑤ 实现 |
-| `backend/app/harness/` | 统一执行器与检查规则 | 第一批最小版 |
+| `backend/app/harness/` | 统一策略评估、有界执行授权与执行器；Agent 无设备凭据 | 已进入主执行路径 |
 | `backend/app/services/` | 服务生命周期（active / stopped）、确认幂等、停止失效 | 第一批实现 |
 | `backend/app/adapters/virtual/` | 有状态虚拟灯光、空调、窗帘 | 第一批实现 |
-| `backend/app/adapters/protocol.py` | V1 虚拟设备接口；V2 `DeviceGateway` 预留设备身份、动作 ID、服务代次、回执与错误类型 | V1 已用；V2 接口预留，未接真实设备 |
+| `backend/app/adapters/protocol.py`、`gateway.py` | V1 虚拟设备接口；V2 `DeviceGateway` 的设备身份、幂等动作 ID、服务代次 fencing、异步回执与错误类型 | V2 包装器已用于虚拟设备；未接 SpaceMind / 真实厂商网关 |
+| `backend/app/repositories/`、`alembic/versions/0005_execution_authority.py` | 策略决策、执行授权和每个动作的持久化账本 | 内存 / PostgreSQL 两种实现已对齐 |
 | `backend/app/adapters/voice.py` | 智能音箱 / 语音网关的转写、来源、说话人/空间提示、播报与取消协议 | 接口预留，未接语音 |
 | `backend/app/adapters/events.py` | 真实传感器事件 ID、去重键、来源、空间与采集时间协议 | 接口预留，未接传感器 |
 | `backend/app/repositories/` | 内存 / PostgreSQL 两种业务事实存储；含待澄清状态 | 已实现 |
@@ -105,6 +108,9 @@ App 页面 → services/api（http 实现）→ FastAPI 路由
 18. 调整次数在执行前计数；执行中被停止，剩余动作跳过，已开始的那一个不撤销。
 19. 慢模型请求开始时记录空间 epoch；若规划期间服务被停止，返回的计划直接标为 `invalidated`，不能再确认启动新服务。
 20. 同一服务的自动操作互斥：夜间时钟步骤进行时，环境事件记录为“整晚安排正在执行”；环境调整进行时，时钟不推进。两者不会并发写设备。
+21. 确认时把计划的语义哈希、人物、空间、版本、服务代次和允许能力固化为 `ExecutionGrant`；授权只能取平台策略与设备能力的交集。一次性指令锁定到确认的具体数值，不能用同一授权改发其他数值。
+22. 每个动作都有独立账本：`pending → dispatching → accepted → completed/failed/rejected/unknown/cancelled`；已受理但无终态回执的动作标记为 `unknown`，重启后不盲目重放。
+23. `actionId` 在网关内先占位再写设备，并发重试不会重复写；同 ID 不同载荷会被拒绝。停止或重置提升 fencing 代次，旧代次命令在网关层写设备前被拒绝。
 
 ## 模型调用边界（⑤）
 
