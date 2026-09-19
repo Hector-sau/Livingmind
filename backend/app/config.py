@@ -39,7 +39,7 @@ MODEL_TIMEOUT_S = float(os.getenv("LIVINGMIND_MODEL_TIMEOUT_S", "6"))
 DEEPSEEK_API_KEY = os.getenv("DEEPSEEK_API_KEY", "")
 DEEPSEEK_BASE_URL = os.getenv("DEEPSEEK_BASE_URL", "https://api.deepseek.com")
 # Measured over 48 real calls each (docs/evidence/model-latency-*.json): deepseek-chat returned
-# a usable plan every time, p95 1513 ms, slowest 2103 ms. deepseek-flash reasons before answering
+# a usable plan every time, p95 1450 ms, slowest 1737 ms. deepseek-flash reasons before answering
 # and its tail is much longer -- 13% of calls over 2.5 s, two past the 6 s budget. This task turns
 # one sentence into three bounded numbers; it does not need long reasoning, so it does not pay for it.
 DEEPSEEK_MODEL = os.getenv("DEEPSEEK_MODEL", "deepseek-chat")

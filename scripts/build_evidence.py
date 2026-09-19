@@ -77,18 +77,18 @@ ROWS: list[tuple[str, str, str, str, str, str]] = [
      "只有 Experience Agent 调用模型"),
     ("P06", "Experience Agent 生成体验目标", "已实现；真实调用 96 次样本",
      "2026-09-19/20 在团队 Mac 上跑 scripts/model_latency_bench.py，共 96 次真实调用（5 句演示话术 × 4 个人设轮转）。"
-     "留存文件覆盖 flash 两轮 48 次、chat 一轮 24 次；chat 另一轮 24 次结果一致但输出文件被同名路径覆盖，未留存。"
-     "deepseek-chat：两轮合计 48/48 产出被采纳的计划，p50 1179 ms、p95 1513 ms、最长 2103 ms，无超时、无结构错误、无偏离超限；"
-     "deepseek-flash：48 次中 2 次超时，p95 3539 ms、最长 5537 ms，13% 的调用超过 2.5 秒。默认模型据此定为 deepseek-chat。"
+     "每个模型两轮各 24 次，四个结果文件全部留存。"
+     "deepseek-chat：48/48 产出被采纳的计划，p50 1161 ms、p95 1450 ms、最长 1737 ms，无一次超过 2.5 秒，无超时、无结构错误、无偏离超限；"
+     "deepseek-flash：48 次中 2 次超时，p50 1684 ms、p95 3539 ms、最长 5537 ms，13% 的调用超过 2.5 秒，且失败是间歇的（一轮 24 次两次超时，另一轮零次）。默认模型据此定为 deepseek-chat。"
      "统计口径：分位数只含成功调用，失败按 kind 单列；计入 planner 的偏好偏离检查，因此该比例是“计划被采纳”而非“返回了合法 JSON”。"
      "未配置、超时、网络、HTTP、非法 JSON、结构不符、预算内没写完、超出偏离上限都会降级为规则并写明原因",
-     "docs/evidence/model-latency-chat.json；docs/evidence/model-latency-flash-2000.json；backend/scripts/model_latency_bench.py；tests/test_experience_agent.py（测试替身）；端到端 http-model-paths（本地模型桩）",
-     "真实模型 96 次样本；自动化测试仍为测试替身 / 模型桩"),
+     "docs/evidence/model-latency-chat-1.json、-2.json；model-latency-flash-2000-1.json、-2.json；backend/scripts/model_latency_bench.py；tests/test_experience_agent.py（测试替身）；端到端 http-model-paths（本地模型桩）",
+     "真实模型 96 次样本（四个结果文件在库）；自动化测试仍为测试替身 / 模型桩"),
     ("P06", "模型对“该问清楚”与“不该问清楚”的判别稳定", "已实现",
      "同一批真实调用中，两个模型各 24 次成功调用里，指代不清（“把那个弄一下”）与离题（“今天股市怎么样”）全部要求澄清，"
-     "三句明确的休息指令全部未要求澄清，留存文件中合计 48/48 无误判。这是 5 句固定话术 × 4 个人设的稳定性证据"
+     "三句明确的休息指令全部未要求澄清，两个模型各 48 次、合计 96 次无一误判。这是 5 句固定话术 × 4 个人设的稳定性证据"
      "——说明同一句话换人设、换轮次、跨配置改动判定不漂——不是多样语料上的准确率",
-     "docs/evidence/model-latency-chat.json；docs/evidence/model-latency-flash-2000.json（calls[].needsClarification）",
+     "docs/evidence/model-latency-*.json（calls[].needsClarification）",
      "真实模型；固定 5 句话术，非多样语料"),
     ("P06", "Context / Memory：当前情境 + 已授权偏好 + 历史反馈", "部分实现",
      "当前设备状态、本人偏好（可在“我的”页编辑）、空间规则已实现；历史反馈没有实现",
@@ -168,7 +168,7 @@ TESTS = [
 
 SOURCES = [
     ("后端规则", "后端固定规则生成，没有调用模型"),
-    ("真实模型", "DeepSeek 真实调用；96 次样本（chat 48 / flash 48），分布见 docs/evidence/model-latency-*.json"),
+    ("真实模型", "DeepSeek 真实调用；96 次样本（chat 48 / flash 48），四个结果文件见 docs/evidence/model-latency-*.json"),
     ("测试替身 / 模型桩", "自动化测试里代替模型的本地程序，不是真实调用"),
     ("虚拟设备", "后端内存里的有状态设备，不代表真实硬件"),
     ("模拟事件 / 模拟时钟", "室温由按钮或接口给出；整晚时间由按钮推进，不是真实时间"),
