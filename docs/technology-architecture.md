@@ -1,6 +1,6 @@
 # LivingMind 技术架构与上手指南
 
-更新：2026-09-18
+更新：2026-09-19
 
 这份文档用于回答三类问题：项目实际用了什么技术、每项技术解决什么问题、后续怎样把演示原型升级成可持续维护的真实工程。
 
@@ -30,11 +30,13 @@ iPad / Android App                          未来语音入口
                                                  │
                                       用户确认 / RestService
                                                  │
-                                             Executor
+                              PolicyDecision → ExecutionGrant
                                                  │
-                                      Device Adapter Protocol
+                         Executor → ActionExecution ledger
                                                  │
-                                   虚拟设备 / SpaceMind / 厂商底座
+                          DeviceGateway (idempotency + fence)
+                                                 │
+                            虚拟设备 / 未来 SpaceMind / 厂商底座
 
 PostgreSQL：业务事实、人物记忆、计划、服务、动作、Outbox、Graph checkpoint
 Redis：短期锁、冷却、幂等加速、热点状态；不可作为唯一事实来源
@@ -45,7 +47,7 @@ Docker Compose：在开发机和 CI 中统一启动 API、数据库、缓存和 
 设计原则：
 
 1. 模型只生成体验目标，不能直接控制设备。
-2. LangGraph 负责理解和规划；`RestService + Harness + Executor` 负责确认、停止和执行安全。
+2. LangGraph 负责理解和规划；`RestService + Harness + Executor + DeviceGateway` 负责确认、有界授权、停止和执行安全。Agent 和 Graph 不持有设备凭据。
 3. PostgreSQL 是唯一事实来源（source of truth）。
 4. Redis 丢失后系统应能降级运行，不能丢失人物偏好或服务事实。
 5. 事件总线故障不能阻止“确认、停止、设备执行”；待发送事件保存在 PostgreSQL Outbox。
@@ -63,9 +65,9 @@ Docker Compose：在开发机和 CI 中统一启动 API、数据库、缓存和 
 | Agent 编排 | legacy顺序编排与LangGraph `StateGraph` 两条可切换路径，共用阶段方法 | 保持等价对照与checkpoint恢复 | 已实现规划分支 |
 | Experience Agent | DeepSeek Provider；结构化输出；失败降级 | 作为 LangGraph 节点复用 | 已实现 |
 | 人物记忆 | `MemoryService` + 内存/SQL两种Repository，按人物与空间隔离 | 继续完善认证与权限边界 | PostgreSQL持久化已实现 |
-| 运行状态 | 内存/SQL两种Store；计划、服务、步骤、动作、活动与代次可落库 | 真实设备状态仍由Adapter负责 | PostgreSQL持久化已实现 |
+| 运行状态 | 内存/SQL 两种 Store；计划、服务、策略决策、执行授权、动作账本、步骤、活动与代次可落库 | 真实设备观测状态仍由 Gateway 负责 | PostgreSQL 持久化已实现 |
 | 并发控制 | Python锁、PostgreSQL约束与行级认领、Redis空间锁/冷却 | 生产级多机压测仍是后续项 | 本地组合与降级已验证 |
-| 设备 | 有状态虚拟 Adapter | 保持 Protocol，增加真实厂商 Adapter | 虚拟设备已实现 |
+| 设备 | 有状态虚拟 Adapter + `AdapterDeviceGateway`；`actionId` 幂等、`serviceEpoch` fencing、回执/回读 | 保持 `DeviceGateway` Protocol，替换为真实 SpaceMind / 厂商对端 | 虚拟 V2 路径已实现；真实对端未接入 |
 | 能源 | 在线规则 + 离线固定日仿真 | 保持边界；事件进入 Kafka 分析流 | 已实现规则与只读展示 |
 | 异步事件 | PostgreSQL Transactional Outbox → 数据库队列 → 幂等Consumer Projection；活动仍同步写入 | Kafka仅保留可选接口 | 已实现数据库队列 |
 | 语音入口 | `adapters/voice.py` 只有接口定义，没有任何调用方 | 真实网关返回文本与来源后走同一 assistant 契约 | **仅接口预留，未实现** |
@@ -576,6 +578,29 @@ kafka healthy ────┘                │
 - Playwright 与真机重新跑完整闭环。
 - 更新证据表，只有真实运行过的能力才写“已实现”。
 
+### 受控执行专项：Agent 没有设备权限
+
+状态：**虚拟设备主路径已实现并验证**；真实 SpaceMind / 厂商对端待接入。
+
+```text
+Plan
+  → PolicyDecision（规则结果 + 语义哈希 + require_confirmation）
+  → 用户确认
+  → ExecutionGrant（人物/空间/计划/版本/哈希/服务/代次/能力/时间上限）
+  → Executor（服务 guard + 平台策略 + grant 缩权）
+  → ActionExecution（持久化状态转移）
+  → DeviceGateway（actionId 幂等 + serviceEpoch fencing）
+  → receipt + readback
+```
+
+关键语义：
+
+1. 授权只在确认时产生，只能缩小平台与设备能力的交集，不能赋予超出 Harness 的能力。一次性设备指令还会把范围锁定到用户确认的具体数值；持续服务只保留已确认场景中出现的设备/命令对。
+2. 停止、服务完成或失败会撤销 grant；停止/重置同时提升空间代次，旧命令在 Gateway 写入前被拒绝。
+3. Gateway 在离开锁写设备前先保留 `actionId`；并发重试看到 `accepted`，不会第二次写设备。同 ID 不同载荷直接拒绝。
+4. `ActionExecution` 状态为 `pending / dispatching / accepted / completed / failed / rejected / unknown / cancelled`。已受理但终态不明时记为 `unknown`，启动恢复不自动重放。
+5. 虚拟 Gateway 证明了契约和并发语义，不等于真实硬件已联调；真实接入必须在设备网关侧同样执行幂等与 fencing。
+
 ## 11. 验收测试清单
 
 | 技术 | 必须证明的测试 |
@@ -585,7 +610,7 @@ kafka healthy ────┘                │
 | Redis | 冷却 TTL；锁 token 校验；连接失败时数据库降级；不能因缓存旧值误报设备状态 |
 | 事件总线 | Outbox 不丢；Publisher 重试；Consumer 幂等；同一空间事件顺序正确；总线停摆不影响活动记录 |
 | Docker | 全新机器可构建；健康检查有效；Secret 不进入镜像；容器内测试通过 |
-| Executor | 白名单、范围、停止优先、重复确认、设备回读、部分失败 |
+| 受控执行 | PolicyDecision / ExecutionGrant 绑定正确；grant 只能缩权；actionId 并发幂等；同 ID 异载荷拒绝；过期 epoch 拒绝；accepted 无终态转 unknown；设备回读不一致失败 |
 
 ## 12. 面试时如何解释
 
@@ -623,7 +648,7 @@ PostgreSQL 保存业务事实；Redis 加速短期状态和跨实例协调；事
 2. 阅读 `Orchestrator → Planner → SpaceExecutionAgent → Harness`。
 3. 理解 `Plan` 与 `Service` 的区别：计划先生成，确认后才执行。
 4. 阅读 `MemoryService`，确认人物偏好和空间规则如何隔离。
-5. 阅读 `Executor`，理解为什么模型不能直接操作设备。
+5. 阅读 `harness/policy.py → grants.py → executor.py → adapters/gateway.py`，理解为什么模型和 LangGraph 都没有设备权限。
 6. 完成阶段 B 后，本地查看 PostgreSQL 中的 plan、service、action 和 outbox 行。
 7. 完成阶段 D 后，用 Redis CLI 查看 cooldown 和 lock 的 TTL。
 8. 完成阶段 E 后，查看 `outbox_events` 的领取与投递过程；开启 `kafka` profile 时再用 consumer 看同样的 envelope。

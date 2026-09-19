@@ -23,7 +23,7 @@ DECK = "汇报演示/LivingMind_presentationV1（10 页）"
 ROWS: list[tuple[str, str, str, str, str, str]] = [
     ("P01", "面向居住空间的主动体验 Agent：持续理解居住者，主动组织空间服务", "部分实现",
      "家庭卧室原型：一句话 → 计划 → 确认 → 室温事件调整 → 整晚服务。“持续理解”目前是读取本人偏好，不从行为中学习",
-     "backend/app/services/rest_service.py；录屏 01–03；网页端到端 22/22", "后端规则 · 虚拟设备 · 模拟事件 / 时钟"),
+     "backend/app/services/rest_service.py；录屏 01–03；网页端到端 27/27", "后端规则 · 虚拟设备 · 模拟事件 / 时钟"),
     ("P01 / P03", "Home Living 为核心，Smart Stay 为延展", "部分实现",
      "只实现家庭场景：1 个空间（家 · 主卧），3 位成员 + 访客；酒店场景没有实现",
      "backend/app/demo/seed.py；docs/test-data.md", "设计的模拟数据"),
@@ -54,9 +54,9 @@ ROWS: list[tuple[str, str, str, str, str, str]] = [
      "幻灯片已注明尚未接入。原型里的本地对应：设备能力列表、执行器白名单与参数范围、写入后回读、演示上下文校验",
      "backend/app/adapters/virtual/devices.py；backend/app/harness/executor.py", "虚拟设备；接口待官方文档与联调"),
     ("P05", "Zigbee、Matter、Apple Home 等协议与平台", "未实现", "生态关系示意", "—", "示意"),
-    ("P05", "真实设备底座 V2 契约（设备身份、幂等动作 ID、服务代次、回执与错误类型）", "接口预留",
-     "DeviceGateway 定义 deviceId / spaceId / actionId / serviceEpoch / accepted-completed-rejected-unknown 四态回执 / 错误类型 / 观测值与观测时间；用可执行契约替身验证协议可实现。没有任何真实对端",
-     "backend/app/adapters/protocol.py；tests/test_adapter_protocols.py", "接口预留，未接入真实设备或 SpaceMind"),
+    ("P05", "设备底座 V2 契约（设备身份、幂等动作 ID、服务代次、回执与错误类型）", "已实现（虚拟对端）",
+     "DeviceGateway 定义 deviceId / spaceId / actionId / serviceEpoch / accepted-completed-failed-rejected-unknown 回执 / 错误类型 / 观测值与时间；虚拟包装器已进入主执行路径，验证并发 actionId 幂等、异载荷拒绝和过期 serviceEpoch fencing。没有真实厂商对端",
+     "backend/app/adapters/protocol.py；adapters/gateway.py；tests/test_execution_authority.py", "虚拟设备网关；未接入真实设备或 SpaceMind"),
     ("P05", "智能音箱语音入口", "接口预留",
      "VoiceGateway 定义 audioId、来源、语言、说话人与空间提示、置信度、播报与取消；转写进入与平板同一条 assistant-message 入口。可信身份必须由应用层解析，不能由转写文本自称。没有唤醒词或音箱",
      "backend/app/adapters/voice.py；tests/test_adapter_protocols.py", "接口预留，未接入音箱"),
@@ -83,8 +83,8 @@ ROWS: list[tuple[str, str, str, str, str, str]] = [
      "当前设备状态、本人偏好（可在“我的”页编辑）、空间规则已实现；历史反馈没有实现",
      "backend/app/memory/service.py；端到端 http-energy-memory", "设计的模拟数据"),
     ("P06", "Harness：权限、执行约束与异常处理", "已实现（演示级）",
-     "白名单与参数范围；每个动作前重查服务状态与代次；设备写入在锁外，停止可中途打断；统一错误格式。权限是演示上下文校验，不是登录认证",
-     "backend/app/harness/；tests/test_concurrency.py（2 项）；tests/test_rest_flow.py", "后端规则"),
+     "计划预检生成 PolicyDecision；用户确认后生成绑定人物、空间、计划哈希、代次、能力和时限的 ExecutionGrant；每个动作记录状态转移，停止撤销授权并使旧代次失效。身份仍是演示上下文，不是生产认证",
+     "backend/app/harness/；adapters/gateway.py；tests/test_execution_authority.py（8 项）", "后端确定性策略 + 虚拟网关"),
     ("P06", "已支持空间设备虚拟执行与状态获取", "已实现",
      "有状态虚拟设备（灯光、空调、窗帘），写入后回读，版本号递增",
      "backend/app/adapters/virtual/devices.py；录屏 01", "虚拟设备，不代表真实硬件"),
@@ -96,8 +96,8 @@ ROWS: list[tuple[str, str, str, str, str, str]] = [
      "backend/app/agents/orchestrator/agent.py；contracts/models.py::PendingClarification；alembic 0004；tests/test_agents.py（澄清 3 项）",
      "后端规则；模型也可给出澄清问题"),
     ("补充", "重启恢复语义明确且可查询", "已实现",
-     "配置 PostgreSQL 后可恢复计划、服务、整晚步骤、活动与待澄清；崩溃遗留的执行中标记被清理；结果未知的 running 步骤一律取消而不是重放。GET /api/system/recovery 返回存储类型、活跃服务数、取消数、清理数与 deviceStateReconciled",
-     "backend/app/services/rest_service.py::recovery_status；tests/test_recovery.py（2 项）",
+     "配置 PostgreSQL 后可恢复计划、服务、授权、动作账本、整晚步骤、活动与待澄清；结果未知的 running 步骤取消，dispatching/accepted 动作标记 unknown，均不盲目重放。GET /api/system/recovery 返回恢复结果",
+     "backend/app/services/rest_service.py::recovery_status；tests/test_recovery.py",
      "虚拟设备状态仍不跨进程恢复，deviceStateReconciled 为 false"),
     ("补充", "一次表达，持续服务：整晚服务", "已实现",
      "一个服务贯穿整晚：模拟入睡后关灯、01:00 空调调高 1°C、所选起床时间前 30 / 15 / 0 分钟三步唤醒；每步只执行一次；停止取消剩余步骤；任一设备动作失败都不会误标完成",
@@ -130,8 +130,11 @@ ROWS: list[tuple[str, str, str, str, str, str]] = [
      "默认、PostgreSQL、PostgreSQL+Redis+LangGraph 三套后端组合通过；浏览器场景全部连接 Docker API 通过；GitHub Actions 运行 35333253707（T6 冻结，20 场景）与 35409969801（E 专项，22 场景）各 6/6 Job 全绿",
      ".github/workflows/ci.yml；apps/mobile/e2e/run_e2e.py；docs/status.md", "本地 Docker / Playwright + GitHub 托管运行"),
     ("工程证据", "E 一致性与可恢复性专项复跑", "已实现",
-     "内存+legacy 136/19；PostgreSQL+legacy 150/5；PostgreSQL+Redis+LangGraph 154/1；Alembic 0003↔0004 升降级；legacy/LangGraph 5 组等价；前端 32 项 + 类型检查；契约重新生成逐字节一致；网页端到端 22/22（含两个澄清场景）",
+     "F+G 合并后重跑：内存+legacy 158/19；PostgreSQL+legacy 172/5；PostgreSQL+Redis+LangGraph 176/1；Alembic 0001→0005 与 0004↔0005 升降级；legacy/LangGraph 5 组等价；前端 88 项 + 类型检查；契约重新生成一致；网页端到端 27/27",
      "docs/status.md（E 专项一节）；docs/acceptance.md；docs/agent-engineering-review.md", "2026-09-18 本轮实跑"),
+    ("工程证据", "F 受控执行专项", "已实现",
+     "PolicyDecision、ExecutionGrant、ActionExecution 持久化账本和虚拟 DeviceGateway V2 进入主路径；与 G 专项合并后重跑：内存 158/19，PostgreSQL+legacy 172/5，PostgreSQL+Redis+LangGraph 176/1，Alembic 0001→0005 与 0004↔0005 升降，前端 88，浏览器端到端 27/27",
+     "docs/status.md（F 专项）；tests/test_execution_authority.py；alembic/versions/0005_execution_authority.py", "2026-09-19 本地实跑；新提交尚未跑 GitHub CI"),
 ]
 
 CLIPS = [
@@ -141,10 +144,10 @@ CLIPS = [
 ]
 
 TESTS = [
-    ("后端：内存 + legacy", "150 通过 / 19 跳过", "backend/tests/"),
-    ("后端：PostgreSQL + legacy", "164 通过 / 5 跳过", "backend/tests/"),
-    ("后端：PostgreSQL + Redis + LangGraph", "168 通过 / 1 跳过", "backend/tests/"),
-    ("Alembic 迁移", "0001→0004；0003→0002→0003 与 0004→0003→0004 通过", "backend/alembic/"),
+    ("后端：内存 + legacy", "158 通过 / 19 跳过", "backend/tests/"),
+    ("后端：PostgreSQL + legacy", "172 通过 / 5 跳过", "backend/tests/"),
+    ("后端：PostgreSQL + Redis + LangGraph", "176 通过 / 1 跳过", "backend/tests/"),
+    ("Alembic 迁移", "0001→0005；0004→0005→0004→0005 升降级通过", "backend/alembic/"),
     ("Outbox / Consumer Compose 链路", "7/7 发布并消费；Worker 重启无重复", "backend/workers/"),
     ("前端逻辑测试 + 类型检查", "88 项", "apps/mobile/tests/"),
     ("网页端到端（平板 / 手机，前端模拟 + Docker API）", "27/27 场景", "apps/mobile/e2e/run_e2e.py"),
@@ -161,7 +164,7 @@ SOURCES = [
     ("设计的模拟数据", "人物、偏好、室外温度、电价时段、评测用例都是设计的"),
     ("网页版验证", "界面测试和录屏来自 Expo 网页导出，不等于平板真机"),
     ("离线仿真", "给定的单日家庭能源研究快照及其已提供指标；不是实时测量、在线控制或重新评估"),
-    ("接口预留", "只有协议定义和可执行契约替身测试，没有真实对端；不得描述为已接入"),
+    ("虚拟网关 / 接口预留", "DeviceGateway 契约已有虚拟对端运行；SpaceMind/厂商、语音和传感器仍无真实对端，不得描述为已接入"),
 ]
 
 STATUS_ORDER = ["已实现", "部分实现", "接口预留", "未接入", "未实现", "仓库外", "外部数据", "待验证", "计划"]

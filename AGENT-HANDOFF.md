@@ -1,11 +1,11 @@
 # LivingMind AI 交接文档
 
-更新日期：2026-09-18
+更新日期：2026-09-19
 仓库位置：`/Users/macbookair/Desktop/Business/项目材料整理/Livingmind/livingmind-app/`  
 当前分支：`main`  
 第一批实现基线提交：`99b1138 feat: step 4 rule-based backend loop, executor, virtual devices, CI`  
 演示稳定基线：`5cd8eeb fix: freeze stable demo lifecycle`
-当前基线：演示主链路、1+2 Agent、整晚服务、能源快照、稳定性收尾以及 **T1–T6 本地工程化冻结均已完成**。Docker Compose 全栈、Worker 事件链、迁移升降、三套后端组合与 Docker API Playwright 端到端已在用户 Mac 验证（当前 27 个场景）。方案见 `docs/technology-architecture.md`，逐项证据见 `docs/status.md`。
+当前基线：演示主链路、1+2 Agent、整晚服务、能源快照、稳定性收尾、**T1–T6 工程化冻结**、**F 受控执行专项**与 **G 语音和设备直接控制专项**均已完成。F 把“Agent 不直接碰设备”落到 `PolicyDecision → ExecutionGrant → ActionExecution → DeviceGateway`；G 把语音做成完整回合，并让设备面板可直接控制（直接执行 + 5 秒真撤销）。真实 SpaceMind / 厂商对端、真机语音识别仍未接入。方案见 `docs/technology-architecture.md`，逐项证据见 `docs/status.md`。
 
 ## 0. 项目背景与现状速览（给评审或新接手的 AI）
 
@@ -46,10 +46,11 @@
 | T5 Outbox 与事件总线 | 事件信封；业务事实与 outbox 同事务；publisher（SKIP LOCKED / 重试 / 死信不删）；consumer（`consumer_receipts` 去重 → `service_projection`）；总线默认是 PostgreSQL 表 | `tests/test_outbox_events.py`：同事务提交、回滚不留事件、至少一次且不重复、总线停摆不挡设备、重复投递靠回执保护、同空间保序 |
 | T6 本地集成冻结 | Compose 全栈、Worker 投递消费、迁移升降、三套后端 matrix、Docker API E2E、证据表和最终文档 | 127/141/145 后端组合；Outbox 7/7；Worker 重启无重复；Playwright 20/20；契约无 diff；PDF 逐页检查 |
 | E 一致性与可恢复性专项 | 文档口径校正；意图路由识别否定/设备冲突/指代不清；可恢复的多轮澄清（`conversationId` + `PendingClarification` 落库，账户/人物/空间/会话四重隔离，10 分钟过期，可取消）；启动恢复语义明确化并可查询（`GET /api/system/recovery`，结果未知的 `running` 步骤取消而非重放）；设备 V2 / 语音 / 传感器事件协议补齐为可实现接口 | 后端 136/19、150/5、154/1 三套组合；迁移 0003↔0004 升降级；`tests/test_recovery.py`、`tests/test_adapter_protocols.py`、`tests/test_agents.py` 澄清用例；前端 32/32；契约无 diff；端到端 22/22（新增 `http-clarification`、`mock-clarification`）|
-| F 语音与设备直接控制 | 语音状态机（纯逻辑、所有超时都不执行动作）、语音面板、真实 TTS、来源标签；设备端识别适配层（`expo-speech-recognition` 57.1.0，系统引擎、无密钥、可端侧）；设备面板改为可直接控制：双轨滑块、目标与回读双指示、直接执行 + 5 秒真撤销 | 后端 150/19、164/5、168/1；前端 88/88；端到端 27/27（新增语音 2、直接控制 3）；**设备端识别未在真机验证** |
+| F 受控执行 | `PolicyDecision`、用户确认后的有界 `ExecutionGrant`、持久化 `ActionExecution` 账本、虚拟 `DeviceGateway` V2 幂等与 fencing；停止撤销授权并提升代次；已受理但无终态的动作记为 `unknown` 而不重放 | `tests/test_execution_authority.py` 8 项；Alembic 0004↔0005 升降通过 |
+| G 语音与设备直接控制 | 语音状态机（纯逻辑、所有超时都不执行动作）、语音面板、真实 TTS、来源标签；设备端识别适配层（`expo-speech-recognition` 57.1.0，系统引擎、无密钥、可端侧）；设备面板改为可直接控制：双轨滑块、目标与回读双指示、直接执行 + 5 秒真撤销 | `tests/test_device_control.py` 14 项；前端 voice/speech/deviceSpeech/deviceSlider/deviceControl 五组；端到端新增语音 2、直接控制 3；**设备端识别未在真机验证** |
 | 文档 | 本交接文档、README、architecture、acceptance、status、ui-polish；产品界面方向（第 12 节） | `587d7aa`、`8525718`、`c58a29f` |
 
-检查基线（数量以 `docs/status.md` 为准，下列为 F 专项后的最新值）：内存+legacy 150 通过 / 19 跳过；PostgreSQL+legacy 164 通过 / 5 跳过；PostgreSQL+Redis+LangGraph 168 通过 / 1 跳过；前端 88 项 + 类型检查；Legacy/LangGraph 5 组等价；网页端到端 27/27；契约重新生成无 diff；Alembic 0003↔0004 升降级通过。Compose 两个 Worker 常驻验证已完成。GitHub Actions 托管 CI 运行 `35409969801` 的 6 个 Job 全部通过（对应 `main@bfcdd0e`，2026-09-19，4m30s，含 Docker API 浏览器端到端 22 场景）。尚未执行：真机安装；iOS/Android JS 与 Hermes 导出成功。
+检查基线（数量以 `docs/status.md` 为准，下列为 F+G 合并后的最新本地值）：内存+legacy 158 通过 / 19 跳过；PostgreSQL+legacy 172 通过 / 5 跳过；PostgreSQL+Redis+LangGraph 176 通过 / 1 跳过；前端 88 项 + 类型检查；Legacy/LangGraph 5 组等价；网页端到端 27/27；契约重新生成无 diff；Alembic 0001→0005 与 0004↔0005 升降级通过。**F+G 合并后的 GitHub 托管 CI 尚未运行**，不得沿用上一次绿灯声称新改动已托管验证。尚未执行：真机安装；真机语音识别验收。
 
 ### 0.3 当前状态与外部待办
 
@@ -71,8 +72,9 @@
 | P07 能源仿真证据 | **已迁入（离线展示）** | `simulation/home-energy/` 保存给定研究快照、结果与溯源；App 通过只读 API 展示固定日结果，不重训、不重新评估、不参与控制 |
 | GitHub 远程与 CI 实跑 | **已完成** | `origin=https://github.com/Hector-sau/Livingmind.git`；最新运行 `35409969801`（`bfcdd0e`）为 6/6 通过 |
 | E 一致性与可恢复性专项 | **已完成（代码 + 测试 + 文档）** | 只做口径校正、意图路由、澄清闭环、恢复语义与接口补齐；未接入任何真实硬件，未新增技术栈 |
-| F 语音与设备直接控制 | **代码完成，一项未验证** | 语音回合、TTS、设备直接控制与撤销均已实现并测试；设备端语音识别需 development build + 真机，云端与端到端都跑不了 |
-| 多实例与真实部署 / 真实调度器 / 真实设备语音传感器接入 | 明确不做（待用户授权） | 锁续租或 fencing token、设备网关拒绝过期代次、可恢复调度器的时区与漏触发验证；Redis 续租不能单独证明真实设备执行安全 |
+| F 受控执行专项 | **已完成（代码 + 测试 + 文档）** | Agent 不持有设备凭据；确认后有界授权；动作账本；虚拟 Gateway 幂等/fencing；真实厂商对端未接入 |
+| G 语音与设备直接控制 | **代码完成，一项未验证** | 语音回合、TTS、设备直接控制与撤销均已实现并测试；设备端语音识别需 development build + 真机，云端与端到端都跑不了 |
+| 多实例与真实部署 / 真实调度器 / 真实设备语音传感器接入 | 明确不做（待用户授权） | 虚拟 Gateway 已验证 fencing；真实网关仍须实现相同契约，并补锁续租、回执对账、可恢复调度器的时区与漏触发验证 |
 
 ### 0.4 评审时最该核对的五个点
 
@@ -83,7 +85,7 @@
    - 共享人物记忆、能源规则（舒适范围内的分时电价建议，负荷为规则估算）、Harness（预检 + 执行前 guard）。
    不要说成“三个大模型 Agent”，也不要把能源规则说成 MATD3 在线控制。
 2. **来源标注是否可能被混淆**：前端模拟 / 规则 / 模型 / 规则降级 / 虚拟设备在界面和活动记录里是否始终可区分。
-3. **安全边界**：所有设备写入是否都经过 `harness/executor.py`；模型输出是否先过 Pydantic 再进执行器；密钥是否只在后端 `.env`。
+3. **安全边界**：所有设备写入是否都经过 `PolicyDecision → ExecutionGrant → Executor → ActionExecution → DeviceGateway`；模型输出是否先过 Pydantic；密钥是否只在后端 `.env`。
 4. **并发语义**：停止后是否确实不再有新动作；已开始的单个动作不撤销是否可接受。
 5. **范围控制**：后续步骤是否仍遵守“一次一步、达到即停”，没有空目录或类名冒充能力。
 
@@ -121,18 +123,17 @@ Expo App：对话 / 空间 / 场景 / 我的（计划来源开关：规则 / 模
       状态查询 / 其他：直接回答
     （只生成计划，不改设备；等待模型时不持锁；计划附协作轨迹）
   → 用户确认
-  → 统一执行器（白名单、参数、服务状态检查）
-  → 有状态虚拟灯光 / 空调 / 窗帘
-  → 状态回读与活动记录
+  → 策略决策 + 有界执行授权（绑定人/空间/计划/代次/能力/有效期）
+  → 统一执行器（服务 guard + 平台策略 + 授权范围）
+  → 动作账本 → DeviceGateway（actionId 幂等 + serviceEpoch fencing）
+  → 有状态虚拟灯光 / 空调 / 窗帘 → 回执 / 回读与活动记录
   → App 更新
 
 服务运行中：模拟入睡 → 首个夜间步骤；模拟室温事件 → 检查（服务 / 自动操作互斥 / 上限 / 冷却）→ 规划调整（跟随服务模式）
   → 同一执行器 → 回读 → 记录；停止后事件一律忽略。夜间时钟与环境调整不会并发写设备。
 ```
 
-场景范围只有 Home Living 的“我想休息”。**当前实现**仍没有持久化数据库、LangGraph、Redis、事件总线、真实认证、真实传感器、SpaceMind 或真实设备接入；事件只有模拟室温一种；在线能源建议是规则，MATD3 仅作为固定日的只读离线仿真展示。模型调用已用真实 DeepSeek 密钥验证过一次（deepseek-flash，2035 ms）；延迟为单次样本。
-
-**目标实现**使用 PostgreSQL 保存业务事实、人物记忆与 LangGraph checkpoint；Redis 负责短期协调与缓存；Transactional Outbox 把领域事件异步分发到事件总线（默认 PostgreSQL 队列实现，Kafka 可选）；Docker Compose 提供可复现的后端开发环境。后端保持同步技术栈，异步化另立项目。LangGraph 只编排规划，不允许节点绕过 Harness / Executor 直接操作设备。
+场景范围只有 Home Living 的“我想休息”。**当前已实现** PostgreSQL 业务事实、LangGraph 规划图与 checkpoint、Redis 协调、Transactional Outbox、Docker Compose，以及虚拟设备上的受控执行路径。**仍未实现**生产认证、真实传感器、后台调度器、SpaceMind / 厂商真实设备对端和真实回执对账。在线能源建议是规则，MATD3 仅作为固定日的只读离线仿真展示。真实 DeepSeek 已验证一次（deepseek-flash，2035 ms），仅是单次样本。
 
 ## 2. 接手后的必读顺序
 
@@ -180,6 +181,7 @@ Expo App：对话 / 空间 / 场景 / 我的（计划来源开关：规则 / 模
 | ⑨ 演示打磨 | 准备演示按钮、协作说明卡、提示淡出、空态、演示讲稿 | `apps/mobile/features/shell/AppShell.tsx`、`notices.ts`、`features/scenes/ScenesScreen.tsx`、`components/EmptyState.tsx`、`docs/demo-script.md` |
 | ⑥ 一次事件调整 | 事件接口、检查顺序、调整规则、模型调整、App 注入按钮 | `services/rest_service.py::inject_event`、`rules/rest_rule.py::adjustment_rule`、`services/planner.py::plan_adjustment`、`apps/mobile/features/rest/ServiceCard.tsx` |
 | E 一致性与可恢复性 | 意图路由的否定/冲突/指代不清分支；可恢复澄清（`conversationId`、待澄清落库、过期、取消、人物隔离）；启动恢复与 `GET /api/system/recovery`；`DeviceGateway` / `VoiceGateway` / `EnvironmentEventAdapter` 协议 | `agents/orchestrator/agent.py::route_intent`、`contracts/models.py::PendingClarification`、`repositories/store.py`、`sql_store.py`、`alembic/versions/0004_pending_clarifications.py`、`services/rest_service.py::recovery_status`、`adapters/protocol.py|voice.py|events.py` |
+| F 受控执行 | 策略决策、有界授权、动作账本、虚拟网关幂等/fencing、结果未知恢复 | `harness/policy.py|grants.py|executor.py`、`adapters/gateway.py`、`repositories/`、`alembic/versions/0005_execution_authority.py`、`tests/test_execution_authority.py` |
 
 当前 Git 提交按步骤拆分：
 
@@ -203,7 +205,7 @@ e8ffb61 feat: step 3 clickable rest-flow prototype with front-end mock
 - 计划 10 分钟后过期，身份、人物、空间、计划版本不符会被拒绝。
 - 停止后，空间此前未执行的计划失效；已执行计划不能重新启动服务。
 - 停止后设备保持当前状态，不自动恢复。
-- 每个设备动作经过白名单、参数范围检查、写入和回读。
+- 每个设备动作经过 `PolicyDecision → ExecutionGrant → 服务 guard → 平台策略 → 授权范围 → ActionExecution → DeviceGateway → 回执/回读`。
 - API 不可达时，App 显示失败和状态可能过期，不偷偷回退到 Mock 成功。
 - 数据仅在进程内存中保存，后端重启或演示重置会清空。
 - 模拟事件只作用于正在运行的服务；没有服务、上一次调整未结束、达到 3 次上限、30 秒冷却中都会忽略并写明原因；停止后事件一律忽略。
@@ -215,8 +217,8 @@ e8ffb61 feat: step 3 clickable rest-flow prototype with front-end mock
 - 设备指令确认后执行，不创建休息服务；停止服务会让未确认的设备指令失效。
 - 共享列表不含任何人的偏好；能源“舒适优先”只建议，“节能模式”才在舒适范围内改设定。
 - 否定、设备冲突与指代不清的请求先澄清：不生成计划，也不生成设备动作。待澄清状态按账户、人物、空间与 `conversationId` 四重隔离，10 分钟过期，可显式取消；补充信息后按原意图继续。换人物不会读到别人的待澄清。
-- 启动恢复的语义是明确的：清理崩溃遗留的执行中标记；把结果未知的 `running` 步骤**取消**而不是重放（已发出但结果不明的动作不重复下发）；虚拟设备状态不跨进程恢复，`deviceStateReconciled` 因此为 `false`。`GET /api/system/recovery` 把这些结果如实暴露。
-- 真实设备接入走 `DeviceGateway`（`deviceId`、幂等 `actionId`、`serviceEpoch`、accepted/completed/rejected/unknown 四态回执、错误类型、观测时间与观测值），不是扩展 `DeviceAdapter`；所有请求仍进 Harness / Executor。
+- 启动恢复的语义是明确的：结果未知的 `running` 步骤取消；`dispatching/accepted` 但无终态的动作标记 `unknown`，两者都不盲目重发。虚拟设备状态不跨进程恢复，`deviceStateReconciled` 仍为 `false`。
+- 虚拟设备已通过 `AdapterDeviceGateway` 走 V2 路径（`deviceId`、幂等 `actionId`、`serviceEpoch` fencing、accepted/completed/failed/rejected/unknown 回执、错误类型、观测时间与观测值）；真实接入应替换网关实现，不让 Agent 或 LangGraph 持有设备凭据。
 - 语音的可信身份由应用层解析（说话人 → `accountId`/`personId`/`spaceId` 授权），不能由转写文本自称；转写进入的是同一条 assistant-message 入口。
 - 真实传感器事件走 `EnvironmentEventAdapter`（事件 ID、去重键、来源、采集时间），与演示用的 `POST /api/spaces/{id}/events` 是两个入口，后者永远标注 `simulated`。
 
@@ -355,16 +357,16 @@ git status --short
 
 不能因为建立了目录或类名，就宣称相应 Agent 已经实现。功能声明必须对应真实调用轨迹和测试。
 
-## 9. T6 + E 已完成：下一位 AI 的接手边界
+## 9. T6 + E + F 已完成：下一位 AI 的接手边界
 
-T1–T6 本地工程化冻结与 E 一致性可恢复性专项均已完成。下一位 AI 首先读 `docs/status.md`（尤其 E 专项一节）、`docs/agent-engineering-review.md` 和 `docs/technology-architecture.md`，不要重做基础设施，也不要继续增加技术栈。
+T1–T6 工程化冻结、E 一致性/可恢复性与 F 受控执行专项均已完成。下一位 AI 首先读 `docs/status.md`（尤其 E/F 专项）、`docs/agent-engineering-review.md` 和 `docs/technology-architecture.md`，不要重做基础设施或绕过新的执行授权边界。
 
 **三档口径必须分开说**：
 
 | 口径 | 含义 | 本仓库的例子 |
 |---|---|---|
-| 已实现并验证 | 有代码、有测试、有本轮实跑结果 | 休息闭环、整晚服务、事件调整、澄清闭环、启动恢复、PostgreSQL、LangGraph、Redis、Outbox、Docker、CI |
-| 接口预留 | 只有协议和契约替身测试，没有对端 | `DeviceGateway`、`VoiceGateway`、`EnvironmentEventAdapter`、`EventPublisher` 的 Kafka 实现 |
+| 已实现并验证 | 有代码、有测试、有本轮实跑结果 | 休息闭环、整晚服务、事件调整、澄清闭环、受控执行、PostgreSQL、LangGraph、Redis、Outbox、Docker |
+| 接口预留 | 只有协议或虚拟对端，没有真实硬件/第三方对端 | SpaceMind / 厂商 `DeviceGateway`、`VoiceGateway`、`EnvironmentEventAdapter`、`EventPublisher` 的 Kafka 实现 |
 | 仍待下一位执行 | 需要用户授权或外部条件 | 真机验收、DeepSeek 多样本指标、多实例与真实部署、真实调度器、真实设备/语音/传感器联调 |
 
 
@@ -374,12 +376,12 @@ T1–T6 本地工程化冻结与 E 一致性可恢复性专项均已完成。下
 |---|---|
 | Compose 全栈 | PostgreSQL、Redis、migration、API、Outbox Publisher、Activity Projector 一次启动，API healthy |
 | Worker 链路 | 7/7 Outbox 发布与消费；Worker 重启后 `domain_events` 与 `consumer_receipts` 数量不变 |
-| 数据库迁移 | 空库 0001→0004；0003→0002→0003 与 0004→0003→0004 回退再升级均通过 |
-| 后端组合（E 专项后复跑） | 内存+legacy 136/19 skip；PostgreSQL+legacy 150/5 skip；PostgreSQL+Redis+LangGraph 154/1 skip |
+| 数据库迁移 | 原 T6/E 迁移证据保留；F 新增 0005 已完成 0004→0005→0004→0005 |
+| 后端组合（F 专项后复跑） | 内存+legacy 144/19 skip；PostgreSQL+Redis+LangGraph 162/1 skip |
 | Agent 等价 | Legacy / LangGraph 5 组输入全部等价 |
 | 前端与契约 | 前端 32/32 + 类型检查（含 tests 子项目）；OpenAPI → TS 重新生成与仓库内容逐字节一致 |
-| Docker API E2E | Playwright 20/20；含整晚、模型桩、停止竞态与断开后端 |
-| E 专项 | 澄清路由与恢复用例、`tests/test_recovery.py`、`tests/test_adapter_protocols.py` 全部通过；Legacy/LangGraph 5 组仍等价 |
+| Docker API E2E | F 专项后重跑 22/22；含整晚、模型桩、停止竞态、澄清与断开后端 |
+| F 专项 | `tests/test_execution_authority.py` 8 项；确认产生授权、一次性指令锁定确认值、授权缩权、并发幂等、同 ID 异载荷拒绝、过期代次拒绝、unknown 恢复均通过 |
 | 证据表 | `docs/evidence.md` 与 `output/pdf/LivingMind-主张证据表.pdf`；5 页逐页渲染检查 |
 
 ### 9.2 外部状态与剩余验收
@@ -389,9 +391,9 @@ T1–T6 本地工程化冻结与 E 一致性可恢复性专项均已完成。下
 3. **可选指标**：DeepSeek 多次延迟统计按 `docs/project-metrics.md` 执行；当前仍只有 2035 ms 单次真实样本，不得虚构提升比例。
 4. **能源口径**：用户已确认以给定固定日数据为准，不重训、不复现 MATD3；只标注“已提供的离线仿真结果”。
 5. **旧 HTML**：已不是新 Expo 项目完成的前置；只在用户再提供具体旧页面并要求对照时处理。
-6. **多实例与真实部署（明确不做，待授权）**：锁续租或 fencing token，并让设备网关拒绝过期 `serviceEpoch`。注意：Redis 续租只能证明“同一时刻只有一个实例在驱动空间”，**不能**单独证明真实设备的执行安全，必须由设备网关侧的代次校验兜底。
+6. **多实例与真实部署（明确不做，待授权）**：虚拟 Gateway 已用 `serviceEpoch` 拒绝过期命令；真实网关必须实现相同 fencing，并根据硬件命令时间增加 Redis 锁续租。
 7. **真实后台调度器（明确不做，待授权）**：把模拟时钟换成可恢复调度器，并验证时区、漏触发与重复触发。
-8. **真实设备 / 语音 / 传感器联调（明确不做，待授权）**：实现 `DeviceGateway`、`VoiceGateway`、`EnvironmentEventAdapter`，验证异步回执、重复 `actionId`、过期 `serviceEpoch`、状态回读；真实语音上线前先定义说话人到 `accountId/personId/spaceId` 的授权规则。
+8. **真实设备 / 语音 / 传感器联调（明确不做，待授权）**：用 SpaceMind / 厂商对端替换虚拟 `AdapterDeviceGateway`，保持已有 `DeviceGateway` 契约并重跑异步回执、幂等、fencing 和回读测试；真实语音上线前先定义说话人到 `accountId/personId/spaceId` 的授权规则。
 
 ### 9.3 复现入口
 
@@ -408,12 +410,12 @@ docker compose down
 
 ## 9.4 当前进度（2026-09-19）
 
-T1–T6、E 专项、F 专项（语音与设备直接控制）均已完成并推送；CI 在 E 专项时全绿。
+E 专项、F 受控执行、G 语音与设备直接控制的代码与本地回归均已完成。**F 与 G 都还没有在 GitHub Actions 上跑过**；不得沿用上一次 CI 绿灯声称新改动已托管验证。
 
 | 项 | 状态 |
 |---|---|
-| 本地检查 | 后端 150/19、164/5、168/1；迁移 0003↔0004；等价 5/5；前端 88/88 + 类型检查；契约一致；端到端 27/27 |
-| 上一次托管 CI | 运行 `35409969801`（`bfcdd0e`），6/6 通过。F 专项的提交推送后需重新观察一次 |
+| 最新 CI | E 基线运行 `35409969801`（`bfcdd0e`）6/6；**F+G 未运行托管 CI** |
+| 本地检查 | 后端 158 通过 / 19 跳过、172 通过 / 5 跳过、176 通过 / 1 跳过；迁移 0001→0005 与 0004↔0005；等价 5/5；前端 88 + 类型检查；契约一致；端到端 27/27 |
 | 工作区 | 干净 |
 
 ### 唯一待人工验收的一项：设备端语音识别
@@ -445,10 +447,10 @@ npx expo run:ios      # 或 npx expo run:android / EAS 开发版
 
 | 顺序 | 项 | 前置条件 |
 |---|---|---|
-| 1 | iPad / Android 真机验收（含上面的语音验收） | 需物理设备；`docs/device-build.md` |
-| 2 | DeepSeek 多样本延迟指标 | 只能在用户 Mac 终端跑；`docs/project-metrics.md` |
-| 3 | 多实例与真实部署 | 锁续租或 fencing token + 设备网关拒绝过期 `serviceEpoch`。**Redis 续租不能单独证明真实设备执行安全** |
-| 4 | 真实设备 / 传感器联调 | 实现 `DeviceGateway`、`EnvironmentEventAdapter` |
+| 1 | iPad / Android 真机验收（含语音识别验收，见上节） | 需物理设备；`docs/device-build.md` |
+| 2 | DeepSeek 多样本延迟指标 | 只能在用户 Mac 终端跑（云端与桌面 VM 都访问不到 `api.deepseek.com`）；`docs/project-metrics.md` |
+| 3 | 多实例与真实部署 | 在虚拟 Gateway 已有 fencing 基础上增加锁续租，并让真实网关拒绝过期 `serviceEpoch`。**Redis 续租不能单独证明真实设备执行安全** |
+| 4 | 真实设备 / 语音 / 传感器联调 | 替换 `AdapterDeviceGateway` 为真实对端，不改执行授权链；实现 `VoiceGateway`、`EnvironmentEventAdapter` |
 
 ### 本轮踩过的三个坑（照做能省时间）
 
@@ -501,7 +503,7 @@ python apps/mobile/e2e/run_e2e.py        # 27 个场景，约 5 分钟；--skip-
 
 可直接给下一位 AI 的指令：
 
-> 请先阅读仓库根目录 `AGENT-HANDOFF.md`（尤其第 0.2、0.3、9 节），再依次阅读 `docs/status.md`（含“E 一致性与可恢复性专项”一节）、`docs/agent-engineering-review.md`、`docs/technology-architecture.md`、`README.md`、`docs/project-metrics.md`、`docs/acceptance.md` 与 `docs/architecture.md`。保留现有实现和提交历史。T1–T6、E 专项、本地验证及 GitHub 托管 CI 均已完成，不要重复搭建基础设施，不要新增 Kafka，不要重构 Agent/Harness/Executor，不要复现或重训 MATD3，也不要把已有的接口预留改写成“已接入”。描述能力时必须区分三档：已实现并验证 / 接口预留 / 仍待执行（对照第 9 节的表）。下一步只在用户明确授权后选择一项执行：①依据 `docs/device-build.md` 做 iPad/Android 真机验收；②按 `docs/project-metrics.md` 运行 DeepSeek 多样本指标评测；③多实例与真实部署（锁续租或 fencing token + 设备网关拒绝过期代次）；④真实后台调度器（时区、漏触发、重复触发）；⑤实现 `DeviceGateway`/`VoiceGateway`/`EnvironmentEventAdapter` 并联调；⑥后续提交若导致 CI 失败，只修复对应回归。真实设备接入、真机安装、真实语音与传感器、多样本模型指标在实际完成前一律标为未验证。不要自行部署或扩大业务范围。
+> 请先阅读仓库根目录 `AGENT-HANDOFF.md`（尤其第 0.2、0.3、9 节），再依次阅读 `docs/status.md`（含 E/F 专项）、`docs/agent-engineering-review.md`、`docs/technology-architecture.md`、`README.md`、`docs/project-metrics.md`、`docs/acceptance.md` 与 `docs/architecture.md`。保留现有实现和提交历史。T1–T6、E 与 F 已有本地证据；F 的 GitHub 托管 CI 只有在新提交实际运行后才能写成已验证。不要新增 Kafka，不要让 Agent/LangGraph 绕过 `PolicyDecision → ExecutionGrant → Executor → ActionExecution → DeviceGateway`，不要复现或重训 MATD3。描述能力时区分已实现并验证 / 虚拟对端或接口预留 / 仍待执行。下一步只在用户明确授权后选择一项：①真机验收；②DeepSeek 多样本指标；③真实多实例（锁续租 + 真实网关 fencing）；④真实后台调度器；⑤用 SpaceMind/厂商实现替换 `AdapterDeviceGateway` 或联调语音/传感器；⑥推送后跑 GitHub CI，只修对应回归。真实设备、真机、真实语音/传感器、多样本模型指标在完成前一律标为未验证。
 
 ## 12. 产品界面方向（用户已确认，2026-09-17）
 

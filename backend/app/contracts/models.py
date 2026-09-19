@@ -27,6 +27,13 @@ __all__ = [
     "AdvanceClockResponse",
     "SimulateSleepRequest",
     "ActionResult",
+    "ActionExecution",
+    "ActionExecutionStatus",
+    "PolicyDecision",
+    "PolicyDecisionType",
+    "PolicyRuleResult",
+    "ExecutionGrant",
+    "ExecutionGrantStatus",
     "AgentName",
     "AgentStep",
     "StepSource",
@@ -107,7 +114,19 @@ SchedulePhase = Literal["sleep", "deep", "wake"]
 ScheduleStepStatus = Literal["pending", "running", "done", "cancelled"]
 DeviceType = Literal["light", "ac", "curtain"]
 DeviceCommand = Literal["set_brightness", "set_target_temperature", "set_open_percent"]
-ActionOutcome = Literal["succeeded", "rejected", "failed", "skipped"]
+ActionOutcome = Literal["succeeded", "rejected", "failed", "skipped", "unknown"]
+ActionExecutionStatus = Literal[
+    "pending",
+    "dispatching",
+    "accepted",
+    "completed",
+    "rejected",
+    "failed",
+    "unknown",
+    "cancelled",
+]
+PolicyDecisionType = Literal["allow", "deny", "require_confirmation"]
+ExecutionGrantStatus = Literal["active", "revoked", "expired"]
 ActivityKind = Literal[
     "plan_created",
     "plan_fallback",
@@ -467,6 +486,73 @@ class UndoResponse(Contract):
     restored_value: float
 
 
+class PolicyRuleResult(Contract):
+    """One deterministic rule evaluated before a plan can receive execution authority."""
+
+    rule: str
+    passed: bool
+    detail: str
+
+
+class PolicyDecision(Contract):
+    """Auditable Harness output. It explains why a plan may proceed to confirmation."""
+
+    decision_id: str
+    plan_id: str
+    plan_version: int
+    space_id: str
+    policy_version: str
+    decision: PolicyDecisionType
+    plan_hash: str
+    checks: list[PolicyRuleResult]
+    reasons: list[str]
+    decided_at: datetime
+
+
+class ExecutionGrant(Contract):
+    """Bounded, expiring authority created by confirmation; not a general device credential."""
+
+    grant_id: str
+    policy_decision_id: str
+    account_id: str
+    person_id: str
+    space_id: str
+    plan_id: str
+    plan_version: int
+    plan_hash: str
+    service_id: Optional[str]
+    service_epoch: int
+    capabilities: list[Capability]
+    max_adjustments: int = Field(ge=0)
+    status: ExecutionGrantStatus
+    created_at: datetime
+    valid_until: datetime
+    revoked_at: Optional[datetime] = None
+
+
+class ActionExecution(Contract):
+    """Durable command ledger entry, separate from the user-facing action result."""
+
+    action_id: str
+    grant_id: str
+    plan_id: str
+    service_id: Optional[str]
+    space_id: str
+    device: DeviceType
+    command: DeviceCommand
+    requested_value: float
+    service_epoch: int
+    status: ActionExecutionStatus
+    attempt_count: int = Field(ge=0)
+    requested_at: datetime
+    accepted_at: Optional[datetime] = None
+    completed_at: Optional[datetime] = None
+    observed_value: Optional[float] = None
+    observed_at: Optional[datetime] = None
+    error_kind: Optional[str] = None
+    error_detail: Optional[str] = None
+
+
 class ActivityRecord(Contract):
     activity_id: str
     timestamp: datetime
@@ -585,6 +671,7 @@ class RecoveryStatus(Contract):
     active_services: int
     cancelled_unknown_steps: int
     cleared_inflight_flags: int
+    unknown_actions: int = Field(default=0, description="Commands whose final device outcome needs reconciliation")
     device_state_reconciled: bool
     checked_at: datetime
     note: str
@@ -596,6 +683,8 @@ class ConfirmPlanResponse(Contract):
     results: list[ActionResult]
     device_state: DeviceState
     repeated: bool = Field(description="True when the plan was already executed; nothing was re-run")
+    policy_decision: Optional[PolicyDecision] = Field(default=None, description="Harness decision for this confirmation")
+    execution_grant: Optional[ExecutionGrant] = Field(default=None, description="Bounded authority created by confirmation")
 
 
 class StopServiceResponse(Contract):

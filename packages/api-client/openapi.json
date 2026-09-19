@@ -42,7 +42,8 @@
               "succeeded",
               "rejected",
               "failed",
-              "skipped"
+              "skipped",
+              "unknown"
             ],
             "title": "Outcome",
             "type": "string"
@@ -536,6 +537,49 @@
         "title": "BootstrapResponse",
         "type": "object"
       },
+      "Capability": {
+        "properties": {
+          "command": {
+            "enum": [
+              "set_brightness",
+              "set_target_temperature",
+              "set_open_percent"
+            ],
+            "title": "Command",
+            "type": "string"
+          },
+          "device": {
+            "enum": [
+              "light",
+              "ac",
+              "curtain"
+            ],
+            "title": "Device",
+            "type": "string"
+          },
+          "integer": {
+            "title": "Integer",
+            "type": "boolean"
+          },
+          "max": {
+            "title": "Max",
+            "type": "number"
+          },
+          "min": {
+            "title": "Min",
+            "type": "number"
+          }
+        },
+        "required": [
+          "device",
+          "command",
+          "min",
+          "max",
+          "integer"
+        ],
+        "title": "Capability",
+        "type": "object"
+      },
       "ConfirmPlanRequest": {
         "properties": {
           "context": {
@@ -558,8 +602,30 @@
           "deviceState": {
             "$ref": "#/components/schemas/DeviceState"
           },
+          "executionGrant": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ExecutionGrant"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Bounded authority created by confirmation"
+          },
           "plan": {
             "$ref": "#/components/schemas/Plan"
+          },
+          "policyDecision": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PolicyDecision"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Harness decision for this confirmation"
           },
           "repeated": {
             "description": "True when the plan was already executed; nothing was re-run",
@@ -1054,6 +1120,120 @@
           "deviceState"
         ],
         "title": "EventResult",
+        "type": "object"
+      },
+      "ExecutionGrant": {
+        "description": "Bounded, expiring authority created by confirmation; not a general device credential.",
+        "properties": {
+          "accountId": {
+            "title": "Accountid",
+            "type": "string"
+          },
+          "capabilities": {
+            "items": {
+              "$ref": "#/components/schemas/Capability"
+            },
+            "title": "Capabilities",
+            "type": "array"
+          },
+          "createdAt": {
+            "format": "date-time",
+            "title": "Createdat",
+            "type": "string"
+          },
+          "grantId": {
+            "title": "Grantid",
+            "type": "string"
+          },
+          "maxAdjustments": {
+            "minimum": 0.0,
+            "title": "Maxadjustments",
+            "type": "integer"
+          },
+          "personId": {
+            "title": "Personid",
+            "type": "string"
+          },
+          "planHash": {
+            "title": "Planhash",
+            "type": "string"
+          },
+          "planId": {
+            "title": "Planid",
+            "type": "string"
+          },
+          "planVersion": {
+            "title": "Planversion",
+            "type": "integer"
+          },
+          "policyDecisionId": {
+            "title": "Policydecisionid",
+            "type": "string"
+          },
+          "revokedAt": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Revokedat"
+          },
+          "serviceEpoch": {
+            "title": "Serviceepoch",
+            "type": "integer"
+          },
+          "serviceId": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Serviceid"
+          },
+          "spaceId": {
+            "title": "Spaceid",
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "active",
+              "revoked",
+              "expired"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
+          "validUntil": {
+            "format": "date-time",
+            "title": "Validuntil",
+            "type": "string"
+          }
+        },
+        "required": [
+          "grantId",
+          "policyDecisionId",
+          "accountId",
+          "personId",
+          "spaceId",
+          "planId",
+          "planVersion",
+          "planHash",
+          "serviceId",
+          "serviceEpoch",
+          "capabilities",
+          "maxAdjustments",
+          "status",
+          "createdAt",
+          "validUntil"
+        ],
+        "title": "ExecutionGrant",
         "type": "object"
       },
       "HealthResponse": {
@@ -1729,6 +1909,101 @@
         "title": "PlannerInfo",
         "type": "object"
       },
+      "PolicyDecision": {
+        "description": "Auditable Harness output. It explains why a plan may proceed to confirmation.",
+        "properties": {
+          "checks": {
+            "items": {
+              "$ref": "#/components/schemas/PolicyRuleResult"
+            },
+            "title": "Checks",
+            "type": "array"
+          },
+          "decidedAt": {
+            "format": "date-time",
+            "title": "Decidedat",
+            "type": "string"
+          },
+          "decision": {
+            "enum": [
+              "allow",
+              "deny",
+              "require_confirmation"
+            ],
+            "title": "Decision",
+            "type": "string"
+          },
+          "decisionId": {
+            "title": "Decisionid",
+            "type": "string"
+          },
+          "planHash": {
+            "title": "Planhash",
+            "type": "string"
+          },
+          "planId": {
+            "title": "Planid",
+            "type": "string"
+          },
+          "planVersion": {
+            "title": "Planversion",
+            "type": "integer"
+          },
+          "policyVersion": {
+            "title": "Policyversion",
+            "type": "string"
+          },
+          "reasons": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Reasons",
+            "type": "array"
+          },
+          "spaceId": {
+            "title": "Spaceid",
+            "type": "string"
+          }
+        },
+        "required": [
+          "decisionId",
+          "planId",
+          "planVersion",
+          "spaceId",
+          "policyVersion",
+          "decision",
+          "planHash",
+          "checks",
+          "reasons",
+          "decidedAt"
+        ],
+        "title": "PolicyDecision",
+        "type": "object"
+      },
+      "PolicyRuleResult": {
+        "description": "One deterministic rule evaluated before a plan can receive execution authority.",
+        "properties": {
+          "detail": {
+            "title": "Detail",
+            "type": "string"
+          },
+          "passed": {
+            "title": "Passed",
+            "type": "boolean"
+          },
+          "rule": {
+            "title": "Rule",
+            "type": "string"
+          }
+        },
+        "required": [
+          "rule",
+          "passed",
+          "detail"
+        ],
+        "title": "PolicyRuleResult",
+        "type": "object"
+      },
       "RecoveryStatus": {
         "description": "Result of the startup reconciliation; observable evidence, not a claim of exact device recovery.",
         "properties": {
@@ -1764,6 +2039,12 @@
             ],
             "title": "Store",
             "type": "string"
+          },
+          "unknownActions": {
+            "default": 0,
+            "description": "Commands whose final device outcome needs reconciliation",
+            "title": "Unknownactions",
+            "type": "integer"
           }
         },
         "required": [

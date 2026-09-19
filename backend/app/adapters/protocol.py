@@ -1,7 +1,8 @@
-"""Stable seam for future SpaceMind/base-device integrations.
+"""Device seams for the virtual demo and future SpaceMind/vendor integrations.
 
-The demo injects ``VirtualDeviceAdapter`` here. A real vendor or base adapter must
-implement this small protocol and remains constrained by the Harness executor.
+``DeviceAdapter`` is the local virtual-device primitive. External integrations should
+implement ``DeviceGateway`` so idempotency, fencing and typed receipts remain explicit.
+Both paths stay behind the Harness executor.
 """
 
 from __future__ import annotations
@@ -28,7 +29,7 @@ class DeviceAdapter(Protocol):
     def reset(self) -> None: ...
 
 
-CommandStatus = Literal["accepted", "completed", "rejected", "unknown"]
+CommandStatus = Literal["accepted", "completed", "rejected", "failed", "unknown"]
 DeviceErrorKind = Literal["offline", "timeout", "unauthorized", "unsupported", "rejected", "unknown"]
 
 
@@ -66,9 +67,13 @@ class DeviceCommandReceipt:
 
 @runtime_checkable
 class DeviceGateway(Protocol):
-    """Reserved V2 seam: identity, idempotency key, epoch and typed acknowledgements."""
+    """V2 seam: identity, idempotency key, epoch fencing and typed acknowledgements."""
 
     def list_devices(self, space_id: str) -> list[DeviceDescriptor]: ...
+
+    def advance_fence(self, space_id: str, service_epoch: int) -> None:
+        """Reject any later command carrying an older epoch for this space."""
+        ...
 
     def submit(self, request: DeviceCommandRequest) -> DeviceCommandReceipt: ...
 

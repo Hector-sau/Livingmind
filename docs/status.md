@@ -1,6 +1,6 @@
 # 实现状态
 
-更新：2026-09-18 · 第一批、⑤–⑨演示能力、稳定性收尾、能源快照与 **T1–T6 工程化冻结均已完成**。Experience Agent 已在用户 Mac 验证一次真实 DeepSeek 调用（deepseek-flash，2035 ms）。Docker Compose 全栈、Worker 事件链、迁移升降、三套后端组合、Docker API 浏览器端到端与 GitHub 托管 CI 均已实测。仍待外部条件：iPad / 安卓平板真机构建与录屏。
+更新：2026-09-19 · 第一批、⑤–⑨演示能力、稳定性收尾、能源快照、**T1–T6 工程化冻结**与 **F 受控执行专项**均已完成。Experience Agent 已在用户 Mac 验证一次真实 DeepSeek 调用（deepseek-flash，2035 ms）。仍待外部条件：iPad / 安卓平板真机构建与录屏、SpaceMind / 厂商真实设备对端。
 
 ## 已实现
 
@@ -18,9 +18,9 @@
 | P07：固定日家庭能源离线仿真（规则 vs 单智能体 MATD3）只读 API 与空间页展示 | `simulation/home-energy/`、`backend/app/energy/simulation.py`、`features/energy/OfflineSimulationCard.tsx` | `tests/test_offline_energy_simulation.py`（2 项）、`tests/mockApi.test.ts` |
 | P07：该固定日结果在本仓库复现（同一权重、种子 42，8 项 KPI 全部一致，最大差 0.005；未重新训练） | `simulation/home-energy/research/reproduce_day.py`、`data/reproduced-day-comparison.json` | 复现脚本可一条命令重跑；依赖单独列在 `requirements-research.txt`，不进后端与 CI |
 | 固定休息规则（无模型） | `backend/app/rules/rest_rule.py` | `tests/test_rest_flow.py` |
-| 统一执行器：白名单、参数范围、每个动作前检查服务、回读 | `backend/app/harness/executor.py` | 同上 |
+| 受控执行：PolicyDecision、用户确认后的有界 ExecutionGrant、逐动作 guard、持久化动作账本、Gateway 回执与回读 | `backend/app/harness/`、`adapters/gateway.py`、`repositories/` | `tests/test_execution_authority.py`（8 项）与原有流程回归 |
 | 有状态虚拟设备（灯光、空调、窗帘） | `backend/app/adapters/virtual/devices.py` | 同上 |
-| 真实设备 V2、语音与传感器事件接口预留（`DeviceGateway` 含 `deviceId`/`actionId`/`serviceEpoch`/受理-完成-拒绝-未知四态回执/错误类型/观测时间；`VoiceGateway` 含 `audioId`/说话人/空间/置信度/播报与取消；`EnvironmentEventAdapter` 含事件 ID/去重键/来源/采集时间） | `backend/app/adapters/protocol.py`、`voice.py`、`events.py` | `tests/test_adapter_protocols.py`：用可执行的契约替身证明三个协议能被实现并被 `isinstance` 识别。**仅接口预留**：未接入真实设备、SpaceMind、音箱或传感器 |
+| 设备 V2 契约已在虚拟执行路径落地（`actionId` 幂等、`serviceEpoch` fencing、受理/完成/失败/拒绝/未知回执）；语音与传感器仍是接口预留 | `backend/app/adapters/protocol.py`、`gateway.py`、`voice.py`、`events.py` | 虚拟网关有幂等/并发/过期代次测试；**未接入真实设备、SpaceMind、音箱或传感器** |
 | 服务状态、确认幂等、单空间单服务、停止失效、计划过期 | `backend/app/services/rest_service.py` | 同上 |
 | 活动记录（按实际发生写入，标注来源） | 同上 | 同上 |
 | PR 模板 + CI（三套后端组合、迁移升降、契约、前端与 Docker API E2E） | `.github/` | GitHub Actions 最新运行 `35409969801`（`bfcdd0e`）：6/6 Job 通过 |
@@ -37,7 +37,7 @@
 | ⑥：App“注入模拟事件”按钮、调整次数、事件结果提示、服务动态中的事件记录；前端 Mock 同步规则 | `apps/mobile/features/rest/ServiceCard.tsx`、`services/mock/mockApi.ts` | `tests/mockApi.test.ts`；端到端 `mock-event`、`http-event` |
 | E：意图路由识别否定、冲突与指代不清（“我不想休息，只想关灯”走设备指令；“先开灯再关灯”与“把那个调低一点”先澄清，不产生动作） | `backend/app/agents/orchestrator/agent.py::route_intent`、`clarification_question` | `tests/test_agents.py`（新增 3 项路由与澄清用例） |
 | E：可恢复的多轮澄清。`conversationId` + `PendingClarification` 落库（内存或 PostgreSQL），按账户、人物、空间、会话四重隔离，10 分钟过期，可取消；补充信息后按原意图继续，中途换人物不会被别人的待澄清污染 | `backend/app/contracts/models.py::PendingClarification`、`repositories/store.py`、`sql_store.py`、`alembic/versions/0004_pending_clarifications.py`、`services/rest_service.py` | `tests/test_agents.py`（澄清 → 恢复 → 取消 → 人物隔离）、`tests/test_experience_agent.py`（模型给出澄清问题时不生成计划） |
-| E：启动恢复可查询。`GET /api/system/recovery` 返回存储类型、活跃服务数、被取消的结果未知步骤数、清理的执行中标记数、设备状态是否已对齐 | `backend/app/services/rest_service.py::recovery_status`、`api/routes.py` | `tests/test_recovery.py`：内存模式如实回答“没有跨进程恢复”；PostgreSQL 模式下崩溃遗留的 `running` 步骤被**取消**而不是重放 |
+| E/F：启动恢复可查询。`GET /api/system/recovery` 返回存储类型、活跃服务数、被取消的结果未知步骤数、清理的执行中标记数、`unknown` 动作数和设备对账状态 | `backend/app/services/rest_service.py::recovery_status`、`api/routes.py` | `tests/test_recovery.py`：崩溃遗留步骤不重放；已 dispatch/accepted 但无终态的动作改为 `unknown` |
 | ⑥b：四个入口（对话 / 空间 / 场景 / 我的）；对话主页（计划卡、结果卡、系统消息、服务状态条、快捷语、语音占位）；平板左栏 + 右侧房间面板，手机底部标签栏 | `apps/mobile/features/shell/`、`chat/` | `tests/conversation.test.ts`；端到端全部场景已改为走对话 |
 | ⑥b：演示 PIN 切换人物（`POST /api/persons/{id}/unlock`，不是认证）、访客模式（空间默认设置）、只显示本人偏好、证据面板开关 | `backend/app/services/rest_service.py`、`apps/mobile/features/me/` | `tests/test_people_and_scenes.py`；端到端 `*-pin-evidence`、`http-guest-scenes` |
 | ⑥b：场景库（`GET /api/scenes`，状态如实）与人话时间线 | `backend/app/demo/seed.py`、`apps/mobile/features/scenes/` | `test_scene_library_status_is_honest`；`tests/conversation.test.ts` |
@@ -72,7 +72,7 @@
 | 6 | 非法人物 / 空间 / 账户 / 参数 / 过期 / 版本不符被拒绝 | 自动化测试通过 |
 | 7 | 后端断开时 App 明确反馈 | 前端单元测试 + 端到端场景 `http-offline`（关掉后端后点确认，出现“无法连接后端，显示的状态可能已过期”，设备数值变灰，没有假装成功） |
 
-浏览器端到端：`apps/mobile/e2e/run_e2e.py`（已入库，可复现）。用 Expo 网页导出，在 1180×820 和 390×844 两种尺寸下跑 27 个场景。2026-09-18 通过 `--external-backend` 连接 Docker Compose API 跑过 **20/20**（当时 20 个场景）；2026-09-19 新增两个澄清场景后本地 22/22 通过；同日 F 专项新增语音 2 个、直接控制 3 个场景后本地 **27/27 通过**；末尾断网场景只关闭本地代理，不伪造后端成功。模型路径连的是本地桩，不是 DeepSeek。
+浏览器端到端：`apps/mobile/e2e/run_e2e.py`（已入库，可复现）。用 Expo 网页导出，在 1180×820 和 390×844 两种尺寸下跑 27 个场景。2026-09-18 通过 `--external-backend` 连接 Docker Compose API 跑过 **20/20**（当时 20 个场景）；2026-09-19 新增两个澄清场景后本地 22/22 通过；同日 G 专项新增语音 2 个、直接控制 3 个场景后本地 **27/27 通过**；末尾断网场景只关闭本地代理，不伪造后端成功。模型路径连的是本地桩，不是 DeepSeek。
 
 ## ⑤ 的验证情况
 
@@ -89,6 +89,18 @@
 | **真实 DeepSeek 调用与 8 秒目标** | **Agent 层已验证**（用户 Mac，2026-09-17）：`deepseek-flash`，Agent 一次调用 **2035 ms**，输出通过结构校验（灯光 15%、空调 24°C、窗帘 0%，理由引用了“有点热”并相对基线下调 1°C）。单次样本。多次统计与评测集打分是可选项（脚本已就绪），汇报时引用单次结果并说明 |
 
 本地 HTTP 桩只用于验证请求格式（`/chat/completions`、Bearer 头、`response_format: json_object`）、响应解析和超时路径，**不代表已连通 DeepSeek**。
+
+## F 受控执行专项（2026-09-19）
+
+| 机制 | 实现 | 实测证据 |
+|---|---|---|
+| 可审计策略决策 | 计划预检产生 `PolicyDecision`，包含规则结果、计划语义哈希和是否需确认 | 确认响应和 PostgreSQL 均保存决策 |
+| 有界执行授权 | 用户确认后才生成 `ExecutionGrant`，绑定 account/person/space/plan/version/hash/service/epoch/capability/有效期；停止或结束撤销 | `test_confirmation_creates_policy_grant_and_completed_action_ledger`、`test_grant_scope_can_be_narrower_than_platform_policy` |
+| 动作账本 | `ActionExecution` 保存 `pending → dispatching → accepted → terminal`、尝试次数、观测值和错误 | 内存 / PostgreSQL 两种存储一致；迁移 `0005_execution_authority.py` 可升降 |
+| 网关幂等与 fencing | 同 `actionId` 同载荷返回原回执；并发重试先占位、不重复写；同 ID 不同载荷拒绝；旧 `serviceEpoch` 命令在写设备前拒绝 | `tests/test_execution_authority.py`（8 项） |
+| 结果未知处理 | 网关受理后无终态时记为 `unknown`；重启不盲目重发 | `tests/test_recovery.py`、`test_accepted_without_terminal_receipt_is_unknown_and_recorded` |
+
+F 专项当时的回归：后端内存 + legacy 144 passed / 19 skipped；PostgreSQL + Redis + LangGraph 162 passed / 1 skipped；前端 32 passed；Alembic `0004 → 0005 → 0004 → 0005` 通过；浏览器端到端 22/22。**与 G 专项合并后重跑的最新值见下方“F+G 合并回归”。**Docker 镜像重新拉取基础镜像时受 Docker Hub 元数据超时影响，本轮用已存在镜像 + 当前源码挂载完成容器验证。
 
 ## 未验证 / 限制
 
@@ -108,7 +120,7 @@
 - 演示身份下，谁能读哪份记忆由请求上下文决定，不是认证。
 - 规则模式下输入文字只记录，不做语义理解。模型模式已验证一次真实调用；延迟只有单次样本。
 - GitHub Actions 已真实运行；最新是 `main@bfcdd0e` 对应的运行 `35409969801`，6 个 Job 全绿（4m30s）。
-- 多 API 实例控制真实设备、真实后台定时器、真实传感器事件源都未做；Redis 锁只能证明同一时刻只有一个实例在驱动空间，不能证明真实设备恰好执行一次。
+- 虚拟 `DeviceGateway` 已验证 `actionId` 幂等与 `serviceEpoch` fencing，但真实厂商网关、多 API 实例的锁续租、硬件回执对账、真实后台定时器和传感器事件源仍未做；不宣称真实设备“恰好执行一次”。
 - 澄清只覆盖否定、设备冲突和指代不清三类规则可判定的歧义，不是通用多轮对话；虚拟设备状态仍在进程内，不跨进程恢复。
 
 ## T1 Docker 基线（已完成并通过宿主机验证）
@@ -211,16 +223,16 @@
 | Legacy / LangGraph 等价 | 5 组输入全部等价 |
 | 前端 | `tsc --noEmit`（含 tests）无错；`32 passed` |
 | 契约 | 重新生成 `openapi.json` 与 `schema.ts`，与仓库内容逐字节一致 |
-| 网页端到端 | 22/22 场景通过（含 `http-clarification`、`mock-clarification`） |
+| 网页端到端 | 27/27 场景通过（含澄清 2、语音 2、直接控制 3） |
 
 ### 本轮明确不做（留给下一位，需用户授权）
 
-1. **多实例与真实部署**：锁续租 / fencing token、设备网关拒绝过期代次。Redis 续租本身不能证明真实设备执行安全，必须由设备网关侧的代次校验兜底。
+1. **多实例与真实部署**：虚拟 Gateway 已验证 fencing；真实网关仍须实现过期代次拒绝，并根据硬件命令时间增加 Redis 锁续租。
 2. **真实后台调度器**：把模拟时钟换成可恢复的调度器，并验证时区、漏触发与重复触发。
 3. **真实设备 / 语音 / 传感器接入**：实现上面三个协议并做异步回执、重复 `actionId`、过期 `serviceEpoch`、状态回读的联调。
 4. **真机验收与 DeepSeek 多样本指标**：见 `docs/device-build.md`、`docs/project-metrics.md`。
 
-## F 语音与设备直接控制（已完成，2026-09-19）
+## G 语音与设备直接控制（已完成，2026-09-19）
 
 本轮做两件事：把语音从一个占位按钮做成完整回合，并把设备面板从只读改成可直接控制。
 **没有接入任何真实硬件**；语音识别的原生路径代码完整但未在真机验证，见本节末尾。
@@ -275,6 +287,31 @@
 撤销窗口只存在于进程内。重启之后没有东西可撤销，跨实例也不提供——这是明确语义，不是遗漏。
 真实设备接入后，撤销是否安全还取决于设备网关是否拒绝过期代次，见 `docs/agent-engineering-review.md`。
 
+## F + G 合并回归（2026-09-19）
+
+F（受控执行）与 G（语音与设备直接控制）是两条并行开展的工作，在 `c991d7f` 处分叉，
+合并时有 4 处冲突（`AGENT-HANDOFF.md`、`README.md`、`contracts/models.py`、
+`scripts/build_evidence.py`、生成文件 `docs/evidence.md`），均为两边各自新增内容并存，
+没有语义冲突。合并后重跑的才是当前有效数字——F 与 G 各自提交里的数字都只代表合并前。
+
+| 组合 | 结果 |
+|---|---|
+| 后端 内存 + legacy | `158 passed / 19 skipped` |
+| 后端 PostgreSQL + legacy | `172 passed / 5 skipped` |
+| 后端 PostgreSQL + Redis + LangGraph | `176 passed / 1 skipped` |
+| Alembic | 空库 → `0005`；`0005 → 0004 → 0005` 升降级通过 |
+| Legacy / LangGraph 等价 | 5 组输入全部等价 |
+| 前端 | `tsc --noEmit`（含 tests）无错；`88 passed` |
+| 契约 | 两边都改过契约，已重新生成 |
+| 网页端到端 | **27/27** |
+
+两条线在设计上不打架：F 管"Agent 凭什么能碰设备"（策略决定 → 有界授权 → 动作账本 →
+Gateway），G 管"人怎么碰设备、碰错了怎么收回"（语音回合、直接控制、撤销窗口）。
+合并后设备写入路径仍然只有一条。
+
+**F 与 G 合并后都还没有在 GitHub Actions 上跑过。** 上一次绿灯是 E 专项基线
+（运行 `35409969801`，对应 `bfcdd0e`），不能用它声称当前改动已经过托管验证。
+
 ## 本地冻结后仍待完成
 
 A 真机验收（有 iPad 时） · D 的设备部分（EAS 开发版构建、平板录屏） · 旧 HTML 前端清单（用户尚未提供旧文件） · E 专项列出的四项"明确不做"（多实例与真实部署、真实调度器、真实设备/语音/传感器接入、多样本模型指标）
@@ -283,4 +320,4 @@ A 真机验收（有 iPad 时） · D 的设备部分（EAS 开发版构建、�
 
 - 设备侧验收：有 iPad 或安卓平板时完成真机构建与录屏。
 - 若以后换成真实定时器：由定时器调用 `advance_clock`，认领与守卫逻辑不变；但必须先补齐时区、漏触发与重复触发的验证。
-- 若以后接真实设备：实现 `DeviceGateway` 而不是扩展 `DeviceAdapter`，所有请求仍进 Harness / Executor；`GET /api/system/recovery` 的 `deviceStateReconciled` 只有在真实回读对齐后才允许改成 `true`。
+- 若以后接真实设备：以真实实现替换 `AdapterDeviceGateway`，不改 `DeviceGateway` 契约与授权链；`GET /api/system/recovery` 的 `deviceStateReconciled` 只有在真实回读对齐后才允许改成 `true`。

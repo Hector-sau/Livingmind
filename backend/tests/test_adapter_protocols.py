@@ -19,6 +19,9 @@ class FakeDeviceGateway:
     def list_devices(self, space_id):
         return [DeviceDescriptor("lamp-1", space_id, "light", ())]
 
+    def advance_fence(self, space_id, service_epoch):
+        self.fence = (space_id, service_epoch)
+
     def submit(self, request: DeviceCommandRequest):
         receipt = DeviceCommandReceipt(request.action_id, "accepted", None, None)
         self.receipts[request.action_id] = receipt
