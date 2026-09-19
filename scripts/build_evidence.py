@@ -119,7 +119,7 @@ ROWS: list[tuple[str, str, str, str, str, str]] = [
      "业务事实和 Outbox 同事务；Publisher 重试/死信；Consumer 按 event_id 去重。Compose 实测 7/7 事件发布并消费，重启 Worker 后数量不变",
      "backend/app/events/；backend/workers/；tests/test_outbox_events.py；docs/status.md", "PostgreSQL 数据库队列，非 Kafka"),
     ("工程证据", "T6 完整集成回归", "已实现",
-     "默认、PostgreSQL、PostgreSQL+Redis+LangGraph 三套后端组合通过；20 个浏览器场景全部连接 Docker API 通过；GitHub Actions 运行 35333253707 的 6 个 Job 全绿",
+     "默认、PostgreSQL、PostgreSQL+Redis+LangGraph 三套后端组合通过；浏览器场景全部连接 Docker API 通过；GitHub Actions 运行 35333253707（T6 冻结，20 场景）与 35409969801（E 专项，22 场景）各 6/6 Job 全绿",
      ".github/workflows/ci.yml；apps/mobile/e2e/run_e2e.py；docs/status.md", "本地 Docker / Playwright + GitHub 托管运行"),
     ("工程证据", "E 一致性与可恢复性专项复跑", "已实现",
      "内存+legacy 136/19；PostgreSQL+legacy 150/5；PostgreSQL+Redis+LangGraph 154/1；Alembic 0003↔0004 升降级；legacy/LangGraph 5 组等价；前端 32 项 + 类型检查；契约重新生成逐字节一致；网页端到端 22/22（含两个澄清场景）",
@@ -141,7 +141,7 @@ TESTS = [
     ("前端逻辑测试 + 类型检查", "32 项", "apps/mobile/tests/"),
     ("网页端到端（平板 / 手机，前端模拟 + Docker API）", "22/22 场景", "apps/mobile/e2e/run_e2e.py"),
     ("契约一致性（后端模型 → 前端类型）", "通过", "scripts/gen-api.sh"),
-    ("GitHub Actions 三组合 + Docker E2E", "运行 35333253707：6/6 Job 通过", ".github/workflows/ci.yml"),
+    ("GitHub Actions 三组合 + Docker E2E", "最新运行 35409969801（bfcdd0e）：6/6 Job 通过", ".github/workflows/ci.yml"),
 ]
 
 SOURCES = [

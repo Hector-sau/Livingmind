@@ -136,7 +136,7 @@ jobs:
           done
           docker compose logs
           exit 1
-      - name: run 20 browser scenarios against Docker API
+      - name: run the browser scenarios against Docker API
         # Linux containers cannot reach a host service bound only to 127.0.0.1.
         # The runner is ephemeral; expose the fake model stub on its bridge
         # interface for this step so host.docker.internal resolves correctly.

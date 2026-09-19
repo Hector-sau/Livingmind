@@ -1,5 +1,7 @@
 # LivingMind App
 
+[![CI](https://github.com/Hector-sau/Livingmind/actions/workflows/ci.yml/badge.svg)](https://github.com/Hector-sau/Livingmind/actions/workflows/ci.yml)
+
 平板优先、手机兼容的 LivingMind 原型：一个 Expo 原生 App + 一个模块化 FastAPI 后端。
 
 当前范围：**平板优先、手机兼容的 Home Living 演示闭环**。场景只有“我想休息”：计划 → 确认 → 虚拟设备回读 → 模拟入睡 / 室温事件 → 整晚模拟时钟 → 渐进唤醒或停止。

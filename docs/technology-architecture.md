@@ -70,7 +70,7 @@ Docker Compose：在开发机和 CI 中统一启动 API、数据库、缓存和 
 | 异步事件 | PostgreSQL Transactional Outbox → 数据库队列 → 幂等Consumer Projection；活动仍同步写入 | Kafka仅保留可选接口 | 已实现数据库队列 |
 | 语音入口 | `adapters/voice.py` 只有接口定义，没有任何调用方 | 真实网关返回文本与来源后走同一 assistant 契约 | **仅接口预留，未实现** |
 | 容器化 | Python 3.12多阶段非root镜像 + Compose | 保持可复现冻结 | 宿主机全栈与容器E2E通过 |
-| CI | 三套后端matrix、迁移升降、TS、契约、Docker E2E | 后续提交持续保持全绿 | GitHub Actions `35333253707`：6/6 Job 通过 |
+| CI | 三套后端matrix、迁移升降、TS、契约、Docker E2E | 后续提交持续保持全绿 | GitHub Actions 最新运行 `35409969801`（`bfcdd0e`）：6/6 Job 通过 |
 
 ## 3. 1+2 Agent 与 LangGraph
 
@@ -569,7 +569,7 @@ kafka healthy ────┘                │
 
 ### 阶段 F：集成与演示冻结
 
-状态：**工程化集成冻结已完成**。Compose 全栈启动及两个 Worker 实际运行通过；Outbox 7/7 发布消费，Worker 重启后无重复；Alembic 0001→0003 与 0003→0002→0003 通过；三套后端组合分别为 127/141/145 项通过；Docker API 浏览器端到端 20/20。GitHub Actions 运行 `35333253707` 的 6 个 Job 全部通过。证据表已重新生成并检查。**尚未完成的是平板真机验收**，需要物理设备。
+状态：**工程化集成冻结已完成**。Compose 全栈启动及两个 Worker 实际运行通过；Outbox 7/7 发布消费，Worker 重启后无重复；Alembic 0001→0003 与 0003→0002→0003 通过；三套后端组合分别为 127/141/145 项通过；Docker API 浏览器端到端 20/20。GitHub Actions 运行 `35333253707` 的 6 个 Job 全部通过（T6 冻结当时；此后 E 专项的 `35409969801` 同样 6/6 全绿）。证据表已重新生成并检查。**尚未完成的是平板真机验收**，需要物理设备。
 
 - Compose 一键启动全部后端服务。
 - GitHub CI 增加 migration、容器健康和集成测试：PostgreSQL 与 Redis 用 service containers 起；Kafka 相关测试单独一个可选 job 或只在本地跑。

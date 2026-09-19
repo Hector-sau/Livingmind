@@ -23,7 +23,7 @@
 | 真实设备 V2、语音与传感器事件接口预留（`DeviceGateway` 含 `deviceId`/`actionId`/`serviceEpoch`/受理-完成-拒绝-未知四态回执/错误类型/观测时间；`VoiceGateway` 含 `audioId`/说话人/空间/置信度/播报与取消；`EnvironmentEventAdapter` 含事件 ID/去重键/来源/采集时间） | `backend/app/adapters/protocol.py`、`voice.py`、`events.py` | `tests/test_adapter_protocols.py`：用可执行的契约替身证明三个协议能被实现并被 `isinstance` 识别。**仅接口预留**：未接入真实设备、SpaceMind、音箱或传感器 |
 | 服务状态、确认幂等、单空间单服务、停止失效、计划过期 | `backend/app/services/rest_service.py` | 同上 |
 | 活动记录（按实际发生写入，标注来源） | 同上 | 同上 |
-| PR 模板 + CI（三套后端组合、迁移升降、契约、前端与 Docker API E2E） | `.github/` | GitHub Actions 运行 `35333253707`：6/6 Job 通过 |
+| PR 模板 + CI（三套后端组合、迁移升降、契约、前端与 Docker API E2E） | `.github/` | GitHub Actions 最新运行 `35409969801`（`bfcdd0e`）：6/6 Job 通过 |
 | B：设备写入在服务锁外执行；停止可中途抢占慢设备批次 | `backend/app/services/rest_service.py`、`adapters/virtual/devices.py` | `tests/test_concurrency.py`（服务层 + HTTP 线程池各一） |
 | ⑤：Experience Agent（提示词、Pydantic 输出校验、DeepSeek Provider） | `backend/app/agents/experience/` | `tests/test_experience_agent.py`（14 项，用测试替身，不调 DeepSeek） |
 | ⑤：规则/模型切换、降级为规则并标注原因、延迟记录 | `backend/app/services/planner.py`、`rules/rest_rule.py` | 同上；本地 HTTP 桩验证了真实 HTTP 路径与 2 秒超时降级 |
@@ -107,7 +107,7 @@
 - P07 的能源数值是固定预设日的离线结果：单智能体、美元/华氏度参数，未重训，未接入实时设备；不得外推成真实节能效果。该日结果已在本仓库复现（`simulation/home-energy/research/reproduce_day.py`，种子 42，8 项 KPI 与图一致，最大差 0.005）。
 - 演示身份下，谁能读哪份记忆由请求上下文决定，不是认证。
 - 规则模式下输入文字只记录，不做语义理解。模型模式已验证一次真实调用；延迟只有单次样本。
-- GitHub Actions 已真实运行；`main@197037a` 对应运行 `35333253707` 的 6 个 Job 全绿。
+- GitHub Actions 已真实运行；最新是 `main@bfcdd0e` 对应的运行 `35409969801`，6 个 Job 全绿（4m30s）。
 - 多 API 实例控制真实设备、真实后台定时器、真实传感器事件源都未做；Redis 锁只能证明同一时刻只有一个实例在驱动空间，不能证明真实设备恰好执行一次。
 - 澄清只覆盖否定、设备冲突和指代不清三类规则可判定的歧义，不是通用多轮对话；虚拟设备状态仍在进程内，不跨进程恢复。
 
@@ -182,7 +182,7 @@
 - 后端组合（T6 冻结当时）：内存+legacy `127 passed / 18 skipped`；PostgreSQL+legacy `141 passed / 4 skipped`；PostgreSQL+Redis+LangGraph `145 passed`。E 专项后的基线见下节。
 - Redis 测试仅允许清理显式配置的非 0 号逻辑库；冷却到期同时尊重服务时钟与 Redis TTL。
 - Legacy / LangGraph 5 组输入全部等价；前端 31/31；契约重新生成无 diff；Docker API Playwright 20/20。
-- GitHub Actions 三套后端 matrix、迁移、契约、前端与 Docker E2E 均已在托管环境运行；`35333253707` 为 6/6 Job 通过，Docker API 浏览器场景 20/20。
+- GitHub Actions 三套后端 matrix、迁移、契约、前端与 Docker E2E 均已在托管环境运行；T6 冻结时为 `35333253707`（20 场景），最新为 `35409969801`（`bfcdd0e`，22 场景），均 6/6 Job 通过。
 
 ## E 一致性与可恢复性专项（已完成，2026-09-18）
 

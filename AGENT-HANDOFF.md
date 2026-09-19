@@ -48,7 +48,7 @@
 | E 一致性与可恢复性专项 | 文档口径校正；意图路由识别否定/设备冲突/指代不清；可恢复的多轮澄清（`conversationId` + `PendingClarification` 落库，账户/人物/空间/会话四重隔离，10 分钟过期，可取消）；启动恢复语义明确化并可查询（`GET /api/system/recovery`，结果未知的 `running` 步骤取消而非重放）；设备 V2 / 语音 / 传感器事件协议补齐为可实现接口 | 后端 136/19、150/5、154/1 三套组合；迁移 0003↔0004 升降级；`tests/test_recovery.py`、`tests/test_adapter_protocols.py`、`tests/test_agents.py` 澄清用例；前端 32/32；契约无 diff；端到端 22/22（新增 `http-clarification`、`mock-clarification`）|
 | 文档 | 本交接文档、README、architecture、acceptance、status、ui-polish；产品界面方向（第 12 节） | `587d7aa`、`8525718`、`c58a29f` |
 
-检查基线（数量以 `docs/status.md` 为准，下列为 E 专项后的最新值）：内存+legacy 136 通过 / 19 跳过；PostgreSQL+legacy 150 通过 / 5 跳过；PostgreSQL+Redis+LangGraph 154 通过 / 1 跳过；前端 32 项 + 类型检查；Legacy/LangGraph 5 组等价；网页端到端 22/22；契约重新生成无 diff；Alembic 0003↔0004 升降级通过。Compose 两个 Worker 常驻验证已完成。GitHub Actions 托管 CI 运行 `35333253707` 的 6 个 Job 全部通过（对应 `main@197037a`；E 专项提交后需重新观察一次 CI）。尚未执行：真机安装；iOS/Android JS 与 Hermes 导出成功。
+检查基线（数量以 `docs/status.md` 为准，下列为 E 专项后的最新值）：内存+legacy 136 通过 / 19 跳过；PostgreSQL+legacy 150 通过 / 5 跳过；PostgreSQL+Redis+LangGraph 154 通过 / 1 跳过；前端 32 项 + 类型检查；Legacy/LangGraph 5 组等价；网页端到端 22/22；契约重新生成无 diff；Alembic 0003↔0004 升降级通过。Compose 两个 Worker 常驻验证已完成。GitHub Actions 托管 CI 运行 `35409969801` 的 6 个 Job 全部通过（对应 `main@bfcdd0e`，2026-09-19，4m30s，含 Docker API 浏览器端到端 22 场景）。尚未执行：真机安装；iOS/Android JS 与 Hermes 导出成功。
 
 ### 0.3 当前状态与外部待办
 
@@ -68,7 +68,7 @@
 | ⑨ 演示打磨 | **已完成** | 旧 HTML 清单未做（用户未提供旧页面） |
 | D 演示打包 | **云端部分已完成** | 网页版录屏 3 段、主张证据表（`docs/evidence.md`）、开发版配置与安装说明（`docs/device-build.md`）；EAS 构建与平板录屏待设备 |
 | P07 能源仿真证据 | **已迁入（离线展示）** | `simulation/home-energy/` 保存给定研究快照、结果与溯源；App 通过只读 API 展示固定日结果，不重训、不重新评估、不参与控制 |
-| GitHub 远程与 CI 实跑 | **已完成** | `origin=https://github.com/Hector-sau/Livingmind.git`；运行 `35333253707` 为 6/6 通过 |
+| GitHub 远程与 CI 实跑 | **已完成** | `origin=https://github.com/Hector-sau/Livingmind.git`；最新运行 `35409969801`（`bfcdd0e`）为 6/6 通过 |
 | E 一致性与可恢复性专项 | **已完成（代码 + 测试 + 文档）** | 只做口径校正、意图路由、澄清闭环、恢复语义与接口补齐；未接入任何真实硬件，未新增技术栈 |
 | 多实例与真实部署 / 真实调度器 / 真实设备语音传感器接入 | 明确不做（待用户授权） | 锁续租或 fencing token、设备网关拒绝过期代次、可恢复调度器的时区与漏触发验证；Redis 续租不能单独证明真实设备执行安全 |
 
@@ -292,7 +292,7 @@ git status --short
 ## 7. 尚未验证与已知限制
 
 - 尚未在 iPad、Android 平板、手机真机或 iOS 模拟器运行；网页预览不能替代真机验收。
-- GitHub Actions 已真实运行；`main@197037a` 对应运行 `35333253707` 的 6 个 Job 全部通过，包括 Docker API 浏览器端到端 20/20。
+- GitHub Actions 已真实运行；最新是 `main@bfcdd0e` 对应的运行 `35409969801`，6 个 Job 全部通过，包括 Docker API 浏览器端到端（22 场景）。
 - 规则模式下用户文字只记录，固定规则不会理解任意自然语言；模型模式已验证一次真实调用（见下）。
 - 没有真实身份认证、WebSocket、语音、睡眠传感器或厂商设备。持久化数据库已有（PostgreSQL，可选开启）；语音、设备 V2 与传感器事件只到协议层。
 - 前端 Mock 和后端内存数据互不共享；切换模式应视为不同演示环境。
@@ -383,7 +383,7 @@ T1–T6 本地工程化冻结与 E 一致性可恢复性专项均已完成。下
 ### 9.2 外部状态与剩余验收
 
 1. **真机**：有 iPad 或安卓平板后，按 `docs/device-build.md` 做 Expo Go / Development Build、横竖屏、局域网、断网和完整闭环验收。
-2. **GitHub 托管 CI（已完成）**：运行 `35333253707` 的 6 个 Job 全绿；覆盖三套后端组合、迁移、契约、前端和 Docker API E2E 20/20。
+2. **GitHub 托管 CI（已完成）**：最新运行 `35409969801`（`bfcdd0e`）的 6 个 Job 全绿；覆盖三套后端组合、迁移、契约、前端和 Docker API E2E 22 场景。
 3. **可选指标**：DeepSeek 多次延迟统计按 `docs/project-metrics.md` 执行；当前仍只有 2035 ms 单次真实样本，不得虚构提升比例。
 4. **能源口径**：用户已确认以给定固定日数据为准，不重训、不复现 MATD3；只标注“已提供的离线仿真结果”。
 5. **旧 HTML**：已不是新 Expo 项目完成的前置；只在用户再提供具体旧页面并要求对照时处理。
@@ -404,33 +404,36 @@ docker compose down
 
 不写 Kafka 实现，不把设备状态放 Redis，不让 LangGraph 绕过 Harness / Executor，不把本地 CI 配置描述成 GitHub 已运行，不把接口预留描述成已接入，不在真实回读对齐前把 `deviceStateReconciled` 改成 `true`。
 
-## 9.4 当前暂停点（2026-09-19）
+## 9.4 当前进度（2026-09-19）
 
-仓库状态：本地 `main` 干净。E 专项 ①–⑥ 与澄清路径的浏览器端到端场景均已完成。
+E 专项 ①–⑥、澄清路径的浏览器端到端场景、GitHub 托管 CI 全部完成。仓库已推送，本地与远端一致。
 
-### 下一位 AI 的第一件事：推送并观察 CI
+| 项 | 状态 |
+|---|---|
+| 最新 CI | 运行 `35409969801`（`bfcdd0e`），6/6 Job 通过，4m30s |
+| 本地检查 | 后端 136/19、150/5、154/1；迁移 0003↔0004；等价 5/5；前端 32/32 + 类型检查；契约逐字节一致；端到端 22/22 |
+| 工作区 | 干净，无待提交改动 |
 
-```bash
-cd livingmind-app
-git log --oneline -1
-git push origin main          # 需用户确认后再执行
-```
+### 下一位 AI：不要重做基础设施
 
-推送后在 GitHub Actions 观察 6 个 Job。本轮改动涉及后端契约、存储层、端到端脚本与文档，本地三套后端组合、迁移升降、等价、前端、契约与 22 个浏览器场景均已通过，预期全绿。CI 通过后要做两件事：
+下面四项都**需要用户单独授权**，不要自行开始；每次只做一项，做完停下报告。
 
-1. 把文档里引用的旧运行号 `35333253707` 换成新的运行号（`docs/status.md`、本文件第 0.2 与 9.2 节、`docs/technology-architecture.md`；证据表改 `scripts/build_evidence.py` 后重新生成）。
-2. `container-e2e` 这个 Job 现在跑 22 个场景（原 20 个），确认它在容器环境里也全过；若 `http-clarification` 在 CI 上超时而本地通过，先看 `container-e2e-artifacts` 里的 `screens/FAILED-*.png`，不要直接放宽断言。
+| 顺序 | 项 | 前置条件 |
+|---|---|---|
+| 1 | iPad / Android 真机验收 | 需物理设备；步骤见 `docs/device-build.md` |
+| 2 | DeepSeek 多样本延迟指标 | 只能在用户 Mac 终端跑（云端与桌面 VM 都访问不到 `api.deepseek.com`）；方法见 `docs/project-metrics.md` |
+| 3 | 多实例与真实部署 | 锁续租或 fencing token + 设备网关拒绝过期 `serviceEpoch`。**Redis 续租不能单独证明真实设备执行安全** |
+| 4 | 真实设备 / 语音 / 传感器联调 | 实现 `DeviceGateway`、`VoiceGateway`、`EnvironmentEventAdapter`；验证异步回执、重复 `actionId`、过期代次、状态回读 |
 
-若失败只修对应回归，不要顺手改别的。
+日常维护只有一条：后续提交若让 CI 变红，只修对应回归，并把文档里引用的运行号换成新的（`docs/status.md`、本文件、`docs/acceptance.md`、`docs/technology-architecture.md`；证据表改 `scripts/build_evidence.py` 后重新生成）。
 
 ### 本轮已确认的事实（不必重做）
 
 | 项 | 结论 |
 |---|---|
-| 上一轮失败的 `Docker API + browser E2E` | 已由 `2af8042` 修复，`35333253707` 6/6 全绿 |
+| 曾经失败的 `Docker API + browser E2E` | 已由 `2af8042` 修复；此后 `35333253707` 与 `35409969801` 均 6/6 全绿 |
 | 另一位 AI 的中断改动 | 已全部验证并收进 E 专项提交；其未提交状态在用户 Mac 上留有 `git stash stash@{0}`（`pre-E-sync backup`），确认无误后可自行清理 |
-| 三套后端组合 / 迁移 / 等价 / 前端 / 契约 / 端到端 | 均已实跑，数字见 `docs/acceptance.md` 的"⑥ 冻结清单" |
-| 澄清路径的端到端场景 | `scenario_clarification` 已写好并通过；断言里的设备指令文案来自 `backend/app/agents/space_execution/agent.py` 的 `LABELS`，改文案时这两个场景会一起红 |
+| 澄清路径的端到端场景 | `scenario_clarification` 已通过；断言里的设备指令文案来自 `space_execution/agent.py` 的 `LABELS`，改文案时这两个场景会一起红 |
 
 ### 写端到端断言的教训（值得照做）
 
@@ -449,6 +452,8 @@ print(r['kind'], r['intent'], repr(r['text']))
 ```
 
 一次后端调用不到一秒，一次浏览器端到端要四分钟。本轮先猜"灯光关闭"跑了两轮才发现实际是"灯光亮度调到 0%"。
+
+同理，CI 步骤名里不要写死场景数——本轮就发现 `ci.yml` 的步骤名还停在"run 20 browser scenarios"，已改为不带数字的写法。
 
 ### 复跑本轮全部检查的命令
 
