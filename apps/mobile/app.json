@@ -34,6 +34,18 @@
       "image": "./assets/splash-icon.png",
       "resizeMode": "contain",
       "backgroundColor": "#F0F9FF"
-    }
+    },
+    "plugins": [
+      [
+        "expo-speech-recognition",
+        {
+          "microphonePermission": "LivingMind 需要麦克风才能听你说话。",
+          "speechRecognitionPermission": "LivingMind 用设备自带的识别把你说的话变成指令；开启端侧识别时音频不会离开这台设备。",
+          "androidSpeechServicePackages": [
+            "com.google.android.googlequicksearchbox"
+          ]
+        }
+      ]
+    ]
   }
 }

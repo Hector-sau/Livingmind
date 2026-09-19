@@ -72,7 +72,7 @@
 | 6 | 非法人物 / 空间 / 账户 / 参数 / 过期 / 版本不符被拒绝 | 自动化测试通过 |
 | 7 | 后端断开时 App 明确反馈 | 前端单元测试 + 端到端场景 `http-offline`（关掉后端后点确认，出现“无法连接后端，显示的状态可能已过期”，设备数值变灰，没有假装成功） |
 
-浏览器端到端：`apps/mobile/e2e/run_e2e.py`（已入库，可复现）。用 Expo 网页导出，在 1180×820 和 390×844 两种尺寸下跑 22 个场景。2026-09-18 通过 `--external-backend` 连接 Docker Compose API 跑过 **20/20**（当时 20 个场景）；2026-09-19 新增两个澄清场景后本地 **22/22 通过**；末尾断网场景只关闭本地代理，不伪造后端成功。模型路径连的是本地桩，不是 DeepSeek。
+浏览器端到端：`apps/mobile/e2e/run_e2e.py`（已入库，可复现）。用 Expo 网页导出，在 1180×820 和 390×844 两种尺寸下跑 27 个场景。2026-09-18 通过 `--external-backend` 连接 Docker Compose API 跑过 **20/20**（当时 20 个场景）；2026-09-19 新增两个澄清场景后本地 22/22 通过；同日 F 专项新增语音 2 个、直接控制 3 个场景后本地 **27/27 通过**；末尾断网场景只关闭本地代理，不伪造后端成功。模型路径连的是本地桩，不是 DeepSeek。
 
 ## ⑤ 的验证情况
 
@@ -219,6 +219,61 @@
 2. **真实后台调度器**：把模拟时钟换成可恢复的调度器，并验证时区、漏触发与重复触发。
 3. **真实设备 / 语音 / 传感器接入**：实现上面三个协议并做异步回执、重复 `actionId`、过期 `serviceEpoch`、状态回读的联调。
 4. **真机验收与 DeepSeek 多样本指标**：见 `docs/device-build.md`、`docs/project-metrics.md`。
+
+## F 语音与设备直接控制（已完成，2026-09-19）
+
+本轮做两件事：把语音从一个占位按钮做成完整回合，并把设备面板从只读改成可直接控制。
+**没有接入任何真实硬件**；语音识别的原生路径代码完整但未在真机验证，见本节末尾。
+
+### 语音
+
+| 项 | 位置 | 证据 |
+|---|---|---|
+| 语音状态机：`idle → armed → listening → resolving → sending → speaking`，任一环节出错进 `failed`。只管采集，不管执行与撤销 | `apps/mobile/features/voice/machine.ts` | `tests/voice.test.ts`（17 项）。关键不变量有测试守着：**所有超时都落在 `idle` 或 `failed`，没有任何超时能走到 `sending`**——卡住的请求不会自己变成设备动作；取消后迟到的识别结果不会复活这一轮 |
+| 文案集中管理：会宣称"识别"的那句由 `asrConnected` 控制 | 同上 `statusLabel()` | 同上。"有没有说假话"是一次 grep，不是逐个组件审 |
+| 来源标注：点选的挂"示例指令"，手动输入挂"手动输入"，真识别出来的不挂 | `machine.ts::needsSourceBadge`、`features/chat/MessageView.tsx` | 端到端 `http-voice`、`mock-voice` 断言标签确实是"示例指令" |
+| 真实 TTS：`expo-speech` 驱动系统合成器，可随时打断 | `features/voice/speech.ts` | `tests/speech.test.ts`（7 项）。两个坑已处理：`speak()` 是入队不是打断，所以每次播报前先 `stop()`；Android 没有 `pause/resume`，因此界面只提供"跳过"不提供"暂停" |
+| 波形**只在接上真实识别时才画** | `features/voice/VoiceSheet.tsx` | 电平是真实音频数据。没有识别器时画假波形，视觉上与真的无法区分——等于伪造识别过程，明确不做 |
+| 设备端识别适配层：`expo-speech-recognition` 57.1.0，系统自带引擎，无密钥、无费用，`supportsOnDeviceRecognition` 为真时音频不出设备 | `features/voice/deviceSpeech.ts`、`app.json` 的配置插件与权限文案 | `tests/deviceSpeech.test.ts`（12 项，用契约替身）：只转发 `isFinal` 结果、空结果算 no-match、一轮结束立即摘监听、abort 静默而真错误上报 |
+
+### 设备直接控制
+
+| 项 | 位置 | 证据 |
+|---|---|---|
+| 直接控制接口 `POST /api/spaces/{id}/devices/control`，立即执行并返回撤销窗口 | `backend/app/services/rest_service.py::control_device` | `backend/tests/test_device_control.py`（14 项） |
+| 撤销 `POST /api/devices/undo/{undoId}`：反向写入记录下来的原值 | 同上 `undo_device_control` | 同上：把"关灯"撤销回 30% 而不是 100%；一次性；新写入顶替旧机会；超时/重置/代次变化都失效 |
+| "直接"只是没有对话框，不是没有检查 | 同上 | 仍走同一个执行器：白名单、参数范围、代次 guard、写入、回读。被拒绝的写入不给撤销 |
+| 双轨滑块：拖动中只改本地值，松手才写一次；手势被抢走回滚快照 | `apps/mobile/features/devices/control.ts`、`DeviceSlider.tsx` | `tests/deviceSlider.test.ts`（11 项）：包含吸附后不留二进制漂移、越界夹紧、三态可交互性 |
+| 目标值与回读值双指示 | `DeviceSlider.tsx` | 大手柄 = 目标，小圆点 = 实测，中间高亮 = 正在弥合的差距 |
+| 前端 Mock 与后端行为对齐 | `services/mock/mockApi.ts` | `tests/deviceControl.test.ts`（9 项），与后端同名用例一一对应 |
+
+### 本轮复跑的检查基线
+
+| 组合 | 结果 |
+|---|---|
+| 后端 内存 + legacy | `150 passed / 19 skipped` |
+| 后端 PostgreSQL + legacy | `164 passed / 5 skipped` |
+| 后端 PostgreSQL + Redis + LangGraph | `168 passed / 1 skipped` |
+| 前端 | `tsc --noEmit`（含 tests）无错；`88 passed` |
+| 契约 | 重新生成与仓库内容一致 |
+| 网页端到端 | **27/27**（新增 `http-voice`、`mock-voice`、`http-device-control`、`mock-device-control`、`http-control-expiry`） |
+
+### 明确的未验证项
+
+**设备端语音识别没有在真机上跑过。** 原生模块需要 development build（Expo Go 里用不了），
+云端容器和桌面 VM 都执行不了原生路径，Playwright 无头浏览器也没有麦克风——
+**这条路径永远进不了自动化回归，只能人工验收**。在真机验证之前：
+
+- 不得在任何文案、演示脚本或对外介绍里声称"语音识别""实时转写""唤醒词""声纹""置信度"。
+- 顶栏的"演示模式 · 语音未接入"标识与消息气泡的来源标签不得去掉。
+- 真机验收步骤：`npx expo run:ios`（或 EAS 开发版）→ 授予麦克风与语音识别权限 →
+  按住麦克风说话 → 确认转写出现且**不带**来源标签 → 确认播报可被打断。
+  平台门槛：iOS 17+ 完整；Android 13+ 完整；Android 12 及以下只有基础识别。
+
+### 撤销窗口的明确语义
+
+撤销窗口只存在于进程内。重启之后没有东西可撤销，跨实例也不提供——这是明确语义，不是遗漏。
+真实设备接入后，撤销是否安全还取决于设备网关是否拒绝过期代次，见 `docs/agent-engineering-review.md`。
 
 ## 本地冻结后仍待完成
 

@@ -5,7 +5,7 @@
 当前分支：`main`  
 第一批实现基线提交：`99b1138 feat: step 4 rule-based backend loop, executor, virtual devices, CI`  
 演示稳定基线：`5cd8eeb fix: freeze stable demo lifecycle`
-当前基线：演示主链路、1+2 Agent、整晚服务、能源快照、稳定性收尾以及 **T1–T6 本地工程化冻结均已完成**。Docker Compose 全栈、Worker 事件链、迁移升降、三套后端组合与 Docker API Playwright 端到端已在用户 Mac 验证（当前 22 个场景）。方案见 `docs/technology-architecture.md`，逐项证据见 `docs/status.md`。
+当前基线：演示主链路、1+2 Agent、整晚服务、能源快照、稳定性收尾以及 **T1–T6 本地工程化冻结均已完成**。Docker Compose 全栈、Worker 事件链、迁移升降、三套后端组合与 Docker API Playwright 端到端已在用户 Mac 验证（当前 27 个场景）。方案见 `docs/technology-architecture.md`，逐项证据见 `docs/status.md`。
 
 ## 0. 项目背景与现状速览（给评审或新接手的 AI）
 
@@ -46,9 +46,10 @@
 | T5 Outbox 与事件总线 | 事件信封；业务事实与 outbox 同事务；publisher（SKIP LOCKED / 重试 / 死信不删）；consumer（`consumer_receipts` 去重 → `service_projection`）；总线默认是 PostgreSQL 表 | `tests/test_outbox_events.py`：同事务提交、回滚不留事件、至少一次且不重复、总线停摆不挡设备、重复投递靠回执保护、同空间保序 |
 | T6 本地集成冻结 | Compose 全栈、Worker 投递消费、迁移升降、三套后端 matrix、Docker API E2E、证据表和最终文档 | 127/141/145 后端组合；Outbox 7/7；Worker 重启无重复；Playwright 20/20；契约无 diff；PDF 逐页检查 |
 | E 一致性与可恢复性专项 | 文档口径校正；意图路由识别否定/设备冲突/指代不清；可恢复的多轮澄清（`conversationId` + `PendingClarification` 落库，账户/人物/空间/会话四重隔离，10 分钟过期，可取消）；启动恢复语义明确化并可查询（`GET /api/system/recovery`，结果未知的 `running` 步骤取消而非重放）；设备 V2 / 语音 / 传感器事件协议补齐为可实现接口 | 后端 136/19、150/5、154/1 三套组合；迁移 0003↔0004 升降级；`tests/test_recovery.py`、`tests/test_adapter_protocols.py`、`tests/test_agents.py` 澄清用例；前端 32/32；契约无 diff；端到端 22/22（新增 `http-clarification`、`mock-clarification`）|
+| F 语音与设备直接控制 | 语音状态机（纯逻辑、所有超时都不执行动作）、语音面板、真实 TTS、来源标签；设备端识别适配层（`expo-speech-recognition` 57.1.0，系统引擎、无密钥、可端侧）；设备面板改为可直接控制：双轨滑块、目标与回读双指示、直接执行 + 5 秒真撤销 | 后端 150/19、164/5、168/1；前端 88/88；端到端 27/27（新增语音 2、直接控制 3）；**设备端识别未在真机验证** |
 | 文档 | 本交接文档、README、architecture、acceptance、status、ui-polish；产品界面方向（第 12 节） | `587d7aa`、`8525718`、`c58a29f` |
 
-检查基线（数量以 `docs/status.md` 为准，下列为 E 专项后的最新值）：内存+legacy 136 通过 / 19 跳过；PostgreSQL+legacy 150 通过 / 5 跳过；PostgreSQL+Redis+LangGraph 154 通过 / 1 跳过；前端 32 项 + 类型检查；Legacy/LangGraph 5 组等价；网页端到端 22/22；契约重新生成无 diff；Alembic 0003↔0004 升降级通过。Compose 两个 Worker 常驻验证已完成。GitHub Actions 托管 CI 运行 `35409969801` 的 6 个 Job 全部通过（对应 `main@bfcdd0e`，2026-09-19，4m30s，含 Docker API 浏览器端到端 22 场景）。尚未执行：真机安装；iOS/Android JS 与 Hermes 导出成功。
+检查基线（数量以 `docs/status.md` 为准，下列为 F 专项后的最新值）：内存+legacy 150 通过 / 19 跳过；PostgreSQL+legacy 164 通过 / 5 跳过；PostgreSQL+Redis+LangGraph 168 通过 / 1 跳过；前端 88 项 + 类型检查；Legacy/LangGraph 5 组等价；网页端到端 27/27；契约重新生成无 diff；Alembic 0003↔0004 升降级通过。Compose 两个 Worker 常驻验证已完成。GitHub Actions 托管 CI 运行 `35409969801` 的 6 个 Job 全部通过（对应 `main@bfcdd0e`，2026-09-19，4m30s，含 Docker API 浏览器端到端 22 场景）。尚未执行：真机安装；iOS/Android JS 与 Hermes 导出成功。
 
 ### 0.3 当前状态与外部待办
 
@@ -70,6 +71,7 @@
 | P07 能源仿真证据 | **已迁入（离线展示）** | `simulation/home-energy/` 保存给定研究快照、结果与溯源；App 通过只读 API 展示固定日结果，不重训、不重新评估、不参与控制 |
 | GitHub 远程与 CI 实跑 | **已完成** | `origin=https://github.com/Hector-sau/Livingmind.git`；最新运行 `35409969801`（`bfcdd0e`）为 6/6 通过 |
 | E 一致性与可恢复性专项 | **已完成（代码 + 测试 + 文档）** | 只做口径校正、意图路由、澄清闭环、恢复语义与接口补齐；未接入任何真实硬件，未新增技术栈 |
+| F 语音与设备直接控制 | **代码完成，一项未验证** | 语音回合、TTS、设备直接控制与撤销均已实现并测试；设备端语音识别需 development build + 真机，云端与端到端都跑不了 |
 | 多实例与真实部署 / 真实调度器 / 真实设备语音传感器接入 | 明确不做（待用户授权） | 锁续租或 fencing token、设备网关拒绝过期代次、可恢复调度器的时区与漏触发验证；Redis 续租不能单独证明真实设备执行安全 |
 
 ### 0.4 评审时最该核对的五个点
@@ -406,56 +408,59 @@ docker compose down
 
 ## 9.4 当前进度（2026-09-19）
 
-E 专项 ①–⑥、澄清路径的浏览器端到端场景、GitHub 托管 CI 全部完成。仓库已推送，本地与远端一致。
+T1–T6、E 专项、F 专项（语音与设备直接控制）均已完成并推送；CI 在 E 专项时全绿。
 
 | 项 | 状态 |
 |---|---|
-| 最新 CI | 运行 `35409969801`（`bfcdd0e`），6/6 Job 通过，4m30s |
-| 本地检查 | 后端 136/19、150/5、154/1；迁移 0003↔0004；等价 5/5；前端 32/32 + 类型检查；契约逐字节一致；端到端 22/22 |
-| 工作区 | 干净，无待提交改动 |
+| 本地检查 | 后端 150/19、164/5、168/1；迁移 0003↔0004；等价 5/5；前端 88/88 + 类型检查；契约一致；端到端 27/27 |
+| 上一次托管 CI | 运行 `35409969801`（`bfcdd0e`），6/6 通过。F 专项的提交推送后需重新观察一次 |
+| 工作区 | 干净 |
 
-### 下一位 AI：不要重做基础设施
+### 唯一待人工验收的一项：设备端语音识别
 
-下面四项都**需要用户单独授权**，不要自行开始；每次只做一项，做完停下报告。
+代码完整、接口层有 12 项契约测试，但**原生路径没有在任何真机上跑过**，
+而且**永远进不了自动化回归**：原生模块需要 development build（Expo Go 用不了），
+云端容器与桌面 VM 都执行不了它，Playwright 无头浏览器也没有麦克风。
+
+验收步骤（需要 iPad 或安卓平板）：
+
+```bash
+cd apps/mobile
+npx expo run:ios      # 或 npx expo run:android / EAS 开发版
+```
+
+1. 授予麦克风与语音识别权限（文案已写在 `app.json` 的配置插件里）。
+2. 按住麦克风说一句「把灯调到 20%」。
+3. 确认转写出现，且**不带**来源标签——带标签说明走的还是文本路径，识别没生效。
+4. 确认播报响起，且点「跳过」能立刻打断。
+5. 失败时看 `deviceSpeech.ts` 的 `mapError`：权限、无识别服务、超时会落到不同状态。
+
+平台门槛：iOS 17+ 完整；Android 13+ 完整（端侧需先下语言包）；Android 12 及以下只有基础识别。
+
+**在这一步通过之前**，不得在任何文案、演示脚本、README 或对外介绍里声称
+"语音识别""实时转写""唤醒词""声纹""置信度""免手操作"；顶栏的
+"演示模式 · 语音未接入"和消息气泡上的来源标签不得去掉。
+
+### 其余待授权的工作
 
 | 顺序 | 项 | 前置条件 |
 |---|---|---|
-| 1 | iPad / Android 真机验收 | 需物理设备；步骤见 `docs/device-build.md` |
-| 2 | DeepSeek 多样本延迟指标 | 只能在用户 Mac 终端跑（云端与桌面 VM 都访问不到 `api.deepseek.com`）；方法见 `docs/project-metrics.md` |
+| 1 | iPad / Android 真机验收（含上面的语音验收） | 需物理设备；`docs/device-build.md` |
+| 2 | DeepSeek 多样本延迟指标 | 只能在用户 Mac 终端跑；`docs/project-metrics.md` |
 | 3 | 多实例与真实部署 | 锁续租或 fencing token + 设备网关拒绝过期 `serviceEpoch`。**Redis 续租不能单独证明真实设备执行安全** |
-| 4 | 真实设备 / 语音 / 传感器联调 | 实现 `DeviceGateway`、`VoiceGateway`、`EnvironmentEventAdapter`；验证异步回执、重复 `actionId`、过期代次、状态回读 |
+| 4 | 真实设备 / 传感器联调 | 实现 `DeviceGateway`、`EnvironmentEventAdapter` |
 
-日常维护只有一条：后续提交若让 CI 变红，只修对应回归，并把文档里引用的运行号换成新的（`docs/status.md`、本文件、`docs/acceptance.md`、`docs/technology-architecture.md`；证据表改 `scripts/build_evidence.py` 后重新生成）。
+### 本轮踩过的三个坑（照做能省时间）
 
-### 本轮已确认的事实（不必重做）
+1. **端到端断言不要凭印象写文案。** 先用后端直接打一遍把真实文案打印出来，
+   一次后端调用不到一秒，一次浏览器端到端要四五分钟。
+2. **乐观更新会让断言产生竞态。** 撤销时手柄先回位，数值比响应先变；
+   断言要等"撤销条消失"，不能等数值。
+3. **测试里的数据库引擎要用 NullPool。** 每个测试建一个引擎再 dispose，池化会把
+   已借出的连接留下，测试一多就打满 stock PostgreSQL 的 100 连接——CI 的
+   postgres 容器正是默认值。`LIVINGMIND_DB_DISABLE_POOL=1`，conftest 已默认设上。
 
-| 项 | 结论 |
-|---|---|
-| 曾经失败的 `Docker API + browser E2E` | 已由 `2af8042` 修复；此后 `35333253707` 与 `35409969801` 均 6/6 全绿 |
-| 另一位 AI 的中断改动 | 已全部验证并收进 E 专项提交；其未提交状态在用户 Mac 上留有 `git stash stash@{0}`（`pre-E-sync backup`），确认无误后可自行清理 |
-| 澄清路径的端到端场景 | `scenario_clarification` 已通过；断言里的设备指令文案来自 `space_execution/agent.py` 的 `LABELS`，改文案时这两个场景会一起红 |
-
-### 写端到端断言的教训（值得照做）
-
-新场景的文案断言不要凭印象写。先用后端直接打一遍，把真实文案打印出来再写进断言：
-
-```bash
-cd backend && .venv/bin/python -c "
-from fastapi.testclient import TestClient
-from app.main import create_app
-c = TestClient(create_app())
-b = c.get('/api/bootstrap', params={'accountId':'demo-account'}).json()
-ctx = {'accountId':'demo-account','personId':b['persons'][0]['personId'],'spaceId':b['spaces'][0]['spaceId']}
-r = c.post('/api/assistant/messages', json={'context':ctx,'text':'我不想休息，只想关灯','mode':'rule','conversationId':'probe'}).json()
-print(r['kind'], r['intent'], repr(r['text']))
-"
-```
-
-一次后端调用不到一秒，一次浏览器端到端要四分钟。本轮先猜"灯光关闭"跑了两轮才发现实际是"灯光亮度调到 0%"。
-
-同理，CI 步骤名里不要写死场景数——本轮就发现 `ci.yml` 的步骤名还停在"run 20 browser scenarios"，已改为不带数字的写法。
-
-### 复跑本轮全部检查的命令
+### 复跑本轮全部检查
 
 ```bash
 # 后端三套组合（PostgreSQL 与 Redis 需本地起好）
@@ -464,14 +469,10 @@ LIVINGMIND_TEST_STORE=sql LIVINGMIND_TEST_DATABASE_URL=postgresql+psycopg://livi
 LIVINGMIND_TEST_STORE=sql LIVINGMIND_TEST_DATABASE_URL=postgresql+psycopg://livingmind:livingmind@127.0.0.1:5432/livingmind \
   LIVINGMIND_TEST_REDIS_URL=redis://127.0.0.1:6379/1 LIVINGMIND_ORCHESTRATOR=langgraph .venv/bin/pytest -q
 # 注意：LIVINGMIND_TEST_REDIS_URL 必须是非 0 号库，否则 conftest 直接拒绝
-# 迁移升降级
-LIVINGMIND_DATABASE_URL=postgresql+psycopg://...@127.0.0.1:5432/migcheck .venv/bin/alembic upgrade head
-LIVINGMIND_DATABASE_URL=... .venv/bin/alembic downgrade 0003 && ... upgrade head
-# 等价、前端、契约、端到端
-.venv/bin/python scripts/compare_orchestrators.py
+# 前端、契约、端到端
 cd ../apps/mobile && npm run typecheck && npm test
 cd ../.. && ./scripts/gen-api.sh && git diff --exit-code -- packages/api-client
-python apps/mobile/e2e/run_e2e.py        # 22 个场景，约 4 分钟；加 --skip-build 可省去前两分钟的构建
+python apps/mobile/e2e/run_e2e.py        # 27 个场景，约 5 分钟；--skip-build 省去构建
 ```
 
 ## 10. 禁止事项

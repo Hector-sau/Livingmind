@@ -24,8 +24,11 @@
 | Experience Agent 一次模型调用（DeepSeek，规则/模型可切换，失败降级为规则并标注） | 真实睡眠感知 / 传感器 |
 | 模拟室温事件触发一次自动调整（冷却、次数上限、停止后忽略） | 真实传感器 |
 | 歧义请求先澄清再执行：否定、设备冲突、指代不清；待澄清状态按账户/人物/空间/会话隔离，10 分钟过期，可取消 | 通用多轮对话记忆 |
+| 语音回合：按住说话、状态机、真实 TTS 播报与打断、来源标签 | 唤醒词、声纹、免手操作 |
+| 设备面板直接控制：双轨滑块、目标与回读双指示、直接执行 + 5 秒真撤销 | 高风险设备（门锁等） |
 | 启动恢复可查询（`GET /api/system/recovery`）：清理崩溃遗留标记，结果未知的步骤取消而非重放 | 真实硬件状态回读恢复 |
-| 真实设备 V2（`DeviceGateway`）、语音（`VoiceGateway`）、传感器事件（`EnvironmentEventAdapter`）**协议**已定义并有契约测试 | 上述协议的真实对端接入 |
+| 真实设备 V2（`DeviceGateway`）、语音网关（`VoiceGateway`）、传感器事件（`EnvironmentEventAdapter`）**协议**已定义并有契约测试 | 上述协议的真实对端接入 |
+| 设备端语音识别适配层（`expo-speech-recognition`，系统引擎、无密钥、可端侧）**代码完整** | **尚未在真机验证**：需 development build，端到端与 CI 都覆盖不到 |
 | 固定规则计划 + 有状态虚拟设备 + 统一执行器；模拟入睡、室温事件与整晚模拟时钟 | 真实设备 / SpaceMind / 音箱接入 |
 | 内存或 PostgreSQL 两种存储（可切换）；配库后计划、服务、整晚步骤、活动与待澄清状态可恢复 | 正式登录、WebSocket、向量库 |
 | 演示身份（demo account） | 真实设备 / SpaceMind / 音箱接入 |
@@ -183,7 +186,7 @@ cd backend && pytest                      # 后端测试
 cd apps/mobile && npm run typecheck && npm test   # 前端类型检查 + 逻辑测试
 ./scripts/gen-api.sh && git diff --exit-code packages/api-client   # 契约一致性
 python apps/mobile/e2e/run_e2e.py         # 本地 Python 后端端到端
-python apps/mobile/e2e/run_e2e.py --external-backend http://127.0.0.1:8000  # Docker API 22 场景
+python apps/mobile/e2e/run_e2e.py --external-backend http://127.0.0.1:8000  # Docker API 27 场景
 ```
 
 ## 演示打包（D）

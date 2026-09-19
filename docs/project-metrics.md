@@ -23,7 +23,7 @@
 |---|---:|---|---|
 | 后端测试 | 115 项 pytest 通过 | 已验证；测试数量不等于线上准确率 | `backend/tests/`、`docs/evidence.md` |
 | 前端测试 | 31 项逻辑测试通过，类型检查通过 | 已验证 | `apps/mobile/tests/`、`docs/evidence.md` |
-| 端到端场景 | 22/22 浏览器场景通过 | 已验证；网页端不能代替平板真机 | `apps/mobile/e2e/`、`docs/status.md` |
+| 端到端场景 | 27/27 浏览器场景通过 | 已验证；网页端不能代替平板真机 | `apps/mobile/e2e/`、`docs/status.md` |
 | DeepSeek 响应 | 2035 ms，结构化输出合法 | 真实单次样本；不能据此写 P95 或提速百分比 | `docs/evidence.md`、`docs/status.md` |
 | 电网购电 | 13.61 → 0.76 kWh/day，下降 94.4% | 给定固定日仿真，不是真实家庭实测 | `simulation/home-energy/data/provided-day-comparison.json` |
 | 峰值购电 | 1.95 → 0.37 kW，下降 81.0% | 给定固定日仿真 | 同上 |
