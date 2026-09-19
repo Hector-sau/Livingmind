@@ -103,10 +103,12 @@ def main() -> int:
                     "utterance": utterance,
                     "outcome": exc.kind,
                     "latency_ms": exc.latency_ms,
+                    "detail": exc.message,
                     "needs_clarification": None,
                 }
             )
             print(f"{i + 1:>3}. {exc.kind:<14} {exc.latency_ms:>6} ms  {utterance}")
+            print(f"     -- {exc.message}")
         else:
             rows.append(
                 {
@@ -115,6 +117,7 @@ def main() -> int:
                     "utterance": utterance,
                     "outcome": "ok",
                     "latency_ms": result.latency_ms,
+                    "detail": None,
                     "needs_clarification": bool(result.output.needs_clarification),
                 }
             )
@@ -128,6 +131,17 @@ def main() -> int:
     for r in rows:
         if r["outcome"] != "ok":
             failures[r["outcome"]] = failures.get(r["outcome"], 0) + 1
+
+    # In the first real run the failures clustered on one sentence rather than one persona, so
+    # the per-utterance split is reported rather than left to be re-derived from the call list.
+    by_utterance: dict[str, dict] = {}
+    for r in rows:
+        bucket = by_utterance.setdefault(str(r["utterance"]), {"n": 0, "ok": 0, "kinds": {}})
+        bucket["n"] += 1
+        if r["outcome"] == "ok":
+            bucket["ok"] += 1
+        else:
+            bucket["kinds"][r["outcome"]] = bucket["kinds"].get(r["outcome"], 0) + 1
 
     summary = {
         "generated_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
@@ -147,6 +161,7 @@ def main() -> int:
             "mean": int(statistics.fmean(ok)) if ok else 0,
         },
         "failures_by_kind": failures,
+        "by_utterance": by_utterance,
         "needs_clarification": sum(1 for r in rows if r["needs_clarification"]),
     }
 
@@ -167,6 +182,11 @@ def main() -> int:
     print(f"| 最大 | {summary['latency_ms']['max']} ms |")
     if failures:
         print(f"| 失败分类 | {', '.join(f'{k} ×{v}' for k, v in sorted(failures.items()))} |")
+        print("\n| 话术 | 成功 / 次数 | 失败分类 |")
+        print("| --- | --- | --- |")
+        for utterance, bucket in by_utterance.items():
+            label = ", ".join(f"{k} ×{v}" for k, v in sorted(bucket["kinds"].items())) or "—"
+            print(f"| {utterance} | {bucket['ok']} / {bucket['n']} | {label} |")
     print(f"\n写入 {out}")
     print("口径：延迟统计只含成功调用；失败调用按 kind 单列，超时那条的耗时约等于预算本身。")
     return 0

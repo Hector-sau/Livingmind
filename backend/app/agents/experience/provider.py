@@ -62,9 +62,30 @@ class DeepSeekProvider:
         if res.status_code != 200:
             raise ProviderError("http", f"模型服务返回 HTTP {res.status_code}")
         try:
-            content = res.json()["choices"][0]["message"]["content"]
+            choice = res.json()["choices"][0]
+            content = choice["message"]["content"]
         except (ValueError, KeyError, IndexError, TypeError) as exc:
             raise ProviderError("empty", "模型响应格式异常") from exc
         if not isinstance(content, str) or not content.strip():
-            raise ProviderError("empty", "模型没有返回内容")
+            raise ProviderError("empty", f"模型没有返回内容（{describe_empty(choice)}）")
         return content
+
+
+def describe_empty(choice: object) -> str:
+    """Why an empty completion came back, in shape only.
+
+    A blank `content` is not one failure but several: the token budget spent before any
+    answer was written (`finish_reason=length`), a filtered response, or a genuinely empty
+    reply. Operators and the latency benchmark both need to tell them apart. This reports
+    the finish reason and whether a reasoning field was present — never any model or user
+    text, which would put the utterance into logs and activity records.
+    """
+    if not isinstance(choice, dict):
+        return "响应结构异常"
+    parts = [f"finish_reason={choice.get('finish_reason') or '未给出'}"]
+    message = choice.get("message")
+    if isinstance(message, dict):
+        reasoning = message.get("reasoning_content")
+        if isinstance(reasoning, str) and reasoning.strip():
+            parts.append(f"另有 reasoning_content {len(reasoning)} 字")
+    return "，".join(parts)

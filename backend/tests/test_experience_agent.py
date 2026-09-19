@@ -278,3 +278,42 @@ def test_deepseek_provider_maps_http_and_empty_errors(monkeypatch):
     assert captured["headers"]["Authorization"] == "Bearer sk-x"
     assert captured["body"]["response_format"] == {"type": "json_object"}
     assert captured["body"]["model"] == "deepseek-flash" and captured["timeout"] == 2.5
+
+
+def test_an_empty_completion_says_why_without_quoting_any_text(monkeypatch):
+    """A blank completion has several causes; the error separates them and quotes neither side.
+
+    A run against the real API returned empty content on one sentence three times out of five,
+    which is indistinguishable from a filtered or genuinely empty reply unless the finish
+    reason is carried out. The utterance itself must not travel with it: this message reaches
+    logs and activity records.
+    """
+
+    def resp(choice):
+        return httpx.Response(
+            200,
+            json={"choices": [choice]},
+            request=httpx.Request("POST", "https://api.deepseek.com/chat/completions"),
+        )
+
+    provider = DeepSeekProvider("sk-x", "deepseek-flash")
+
+    monkeypatch.setattr(
+        httpx,
+        "post",
+        lambda *a, **kw: resp({"finish_reason": "length", "message": {"content": "", "reasoning_content": "想了很久"}}),
+    )
+    with pytest.raises(ProviderError) as ei:
+        provider.complete_json("系统提示", "用户说的话", 1.0)
+    assert ei.value.kind == "empty"
+    assert "finish_reason=length" in ei.value.message
+    assert "reasoning_content" in ei.value.message
+    # neither the prompt, the utterance, nor the model's own words ride along
+    assert "用户说的话" not in ei.value.message
+    assert "系统提示" not in ei.value.message
+    assert "想了很久" not in ei.value.message
+
+    monkeypatch.setattr(httpx, "post", lambda *a, **kw: resp({"message": {"content": "   "}}))
+    with pytest.raises(ProviderError) as ei:
+        provider.complete_json("s", "u", 1.0)
+    assert ei.value.kind == "empty" and "未给出" in ei.value.message
