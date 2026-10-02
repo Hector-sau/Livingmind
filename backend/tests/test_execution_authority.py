@@ -3,6 +3,8 @@
 import threading
 from datetime import timedelta
 
+import pytest
+
 from app.adapters.gateway import AdapterDeviceGateway
 from app.adapters.protocol import DeviceCommandReceipt, DeviceCommandRequest
 from app.adapters.virtual.devices import VirtualDeviceAdapter
@@ -234,3 +236,34 @@ def test_accepted_without_terminal_receipt_is_unknown_and_recorded():
     assert result.outcome == "unknown"
     assert [item.status for item in transitions] == ["pending", "dispatching", "accepted", "unknown"]
     assert adapter.read_state().version == 0
+
+
+@pytest.mark.parametrize("lost_at,expected_writes", [("before_submit", 0), ("after_write", 1), ("query", 1)])
+def test_lost_gateway_reply_is_unknown_and_repeat_confirmation_never_resends(service, lost_at, expected_writes):
+    """A timeout cannot tell us whether the device applied the command."""
+    adapter = service._devices[SPACE]
+
+    class LostReplyGateway(AdapterDeviceGateway):
+        def submit(self, request):
+            if lost_at == "before_submit":
+                raise ConnectionError("connection dropped before acknowledgement")
+            receipt = super().submit(request)
+            if lost_at == "after_write":
+                raise TimeoutError("device wrote, response was lost")
+            return DeviceCommandReceipt(request.action_id, "accepted", None, None)
+
+        def query(self, action_id):
+            raise TimeoutError("receipt query response was lost")
+
+    service._gateways[SPACE] = LostReplyGateway(adapter)
+    plan = service.handle_message(_ctx(), "把空调调到24度").plan
+    first = service.confirm_plan(plan.plan_id, _ctx(), plan.version)
+    assert first.results[0].outcome == "unknown"
+    action = service._store.get_action_execution(plan.actions[0].action_id)
+    assert action.status == "unknown" and action.attempt_count == 1
+    assert action.error_kind == ("offline" if lost_at == "before_submit" else "timeout")
+    assert adapter.read_state().version == expected_writes
+
+    repeated = service.confirm_plan(plan.plan_id, _ctx(), plan.version)
+    assert repeated.repeated and repeated.results[0].outcome == "unknown"
+    assert adapter.read_state().version == expected_writes

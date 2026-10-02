@@ -17,6 +17,8 @@ const ROUTES: [string, string][] = [
   ['我不想休息，只想关灯', 'device_command'],
   ['把那个调低一点', 'clarification'],
   ['先开灯再关灯', 'clarification'],
+  ['空调温度现在多少？', 'status'],
+  ['请调低一点', 'clarification'],
 ];
 
 test('mock router matches backend routing cases', () => {

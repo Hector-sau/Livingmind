@@ -8,7 +8,7 @@ import { Pill } from '../../components/Pill';
 import type { Plan } from '../../services/types';
 import { colors, font, gradients, radius, space } from '../../theme/tokens';
 import { PlanCard } from '../rest/PlanCard';
-import { resultSummary, type Message } from './conversation';
+import { actionOutcomeLabel, resultPresentation, resultSummary, type Message } from './conversation';
 
 const MARK = require('../../assets/logo-mark.png');
 
@@ -90,15 +90,16 @@ export function MessageView({ message, livePlan, actionable, blockReason, busy, 
           </View>
         </FadeIn>
       );
-    case 'result':
+    case 'result': {
+      const presentation = resultPresentation(message.results, message.repeated);
       return (
         <FadeIn style={[styles.row, styles.left]}>
           <AssistantAvatar />
           <View style={styles.assistantBlock} testID="result-card">
             <Card
-              title={message.repeated ? '这个计划之前已执行' : '已为你调整好'}
-              icon="checkmark-done-outline"
-              right={<Pill label={resultSummary(message.results)} tone="green" />}
+              title={presentation.title}
+              icon={presentation.tone === 'green' ? 'checkmark-done-outline' : 'information-circle-outline'}
+              right={<Pill label={resultSummary(message.results)} tone={presentation.tone} />}
             >
               <View style={styles.results}>
                 {message.results.map((r) => (
@@ -106,7 +107,7 @@ export function MessageView({ message, livePlan, actionable, blockReason, busy, 
                     <DeviceIcon device={r.device} size={18} color={colors.blue} />
                     <Text style={styles.resultName}>{DEVICE_NAME[r.device]}</Text>
                     <Text style={styles.resultValue}>
-                      {r.outcome === 'succeeded' ? `${r.observedValue}${UNIT[r.device]}` : `未执行`}
+                      {r.outcome === 'succeeded' ? `${r.observedValue}${UNIT[r.device]}` : actionOutcomeLabel(r.outcome)}
                     </Text>
                     {r.outcome !== 'succeeded' ? <Text style={styles.resultReason}>{r.reason ?? r.outcome}</Text> : null}
                   </View>
@@ -119,6 +120,7 @@ export function MessageView({ message, livePlan, actionable, blockReason, busy, 
           </View>
         </FadeIn>
       );
+    }
   }
 }
 

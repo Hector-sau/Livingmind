@@ -12,7 +12,9 @@ from app.db.models import Base
 
 config = context.config
 if config.config_file_name is not None:
-    fileConfig(config.config_file_name)
+    # Migration commands also run inside the test/API process. Preserve the app's
+    # request and execution loggers instead of silently disabling them.
+    fileConfig(config.config_file_name, disable_existing_loggers=False)
 
 target_metadata = Base.metadata
 

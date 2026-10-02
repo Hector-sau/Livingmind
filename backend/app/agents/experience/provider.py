@@ -5,7 +5,7 @@ Errors never include request headers or the API key.
 
 from __future__ import annotations
 
-from typing import Literal, Protocol
+from typing import Callable, Literal, Protocol
 
 import httpx
 
@@ -38,11 +38,13 @@ class DeepSeekProvider:
         model: str,
         base_url: str = "https://api.deepseek.com",
         max_tokens: int = 2000,
+        usage_sink: Callable[[dict], None] | None = None,
     ):
         self._api_key = api_key
         self.model = model
         self._base_url = base_url.rstrip("/")
         self._max_tokens = max_tokens
+        self._usage_sink = usage_sink
 
     def complete_json(self, system: str, user: str, timeout_s: float) -> str:
         if not self._api_key:
@@ -69,10 +71,17 @@ class DeepSeekProvider:
         if res.status_code != 200:
             raise ProviderError("http", f"模型服务返回 HTTP {res.status_code}")
         try:
-            choice = res.json()["choices"][0]
+            payload = res.json()
+            choice = payload["choices"][0]
             content = choice["message"]["content"]
         except (ValueError, KeyError, IndexError, TypeError) as exc:
             raise ProviderError("empty", "模型响应格式异常") from exc
+        # Optional benchmark-only sink. Never send prompts, completions or credentials to it.
+        if self._usage_sink is not None and isinstance(payload.get("usage"), dict):
+            try:
+                self._usage_sink({key: payload["usage"].get(key) for key in ("prompt_tokens", "completion_tokens", "total_tokens")})
+            except Exception:
+                pass  # accounting must not change the user-facing plan result
         # A completion cut off at the budget is not a usable answer even when it happens to
         # parse: the model was still writing. Reported separately from a genuinely empty reply
         # because the fix is different -- raise LIVINGMIND_MODEL_MAX_TOKENS, not retry.

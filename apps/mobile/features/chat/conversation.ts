@@ -50,7 +50,35 @@ export function resultSummary(results: ActionResult[]): string {
   const ok = results.filter((r) => r.outcome === 'succeeded').length;
   if (results.length === 0) return '没有需要执行的动作';
   if (ok === results.length) return `已完成 ${ok} 项设备调整`;
+  const unknown = results.filter((r) => r.outcome === 'unknown').length;
+  if (unknown > 0) return `完成 ${ok}/${results.length} 项，${unknown} 项结果未知`;
+  if (results.some((r) => r.outcome === 'failed')) return `完成 ${ok}/${results.length} 项，其余未确认完成`;
   return `完成 ${ok}/${results.length} 项，其余未执行`;
+}
+
+/** A missing receipt is not proof that a write did or did not happen. */
+export function actionOutcomeLabel(outcome: ActionResult['outcome']): string {
+  const labels: Record<ActionResult['outcome'], string> = {
+    succeeded: '已完成',
+    unknown: '结果未知',
+    failed: '未确认完成',
+    rejected: '已拒绝',
+    skipped: '已跳过',
+  };
+  return labels[outcome];
+}
+
+export function resultPresentation(results: ActionResult[], repeated: boolean): {
+  title: string;
+  tone: 'green' | 'amber' | 'muted';
+} {
+  const complete = results.length > 0 && results.every((r) => r.outcome === 'succeeded');
+  const title = repeated ? '已确认过此计划'
+    : results.length === 0 ? '没有需要执行的动作'
+    : complete ? '已为你调整好'
+    : results.some((r) => r.outcome === 'unknown') ? '执行结果待确认'
+    : '设备调整未全部完成';
+  return { title, tone: results.length === 0 ? 'muted' : complete ? 'green' : 'amber' };
 }
 
 export function greeting(name: string, isGuest: boolean): string {

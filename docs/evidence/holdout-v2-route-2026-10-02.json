@@ -1,0 +1,202 @@
+{
+  "dataset": "holdout_v2",
+  "synthetic": true,
+  "recorded_at_utc": "2026-10-02T11:19:02.016974+00:00",
+  "route": {
+    "correct": 29,
+    "total": 30,
+    "rows": [
+      {
+        "id": "h01",
+        "expected": "rest",
+        "actual": "rest",
+        "correct": true
+      },
+      {
+        "id": "h02",
+        "expected": "rest",
+        "actual": "rest",
+        "correct": true
+      },
+      {
+        "id": "h03",
+        "expected": "rest",
+        "actual": "rest",
+        "correct": true
+      },
+      {
+        "id": "h04",
+        "expected": "rest",
+        "actual": "rest",
+        "correct": true
+      },
+      {
+        "id": "h05",
+        "expected": "rest",
+        "actual": "rest",
+        "correct": true
+      },
+      {
+        "id": "h06",
+        "expected": "rest",
+        "actual": "rest",
+        "correct": true
+      },
+      {
+        "id": "h07",
+        "expected": "rest",
+        "actual": "rest",
+        "correct": true
+      },
+      {
+        "id": "h08",
+        "expected": "rest",
+        "actual": "rest",
+        "correct": true
+      },
+      {
+        "id": "h09",
+        "expected": "rest",
+        "actual": "rest",
+        "correct": true
+      },
+      {
+        "id": "h10",
+        "expected": "rest",
+        "actual": "rest",
+        "correct": true
+      },
+      {
+        "id": "h11",
+        "expected": "rest",
+        "actual": "rest",
+        "correct": true
+      },
+      {
+        "id": "h12",
+        "expected": "rest",
+        "actual": "rest",
+        "correct": true
+      },
+      {
+        "id": "h13",
+        "expected": "device_command",
+        "actual": "device_command",
+        "correct": true
+      },
+      {
+        "id": "h14",
+        "expected": "device_command",
+        "actual": "device_command",
+        "correct": true
+      },
+      {
+        "id": "h15",
+        "expected": "device_command",
+        "actual": "device_command",
+        "correct": true
+      },
+      {
+        "id": "h16",
+        "expected": "device_command",
+        "actual": "device_command",
+        "correct": true
+      },
+      {
+        "id": "h17",
+        "expected": "device_command",
+        "actual": "device_command",
+        "correct": true
+      },
+      {
+        "id": "h18",
+        "expected": "status",
+        "actual": "status",
+        "correct": true
+      },
+      {
+        "id": "h19",
+        "expected": "status",
+        "actual": "status",
+        "correct": true
+      },
+      {
+        "id": "h20",
+        "expected": "status",
+        "actual": "status",
+        "correct": true
+      },
+      {
+        "id": "h21",
+        "expected": "status",
+        "actual": "status",
+        "correct": true
+      },
+      {
+        "id": "h22",
+        "expected": "status",
+        "actual": "status",
+        "correct": true
+      },
+      {
+        "id": "h23",
+        "expected": "clarification",
+        "actual": "clarification",
+        "correct": true
+      },
+      {
+        "id": "h24",
+        "expected": "clarification",
+        "actual": "clarification",
+        "correct": true
+      },
+      {
+        "id": "h25",
+        "expected": "clarification",
+        "actual": "clarification",
+        "correct": true
+      },
+      {
+        "id": "h26",
+        "expected": "clarification",
+        "actual": "device_command",
+        "correct": false
+      },
+      {
+        "id": "h27",
+        "expected": "other",
+        "actual": "other",
+        "correct": true
+      },
+      {
+        "id": "h28",
+        "expected": "other",
+        "actual": "other",
+        "correct": true
+      },
+      {
+        "id": "h29",
+        "expected": "other",
+        "actual": "other",
+        "correct": true
+      },
+      {
+        "id": "h30",
+        "expected": "other",
+        "actual": "other",
+        "correct": true
+      }
+    ]
+  },
+  "semantic": {
+    "pass": 0,
+    "fail": 0,
+    "fallback": 0,
+    "total": 0,
+    "p50_ms": null,
+    "p95_ms": null,
+    "rows": []
+  },
+  "provider": null,
+  "model": null
+}

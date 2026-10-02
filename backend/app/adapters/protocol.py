@@ -67,7 +67,12 @@ class DeviceCommandReceipt:
 
 @runtime_checkable
 class DeviceGateway(Protocol):
-    """V2 seam: identity, idempotency key, epoch fencing and typed acknowledgements."""
+    """V2 seam: identity, idempotency key, epoch fencing and typed acknowledgements.
+
+    Transports must apply bounded timeouts and normalize uncertain network failures
+    to OSError/TimeoutError (or return an unknown receipt). A lost response is not
+    evidence that the device did not execute. The executor records unknown, never retries.
+    """
 
     def list_devices(self, space_id: str) -> list[DeviceDescriptor]: ...
 

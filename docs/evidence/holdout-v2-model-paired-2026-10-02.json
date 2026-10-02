@@ -1,0 +1,335 @@
+{
+  "dataset": "holdout_v2.json",
+  "synthetic": true,
+  "recorded_at_utc": "2026-10-02T10:51:25.518563+00:00",
+  "order": "alternated per case",
+  "timeout_s": 6.0,
+  "max_tokens": 2000,
+  "temperature": 0.3,
+  "summary": [
+    {
+      "model": "deepseek-chat",
+      "total": 12,
+      "semantic_pass": 11,
+      "semantic_fail": 1,
+      "fallback": 0,
+      "p50_ms": 1038,
+      "p95_ms": 1452,
+      "total_tokens_reported": 6291,
+      "usage_reported_count": 12
+    },
+    {
+      "model": "deepseek-flash",
+      "total": 12,
+      "semantic_pass": 9,
+      "semantic_fail": 0,
+      "fallback": 3,
+      "p50_ms": 2325,
+      "p95_ms": 6272,
+      "total_tokens_reported": 7138,
+      "usage_reported_count": 9
+    }
+  ],
+  "rows": [
+    {
+      "case_id": "h01",
+      "model": "deepseek-chat",
+      "source": "model",
+      "verdict": "pass",
+      "wall_ms": 963,
+      "fallback_reason": null,
+      "usage": {
+        "prompt_tokens": 406,
+        "completion_tokens": 113,
+        "total_tokens": 519
+      }
+    },
+    {
+      "case_id": "h01",
+      "model": "deepseek-flash",
+      "source": "model",
+      "verdict": "pass",
+      "wall_ms": 1280,
+      "fallback_reason": null,
+      "usage": {
+        "prompt_tokens": 431,
+        "completion_tokens": 149,
+        "total_tokens": 580
+      }
+    },
+    {
+      "case_id": "h02",
+      "model": "deepseek-flash",
+      "source": "model",
+      "verdict": "pass",
+      "wall_ms": 1637,
+      "fallback_reason": null,
+      "usage": {
+        "prompt_tokens": 431,
+        "completion_tokens": 180,
+        "total_tokens": 611
+      }
+    },
+    {
+      "case_id": "h02",
+      "model": "deepseek-chat",
+      "source": "model",
+      "verdict": "pass",
+      "wall_ms": 1057,
+      "fallback_reason": null,
+      "usage": {
+        "prompt_tokens": 406,
+        "completion_tokens": 107,
+        "total_tokens": 513
+      }
+    },
+    {
+      "case_id": "h03",
+      "model": "deepseek-chat",
+      "source": "model",
+      "verdict": "pass",
+      "wall_ms": 813,
+      "fallback_reason": null,
+      "usage": {
+        "prompt_tokens": 401,
+        "completion_tokens": 107,
+        "total_tokens": 508
+      }
+    },
+    {
+      "case_id": "h03",
+      "model": "deepseek-flash",
+      "source": "model",
+      "verdict": "pass",
+      "wall_ms": 2325,
+      "fallback_reason": null,
+      "usage": {
+        "prompt_tokens": 426,
+        "completion_tokens": 367,
+        "total_tokens": 793
+      }
+    },
+    {
+      "case_id": "h04",
+      "model": "deepseek-flash",
+      "source": "model",
+      "verdict": "pass",
+      "wall_ms": 3217,
+      "fallback_reason": null,
+      "usage": {
+        "prompt_tokens": 429,
+        "completion_tokens": 410,
+        "total_tokens": 839
+      }
+    },
+    {
+      "case_id": "h04",
+      "model": "deepseek-chat",
+      "source": "model",
+      "verdict": "pass",
+      "wall_ms": 1164,
+      "fallback_reason": null,
+      "usage": {
+        "prompt_tokens": 404,
+        "completion_tokens": 128,
+        "total_tokens": 532
+      }
+    },
+    {
+      "case_id": "h05",
+      "model": "deepseek-chat",
+      "source": "model",
+      "verdict": "pass",
+      "wall_ms": 869,
+      "fallback_reason": null,
+      "usage": {
+        "prompt_tokens": 408,
+        "completion_tokens": 124,
+        "total_tokens": 532
+      }
+    },
+    {
+      "case_id": "h05",
+      "model": "deepseek-flash",
+      "source": "model",
+      "verdict": "pass",
+      "wall_ms": 1599,
+      "fallback_reason": null,
+      "usage": {
+        "prompt_tokens": 433,
+        "completion_tokens": 205,
+        "total_tokens": 638
+      }
+    },
+    {
+      "case_id": "h06",
+      "model": "deepseek-flash",
+      "source": "model",
+      "verdict": "pass",
+      "wall_ms": 1856,
+      "fallback_reason": null,
+      "usage": {
+        "prompt_tokens": 430,
+        "completion_tokens": 205,
+        "total_tokens": 635
+      }
+    },
+    {
+      "case_id": "h06",
+      "model": "deepseek-chat",
+      "source": "model",
+      "verdict": "pass",
+      "wall_ms": 959,
+      "fallback_reason": null,
+      "usage": {
+        "prompt_tokens": 405,
+        "completion_tokens": 115,
+        "total_tokens": 520
+      }
+    },
+    {
+      "case_id": "h07",
+      "model": "deepseek-chat",
+      "source": "model",
+      "verdict": "pass",
+      "wall_ms": 1034,
+      "fallback_reason": null,
+      "usage": {
+        "prompt_tokens": 403,
+        "completion_tokens": 125,
+        "total_tokens": 528
+      }
+    },
+    {
+      "case_id": "h07",
+      "model": "deepseek-flash",
+      "source": "rule_fallback",
+      "verdict": "fallback",
+      "wall_ms": 6167,
+      "fallback_reason": "模型响应超过 6 秒",
+      "usage": null
+    },
+    {
+      "case_id": "h08",
+      "model": "deepseek-flash",
+      "source": "rule_fallback",
+      "verdict": "fallback",
+      "wall_ms": 6272,
+      "fallback_reason": "模型响应超过 6 秒",
+      "usage": null
+    },
+    {
+      "case_id": "h08",
+      "model": "deepseek-chat",
+      "source": "model",
+      "verdict": "fail",
+      "wall_ms": 1452,
+      "fallback_reason": null,
+      "usage": {
+        "prompt_tokens": 401,
+        "completion_tokens": 134,
+        "total_tokens": 535
+      }
+    },
+    {
+      "case_id": "h09",
+      "model": "deepseek-chat",
+      "source": "model",
+      "verdict": "pass",
+      "wall_ms": 1099,
+      "fallback_reason": null,
+      "usage": {
+        "prompt_tokens": 408,
+        "completion_tokens": 124,
+        "total_tokens": 532
+      }
+    },
+    {
+      "case_id": "h09",
+      "model": "deepseek-flash",
+      "source": "rule_fallback",
+      "verdict": "fallback",
+      "wall_ms": 6176,
+      "fallback_reason": "模型响应超过 6 秒",
+      "usage": null
+    },
+    {
+      "case_id": "h10",
+      "model": "deepseek-flash",
+      "source": "model",
+      "verdict": "pass",
+      "wall_ms": 1900,
+      "fallback_reason": null,
+      "usage": {
+        "prompt_tokens": 434,
+        "completion_tokens": 259,
+        "total_tokens": 693
+      }
+    },
+    {
+      "case_id": "h10",
+      "model": "deepseek-chat",
+      "source": "model",
+      "verdict": "pass",
+      "wall_ms": 1303,
+      "fallback_reason": null,
+      "usage": {
+        "prompt_tokens": 409,
+        "completion_tokens": 128,
+        "total_tokens": 537
+      }
+    },
+    {
+      "case_id": "h11",
+      "model": "deepseek-chat",
+      "source": "model",
+      "verdict": "pass",
+      "wall_ms": 1260,
+      "fallback_reason": null,
+      "usage": {
+        "prompt_tokens": 404,
+        "completion_tokens": 111,
+        "total_tokens": 515
+      }
+    },
+    {
+      "case_id": "h11",
+      "model": "deepseek-flash",
+      "source": "model",
+      "verdict": "pass",
+      "wall_ms": 4781,
+      "fallback_reason": null,
+      "usage": {
+        "prompt_tokens": 429,
+        "completion_tokens": 893,
+        "total_tokens": 1322
+      }
+    },
+    {
+      "case_id": "h12",
+      "model": "deepseek-flash",
+      "source": "model",
+      "verdict": "pass",
+      "wall_ms": 3506,
+      "fallback_reason": null,
+      "usage": {
+        "prompt_tokens": 425,
+        "completion_tokens": 602,
+        "total_tokens": 1027
+      }
+    },
+    {
+      "case_id": "h12",
+      "model": "deepseek-chat",
+      "source": "model",
+      "verdict": "pass",
+      "wall_ms": 1038,
+      "fallback_reason": null,
+      "usage": {
+        "prompt_tokens": 400,
+        "completion_tokens": 120,
+        "total_tokens": 520
+      }
+    }
+  ]
+}

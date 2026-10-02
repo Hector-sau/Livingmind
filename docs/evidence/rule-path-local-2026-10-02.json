@@ -1,0 +1,1331 @@
+{
+  "mode": "in-process TestClient + rule planner + virtual gateway",
+  "rounds": 30,
+  "recorded_at_utc": "2026-10-02T11:19:28.567206+00:00",
+  "plan_p50_ms": 0,
+  "plan_p95_ms": 1,
+  "confirm_p50_ms": 1,
+  "confirm_p95_ms": 2,
+  "rows": [
+    {
+      "request_id": "baseline-1",
+      "plan_ms": 16,
+      "confirm_ms": 2,
+      "agent_stages_ms": [
+        {
+          "agent": "orchestrator",
+          "title": "识别意图：休息请求",
+          "latency_ms": 0
+        },
+        {
+          "agent": "memory",
+          "title": "读取上下文",
+          "latency_ms": 0
+        },
+        {
+          "agent": "experience",
+          "title": "生成体验目标",
+          "latency_ms": 0
+        },
+        {
+          "agent": "energy",
+          "title": "能源策略",
+          "latency_ms": 0
+        },
+        {
+          "agent": "space_execution",
+          "title": "生成设备动作",
+          "latency_ms": 0
+        },
+        {
+          "agent": "harness",
+          "title": "执行前检查",
+          "latency_ms": 0
+        }
+      ],
+      "plan_id": "plan-00018",
+      "service_id": "svc-00021",
+      "action_ids": [
+        "act-00001",
+        "act-00002",
+        "act-00003"
+      ]
+    },
+    {
+      "request_id": "baseline-2",
+      "plan_ms": 0,
+      "confirm_ms": 2,
+      "agent_stages_ms": [
+        {
+          "agent": "orchestrator",
+          "title": "识别意图：休息请求",
+          "latency_ms": 0
+        },
+        {
+          "agent": "memory",
+          "title": "读取上下文",
+          "latency_ms": 0
+        },
+        {
+          "agent": "experience",
+          "title": "生成体验目标",
+          "latency_ms": 0
+        },
+        {
+          "agent": "energy",
+          "title": "能源策略",
+          "latency_ms": 0
+        },
+        {
+          "agent": "space_execution",
+          "title": "生成设备动作",
+          "latency_ms": 0
+        },
+        {
+          "agent": "harness",
+          "title": "执行前检查",
+          "latency_ms": 0
+        }
+      ],
+      "plan_id": "plan-00047",
+      "service_id": "svc-00050",
+      "action_ids": [
+        "act-00030",
+        "act-00031",
+        "act-00032"
+      ]
+    },
+    {
+      "request_id": "baseline-3",
+      "plan_ms": 0,
+      "confirm_ms": 1,
+      "agent_stages_ms": [
+        {
+          "agent": "orchestrator",
+          "title": "识别意图：休息请求",
+          "latency_ms": 0
+        },
+        {
+          "agent": "memory",
+          "title": "读取上下文",
+          "latency_ms": 0
+        },
+        {
+          "agent": "experience",
+          "title": "生成体验目标",
+          "latency_ms": 0
+        },
+        {
+          "agent": "energy",
+          "title": "能源策略",
+          "latency_ms": 0
+        },
+        {
+          "agent": "space_execution",
+          "title": "生成设备动作",
+          "latency_ms": 0
+        },
+        {
+          "agent": "harness",
+          "title": "执行前检查",
+          "latency_ms": 0
+        }
+      ],
+      "plan_id": "plan-00076",
+      "service_id": "svc-00079",
+      "action_ids": [
+        "act-00059",
+        "act-00060",
+        "act-00061"
+      ]
+    },
+    {
+      "request_id": "baseline-4",
+      "plan_ms": 0,
+      "confirm_ms": 2,
+      "agent_stages_ms": [
+        {
+          "agent": "orchestrator",
+          "title": "识别意图：休息请求",
+          "latency_ms": 0
+        },
+        {
+          "agent": "memory",
+          "title": "读取上下文",
+          "latency_ms": 0
+        },
+        {
+          "agent": "experience",
+          "title": "生成体验目标",
+          "latency_ms": 0
+        },
+        {
+          "agent": "energy",
+          "title": "能源策略",
+          "latency_ms": 0
+        },
+        {
+          "agent": "space_execution",
+          "title": "生成设备动作",
+          "latency_ms": 0
+        },
+        {
+          "agent": "harness",
+          "title": "执行前检查",
+          "latency_ms": 0
+        }
+      ],
+      "plan_id": "plan-00105",
+      "service_id": "svc-00108",
+      "action_ids": [
+        "act-00088",
+        "act-00089",
+        "act-00090"
+      ]
+    },
+    {
+      "request_id": "baseline-5",
+      "plan_ms": 0,
+      "confirm_ms": 1,
+      "agent_stages_ms": [
+        {
+          "agent": "orchestrator",
+          "title": "识别意图：休息请求",
+          "latency_ms": 0
+        },
+        {
+          "agent": "memory",
+          "title": "读取上下文",
+          "latency_ms": 0
+        },
+        {
+          "agent": "experience",
+          "title": "生成体验目标",
+          "latency_ms": 0
+        },
+        {
+          "agent": "energy",
+          "title": "能源策略",
+          "latency_ms": 0
+        },
+        {
+          "agent": "space_execution",
+          "title": "生成设备动作",
+          "latency_ms": 0
+        },
+        {
+          "agent": "harness",
+          "title": "执行前检查",
+          "latency_ms": 0
+        }
+      ],
+      "plan_id": "plan-00134",
+      "service_id": "svc-00137",
+      "action_ids": [
+        "act-00117",
+        "act-00118",
+        "act-00119"
+      ]
+    },
+    {
+      "request_id": "baseline-6",
+      "plan_ms": 0,
+      "confirm_ms": 1,
+      "agent_stages_ms": [
+        {
+          "agent": "orchestrator",
+          "title": "识别意图：休息请求",
+          "latency_ms": 0
+        },
+        {
+          "agent": "memory",
+          "title": "读取上下文",
+          "latency_ms": 0
+        },
+        {
+          "agent": "experience",
+          "title": "生成体验目标",
+          "latency_ms": 0
+        },
+        {
+          "agent": "energy",
+          "title": "能源策略",
+          "latency_ms": 0
+        },
+        {
+          "agent": "space_execution",
+          "title": "生成设备动作",
+          "latency_ms": 0
+        },
+        {
+          "agent": "harness",
+          "title": "执行前检查",
+          "latency_ms": 0
+        }
+      ],
+      "plan_id": "plan-00163",
+      "service_id": "svc-00166",
+      "action_ids": [
+        "act-00146",
+        "act-00147",
+        "act-00148"
+      ]
+    },
+    {
+      "request_id": "baseline-7",
+      "plan_ms": 0,
+      "confirm_ms": 1,
+      "agent_stages_ms": [
+        {
+          "agent": "orchestrator",
+          "title": "识别意图：休息请求",
+          "latency_ms": 0
+        },
+        {
+          "agent": "memory",
+          "title": "读取上下文",
+          "latency_ms": 0
+        },
+        {
+          "agent": "experience",
+          "title": "生成体验目标",
+          "latency_ms": 0
+        },
+        {
+          "agent": "energy",
+          "title": "能源策略",
+          "latency_ms": 0
+        },
+        {
+          "agent": "space_execution",
+          "title": "生成设备动作",
+          "latency_ms": 0
+        },
+        {
+          "agent": "harness",
+          "title": "执行前检查",
+          "latency_ms": 0
+        }
+      ],
+      "plan_id": "plan-00192",
+      "service_id": "svc-00195",
+      "action_ids": [
+        "act-00175",
+        "act-00176",
+        "act-00177"
+      ]
+    },
+    {
+      "request_id": "baseline-8",
+      "plan_ms": 1,
+      "confirm_ms": 1,
+      "agent_stages_ms": [
+        {
+          "agent": "orchestrator",
+          "title": "识别意图：休息请求",
+          "latency_ms": 0
+        },
+        {
+          "agent": "memory",
+          "title": "读取上下文",
+          "latency_ms": 0
+        },
+        {
+          "agent": "experience",
+          "title": "生成体验目标",
+          "latency_ms": 0
+        },
+        {
+          "agent": "energy",
+          "title": "能源策略",
+          "latency_ms": 0
+        },
+        {
+          "agent": "space_execution",
+          "title": "生成设备动作",
+          "latency_ms": 0
+        },
+        {
+          "agent": "harness",
+          "title": "执行前检查",
+          "latency_ms": 0
+        }
+      ],
+      "plan_id": "plan-00221",
+      "service_id": "svc-00224",
+      "action_ids": [
+        "act-00204",
+        "act-00205",
+        "act-00206"
+      ]
+    },
+    {
+      "request_id": "baseline-9",
+      "plan_ms": 0,
+      "confirm_ms": 1,
+      "agent_stages_ms": [
+        {
+          "agent": "orchestrator",
+          "title": "识别意图：休息请求",
+          "latency_ms": 0
+        },
+        {
+          "agent": "memory",
+          "title": "读取上下文",
+          "latency_ms": 0
+        },
+        {
+          "agent": "experience",
+          "title": "生成体验目标",
+          "latency_ms": 0
+        },
+        {
+          "agent": "energy",
+          "title": "能源策略",
+          "latency_ms": 0
+        },
+        {
+          "agent": "space_execution",
+          "title": "生成设备动作",
+          "latency_ms": 0
+        },
+        {
+          "agent": "harness",
+          "title": "执行前检查",
+          "latency_ms": 0
+        }
+      ],
+      "plan_id": "plan-00250",
+      "service_id": "svc-00253",
+      "action_ids": [
+        "act-00233",
+        "act-00234",
+        "act-00235"
+      ]
+    },
+    {
+      "request_id": "baseline-10",
+      "plan_ms": 0,
+      "confirm_ms": 2,
+      "agent_stages_ms": [
+        {
+          "agent": "orchestrator",
+          "title": "识别意图：休息请求",
+          "latency_ms": 0
+        },
+        {
+          "agent": "memory",
+          "title": "读取上下文",
+          "latency_ms": 0
+        },
+        {
+          "agent": "experience",
+          "title": "生成体验目标",
+          "latency_ms": 0
+        },
+        {
+          "agent": "energy",
+          "title": "能源策略",
+          "latency_ms": 0
+        },
+        {
+          "agent": "space_execution",
+          "title": "生成设备动作",
+          "latency_ms": 0
+        },
+        {
+          "agent": "harness",
+          "title": "执行前检查",
+          "latency_ms": 0
+        }
+      ],
+      "plan_id": "plan-00279",
+      "service_id": "svc-00282",
+      "action_ids": [
+        "act-00262",
+        "act-00263",
+        "act-00264"
+      ]
+    },
+    {
+      "request_id": "baseline-11",
+      "plan_ms": 0,
+      "confirm_ms": 13,
+      "agent_stages_ms": [
+        {
+          "agent": "orchestrator",
+          "title": "识别意图：休息请求",
+          "latency_ms": 0
+        },
+        {
+          "agent": "memory",
+          "title": "读取上下文",
+          "latency_ms": 0
+        },
+        {
+          "agent": "experience",
+          "title": "生成体验目标",
+          "latency_ms": 0
+        },
+        {
+          "agent": "energy",
+          "title": "能源策略",
+          "latency_ms": 0
+        },
+        {
+          "agent": "space_execution",
+          "title": "生成设备动作",
+          "latency_ms": 0
+        },
+        {
+          "agent": "harness",
+          "title": "执行前检查",
+          "latency_ms": 0
+        }
+      ],
+      "plan_id": "plan-00308",
+      "service_id": "svc-00311",
+      "action_ids": [
+        "act-00291",
+        "act-00292",
+        "act-00293"
+      ]
+    },
+    {
+      "request_id": "baseline-12",
+      "plan_ms": 0,
+      "confirm_ms": 1,
+      "agent_stages_ms": [
+        {
+          "agent": "orchestrator",
+          "title": "识别意图：休息请求",
+          "latency_ms": 0
+        },
+        {
+          "agent": "memory",
+          "title": "读取上下文",
+          "latency_ms": 0
+        },
+        {
+          "agent": "experience",
+          "title": "生成体验目标",
+          "latency_ms": 0
+        },
+        {
+          "agent": "energy",
+          "title": "能源策略",
+          "latency_ms": 0
+        },
+        {
+          "agent": "space_execution",
+          "title": "生成设备动作",
+          "latency_ms": 0
+        },
+        {
+          "agent": "harness",
+          "title": "执行前检查",
+          "latency_ms": 0
+        }
+      ],
+      "plan_id": "plan-00337",
+      "service_id": "svc-00340",
+      "action_ids": [
+        "act-00320",
+        "act-00321",
+        "act-00322"
+      ]
+    },
+    {
+      "request_id": "baseline-13",
+      "plan_ms": 0,
+      "confirm_ms": 1,
+      "agent_stages_ms": [
+        {
+          "agent": "orchestrator",
+          "title": "识别意图：休息请求",
+          "latency_ms": 0
+        },
+        {
+          "agent": "memory",
+          "title": "读取上下文",
+          "latency_ms": 0
+        },
+        {
+          "agent": "experience",
+          "title": "生成体验目标",
+          "latency_ms": 0
+        },
+        {
+          "agent": "energy",
+          "title": "能源策略",
+          "latency_ms": 0
+        },
+        {
+          "agent": "space_execution",
+          "title": "生成设备动作",
+          "latency_ms": 0
+        },
+        {
+          "agent": "harness",
+          "title": "执行前检查",
+          "latency_ms": 0
+        }
+      ],
+      "plan_id": "plan-00366",
+      "service_id": "svc-00369",
+      "action_ids": [
+        "act-00349",
+        "act-00350",
+        "act-00351"
+      ]
+    },
+    {
+      "request_id": "baseline-14",
+      "plan_ms": 0,
+      "confirm_ms": 1,
+      "agent_stages_ms": [
+        {
+          "agent": "orchestrator",
+          "title": "识别意图：休息请求",
+          "latency_ms": 0
+        },
+        {
+          "agent": "memory",
+          "title": "读取上下文",
+          "latency_ms": 0
+        },
+        {
+          "agent": "experience",
+          "title": "生成体验目标",
+          "latency_ms": 0
+        },
+        {
+          "agent": "energy",
+          "title": "能源策略",
+          "latency_ms": 0
+        },
+        {
+          "agent": "space_execution",
+          "title": "生成设备动作",
+          "latency_ms": 0
+        },
+        {
+          "agent": "harness",
+          "title": "执行前检查",
+          "latency_ms": 0
+        }
+      ],
+      "plan_id": "plan-00395",
+      "service_id": "svc-00398",
+      "action_ids": [
+        "act-00378",
+        "act-00379",
+        "act-00380"
+      ]
+    },
+    {
+      "request_id": "baseline-15",
+      "plan_ms": 0,
+      "confirm_ms": 1,
+      "agent_stages_ms": [
+        {
+          "agent": "orchestrator",
+          "title": "识别意图：休息请求",
+          "latency_ms": 0
+        },
+        {
+          "agent": "memory",
+          "title": "读取上下文",
+          "latency_ms": 0
+        },
+        {
+          "agent": "experience",
+          "title": "生成体验目标",
+          "latency_ms": 0
+        },
+        {
+          "agent": "energy",
+          "title": "能源策略",
+          "latency_ms": 0
+        },
+        {
+          "agent": "space_execution",
+          "title": "生成设备动作",
+          "latency_ms": 0
+        },
+        {
+          "agent": "harness",
+          "title": "执行前检查",
+          "latency_ms": 0
+        }
+      ],
+      "plan_id": "plan-00424",
+      "service_id": "svc-00427",
+      "action_ids": [
+        "act-00407",
+        "act-00408",
+        "act-00409"
+      ]
+    },
+    {
+      "request_id": "baseline-16",
+      "plan_ms": 0,
+      "confirm_ms": 2,
+      "agent_stages_ms": [
+        {
+          "agent": "orchestrator",
+          "title": "识别意图：休息请求",
+          "latency_ms": 0
+        },
+        {
+          "agent": "memory",
+          "title": "读取上下文",
+          "latency_ms": 0
+        },
+        {
+          "agent": "experience",
+          "title": "生成体验目标",
+          "latency_ms": 0
+        },
+        {
+          "agent": "energy",
+          "title": "能源策略",
+          "latency_ms": 0
+        },
+        {
+          "agent": "space_execution",
+          "title": "生成设备动作",
+          "latency_ms": 0
+        },
+        {
+          "agent": "harness",
+          "title": "执行前检查",
+          "latency_ms": 0
+        }
+      ],
+      "plan_id": "plan-00453",
+      "service_id": "svc-00456",
+      "action_ids": [
+        "act-00436",
+        "act-00437",
+        "act-00438"
+      ]
+    },
+    {
+      "request_id": "baseline-17",
+      "plan_ms": 0,
+      "confirm_ms": 1,
+      "agent_stages_ms": [
+        {
+          "agent": "orchestrator",
+          "title": "识别意图：休息请求",
+          "latency_ms": 0
+        },
+        {
+          "agent": "memory",
+          "title": "读取上下文",
+          "latency_ms": 0
+        },
+        {
+          "agent": "experience",
+          "title": "生成体验目标",
+          "latency_ms": 0
+        },
+        {
+          "agent": "energy",
+          "title": "能源策略",
+          "latency_ms": 0
+        },
+        {
+          "agent": "space_execution",
+          "title": "生成设备动作",
+          "latency_ms": 0
+        },
+        {
+          "agent": "harness",
+          "title": "执行前检查",
+          "latency_ms": 0
+        }
+      ],
+      "plan_id": "plan-00482",
+      "service_id": "svc-00485",
+      "action_ids": [
+        "act-00465",
+        "act-00466",
+        "act-00467"
+      ]
+    },
+    {
+      "request_id": "baseline-18",
+      "plan_ms": 0,
+      "confirm_ms": 1,
+      "agent_stages_ms": [
+        {
+          "agent": "orchestrator",
+          "title": "识别意图：休息请求",
+          "latency_ms": 0
+        },
+        {
+          "agent": "memory",
+          "title": "读取上下文",
+          "latency_ms": 0
+        },
+        {
+          "agent": "experience",
+          "title": "生成体验目标",
+          "latency_ms": 0
+        },
+        {
+          "agent": "energy",
+          "title": "能源策略",
+          "latency_ms": 0
+        },
+        {
+          "agent": "space_execution",
+          "title": "生成设备动作",
+          "latency_ms": 0
+        },
+        {
+          "agent": "harness",
+          "title": "执行前检查",
+          "latency_ms": 0
+        }
+      ],
+      "plan_id": "plan-00511",
+      "service_id": "svc-00514",
+      "action_ids": [
+        "act-00494",
+        "act-00495",
+        "act-00496"
+      ]
+    },
+    {
+      "request_id": "baseline-19",
+      "plan_ms": 0,
+      "confirm_ms": 1,
+      "agent_stages_ms": [
+        {
+          "agent": "orchestrator",
+          "title": "识别意图：休息请求",
+          "latency_ms": 0
+        },
+        {
+          "agent": "memory",
+          "title": "读取上下文",
+          "latency_ms": 0
+        },
+        {
+          "agent": "experience",
+          "title": "生成体验目标",
+          "latency_ms": 0
+        },
+        {
+          "agent": "energy",
+          "title": "能源策略",
+          "latency_ms": 0
+        },
+        {
+          "agent": "space_execution",
+          "title": "生成设备动作",
+          "latency_ms": 0
+        },
+        {
+          "agent": "harness",
+          "title": "执行前检查",
+          "latency_ms": 0
+        }
+      ],
+      "plan_id": "plan-00540",
+      "service_id": "svc-00543",
+      "action_ids": [
+        "act-00523",
+        "act-00524",
+        "act-00525"
+      ]
+    },
+    {
+      "request_id": "baseline-20",
+      "plan_ms": 0,
+      "confirm_ms": 1,
+      "agent_stages_ms": [
+        {
+          "agent": "orchestrator",
+          "title": "识别意图：休息请求",
+          "latency_ms": 0
+        },
+        {
+          "agent": "memory",
+          "title": "读取上下文",
+          "latency_ms": 0
+        },
+        {
+          "agent": "experience",
+          "title": "生成体验目标",
+          "latency_ms": 0
+        },
+        {
+          "agent": "energy",
+          "title": "能源策略",
+          "latency_ms": 0
+        },
+        {
+          "agent": "space_execution",
+          "title": "生成设备动作",
+          "latency_ms": 0
+        },
+        {
+          "agent": "harness",
+          "title": "执行前检查",
+          "latency_ms": 0
+        }
+      ],
+      "plan_id": "plan-00569",
+      "service_id": "svc-00572",
+      "action_ids": [
+        "act-00552",
+        "act-00553",
+        "act-00554"
+      ]
+    },
+    {
+      "request_id": "baseline-21",
+      "plan_ms": 0,
+      "confirm_ms": 1,
+      "agent_stages_ms": [
+        {
+          "agent": "orchestrator",
+          "title": "识别意图：休息请求",
+          "latency_ms": 0
+        },
+        {
+          "agent": "memory",
+          "title": "读取上下文",
+          "latency_ms": 0
+        },
+        {
+          "agent": "experience",
+          "title": "生成体验目标",
+          "latency_ms": 0
+        },
+        {
+          "agent": "energy",
+          "title": "能源策略",
+          "latency_ms": 0
+        },
+        {
+          "agent": "space_execution",
+          "title": "生成设备动作",
+          "latency_ms": 0
+        },
+        {
+          "agent": "harness",
+          "title": "执行前检查",
+          "latency_ms": 0
+        }
+      ],
+      "plan_id": "plan-00598",
+      "service_id": "svc-00601",
+      "action_ids": [
+        "act-00581",
+        "act-00582",
+        "act-00583"
+      ]
+    },
+    {
+      "request_id": "baseline-22",
+      "plan_ms": 0,
+      "confirm_ms": 1,
+      "agent_stages_ms": [
+        {
+          "agent": "orchestrator",
+          "title": "识别意图：休息请求",
+          "latency_ms": 0
+        },
+        {
+          "agent": "memory",
+          "title": "读取上下文",
+          "latency_ms": 0
+        },
+        {
+          "agent": "experience",
+          "title": "生成体验目标",
+          "latency_ms": 0
+        },
+        {
+          "agent": "energy",
+          "title": "能源策略",
+          "latency_ms": 0
+        },
+        {
+          "agent": "space_execution",
+          "title": "生成设备动作",
+          "latency_ms": 0
+        },
+        {
+          "agent": "harness",
+          "title": "执行前检查",
+          "latency_ms": 0
+        }
+      ],
+      "plan_id": "plan-00627",
+      "service_id": "svc-00630",
+      "action_ids": [
+        "act-00610",
+        "act-00611",
+        "act-00612"
+      ]
+    },
+    {
+      "request_id": "baseline-23",
+      "plan_ms": 0,
+      "confirm_ms": 1,
+      "agent_stages_ms": [
+        {
+          "agent": "orchestrator",
+          "title": "识别意图：休息请求",
+          "latency_ms": 0
+        },
+        {
+          "agent": "memory",
+          "title": "读取上下文",
+          "latency_ms": 0
+        },
+        {
+          "agent": "experience",
+          "title": "生成体验目标",
+          "latency_ms": 0
+        },
+        {
+          "agent": "energy",
+          "title": "能源策略",
+          "latency_ms": 0
+        },
+        {
+          "agent": "space_execution",
+          "title": "生成设备动作",
+          "latency_ms": 0
+        },
+        {
+          "agent": "harness",
+          "title": "执行前检查",
+          "latency_ms": 0
+        }
+      ],
+      "plan_id": "plan-00656",
+      "service_id": "svc-00659",
+      "action_ids": [
+        "act-00639",
+        "act-00640",
+        "act-00641"
+      ]
+    },
+    {
+      "request_id": "baseline-24",
+      "plan_ms": 1,
+      "confirm_ms": 2,
+      "agent_stages_ms": [
+        {
+          "agent": "orchestrator",
+          "title": "识别意图：休息请求",
+          "latency_ms": 0
+        },
+        {
+          "agent": "memory",
+          "title": "读取上下文",
+          "latency_ms": 0
+        },
+        {
+          "agent": "experience",
+          "title": "生成体验目标",
+          "latency_ms": 0
+        },
+        {
+          "agent": "energy",
+          "title": "能源策略",
+          "latency_ms": 0
+        },
+        {
+          "agent": "space_execution",
+          "title": "生成设备动作",
+          "latency_ms": 0
+        },
+        {
+          "agent": "harness",
+          "title": "执行前检查",
+          "latency_ms": 0
+        }
+      ],
+      "plan_id": "plan-00685",
+      "service_id": "svc-00688",
+      "action_ids": [
+        "act-00668",
+        "act-00669",
+        "act-00670"
+      ]
+    },
+    {
+      "request_id": "baseline-25",
+      "plan_ms": 0,
+      "confirm_ms": 1,
+      "agent_stages_ms": [
+        {
+          "agent": "orchestrator",
+          "title": "识别意图：休息请求",
+          "latency_ms": 0
+        },
+        {
+          "agent": "memory",
+          "title": "读取上下文",
+          "latency_ms": 0
+        },
+        {
+          "agent": "experience",
+          "title": "生成体验目标",
+          "latency_ms": 0
+        },
+        {
+          "agent": "energy",
+          "title": "能源策略",
+          "latency_ms": 0
+        },
+        {
+          "agent": "space_execution",
+          "title": "生成设备动作",
+          "latency_ms": 0
+        },
+        {
+          "agent": "harness",
+          "title": "执行前检查",
+          "latency_ms": 0
+        }
+      ],
+      "plan_id": "plan-00714",
+      "service_id": "svc-00717",
+      "action_ids": [
+        "act-00697",
+        "act-00698",
+        "act-00699"
+      ]
+    },
+    {
+      "request_id": "baseline-26",
+      "plan_ms": 0,
+      "confirm_ms": 1,
+      "agent_stages_ms": [
+        {
+          "agent": "orchestrator",
+          "title": "识别意图：休息请求",
+          "latency_ms": 0
+        },
+        {
+          "agent": "memory",
+          "title": "读取上下文",
+          "latency_ms": 0
+        },
+        {
+          "agent": "experience",
+          "title": "生成体验目标",
+          "latency_ms": 0
+        },
+        {
+          "agent": "energy",
+          "title": "能源策略",
+          "latency_ms": 0
+        },
+        {
+          "agent": "space_execution",
+          "title": "生成设备动作",
+          "latency_ms": 0
+        },
+        {
+          "agent": "harness",
+          "title": "执行前检查",
+          "latency_ms": 0
+        }
+      ],
+      "plan_id": "plan-00743",
+      "service_id": "svc-00746",
+      "action_ids": [
+        "act-00726",
+        "act-00727",
+        "act-00728"
+      ]
+    },
+    {
+      "request_id": "baseline-27",
+      "plan_ms": 0,
+      "confirm_ms": 1,
+      "agent_stages_ms": [
+        {
+          "agent": "orchestrator",
+          "title": "识别意图：休息请求",
+          "latency_ms": 0
+        },
+        {
+          "agent": "memory",
+          "title": "读取上下文",
+          "latency_ms": 0
+        },
+        {
+          "agent": "experience",
+          "title": "生成体验目标",
+          "latency_ms": 0
+        },
+        {
+          "agent": "energy",
+          "title": "能源策略",
+          "latency_ms": 0
+        },
+        {
+          "agent": "space_execution",
+          "title": "生成设备动作",
+          "latency_ms": 0
+        },
+        {
+          "agent": "harness",
+          "title": "执行前检查",
+          "latency_ms": 0
+        }
+      ],
+      "plan_id": "plan-00772",
+      "service_id": "svc-00775",
+      "action_ids": [
+        "act-00755",
+        "act-00756",
+        "act-00757"
+      ]
+    },
+    {
+      "request_id": "baseline-28",
+      "plan_ms": 0,
+      "confirm_ms": 1,
+      "agent_stages_ms": [
+        {
+          "agent": "orchestrator",
+          "title": "识别意图：休息请求",
+          "latency_ms": 0
+        },
+        {
+          "agent": "memory",
+          "title": "读取上下文",
+          "latency_ms": 0
+        },
+        {
+          "agent": "experience",
+          "title": "生成体验目标",
+          "latency_ms": 0
+        },
+        {
+          "agent": "energy",
+          "title": "能源策略",
+          "latency_ms": 0
+        },
+        {
+          "agent": "space_execution",
+          "title": "生成设备动作",
+          "latency_ms": 0
+        },
+        {
+          "agent": "harness",
+          "title": "执行前检查",
+          "latency_ms": 0
+        }
+      ],
+      "plan_id": "plan-00801",
+      "service_id": "svc-00804",
+      "action_ids": [
+        "act-00784",
+        "act-00785",
+        "act-00786"
+      ]
+    },
+    {
+      "request_id": "baseline-29",
+      "plan_ms": 0,
+      "confirm_ms": 1,
+      "agent_stages_ms": [
+        {
+          "agent": "orchestrator",
+          "title": "识别意图：休息请求",
+          "latency_ms": 0
+        },
+        {
+          "agent": "memory",
+          "title": "读取上下文",
+          "latency_ms": 0
+        },
+        {
+          "agent": "experience",
+          "title": "生成体验目标",
+          "latency_ms": 0
+        },
+        {
+          "agent": "energy",
+          "title": "能源策略",
+          "latency_ms": 0
+        },
+        {
+          "agent": "space_execution",
+          "title": "生成设备动作",
+          "latency_ms": 0
+        },
+        {
+          "agent": "harness",
+          "title": "执行前检查",
+          "latency_ms": 0
+        }
+      ],
+      "plan_id": "plan-00830",
+      "service_id": "svc-00833",
+      "action_ids": [
+        "act-00813",
+        "act-00814",
+        "act-00815"
+      ]
+    },
+    {
+      "request_id": "baseline-30",
+      "plan_ms": 0,
+      "confirm_ms": 1,
+      "agent_stages_ms": [
+        {
+          "agent": "orchestrator",
+          "title": "识别意图：休息请求",
+          "latency_ms": 0
+        },
+        {
+          "agent": "memory",
+          "title": "读取上下文",
+          "latency_ms": 0
+        },
+        {
+          "agent": "experience",
+          "title": "生成体验目标",
+          "latency_ms": 0
+        },
+        {
+          "agent": "energy",
+          "title": "能源策略",
+          "latency_ms": 0
+        },
+        {
+          "agent": "space_execution",
+          "title": "生成设备动作",
+          "latency_ms": 0
+        },
+        {
+          "agent": "harness",
+          "title": "执行前检查",
+          "latency_ms": 0
+        }
+      ],
+      "plan_id": "plan-00859",
+      "service_id": "svc-00862",
+      "action_ids": [
+        "act-00842",
+        "act-00843",
+        "act-00844"
+      ]
+    }
+  ]
+}

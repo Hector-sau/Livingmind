@@ -82,8 +82,18 @@ class SqlStore:
     @staticmethod
     def _write_events(session, events) -> None:
         """Outbox rows are written inside the caller's transaction: business fact and event
-        commit together, or neither does."""
-        for envelope in events or []:
+        commit together, or neither does. Serialize same-space inserts until commit so
+        outbox sequence allocation cannot overtake an uncommitted earlier event."""
+        from sqlalchemy import text
+
+        events = list(events or [])
+        # Ordered acquisition also avoids deadlocks if one transaction spans spaces.
+        for space_id in sorted({envelope.space_id for envelope in events}):
+            session.execute(
+                text("SELECT pg_advisory_xact_lock(hashtextextended(:space_id, 0))"),
+                {"space_id": f"livingmind-outbox:{space_id}"},
+            )
+        for envelope in events:
             session.add(
                 OutboxEventRow(
                     event_id=envelope.event_id,

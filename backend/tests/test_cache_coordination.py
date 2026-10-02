@@ -8,6 +8,7 @@ Without it the suite still runs: every cache call degrades to the database path.
 from __future__ import annotations
 
 import os
+import time
 
 import pytest
 
@@ -93,6 +94,25 @@ def test_lock_is_held_by_one_holder_and_released_by_token(redis_on):
 def test_lock_has_a_ttl_so_a_crashed_instance_cannot_block_the_space(redis_on):
     with SpaceLock("space-home-bedroom", ttl_s=5) as lock:
         assert 0 < redis_on.ttl(lock.key) <= 5
+
+
+@needs_redis
+def test_expired_holder_cannot_release_a_new_holder_lock(redis_on):
+    first = SpaceLock("space-home-bedroom", ttl_s=1)
+    first.__enter__()
+    assert first.acquired
+    try:
+        time.sleep(1.2)
+        second = SpaceLock("space-home-bedroom", ttl_s=5)
+        second.__enter__()
+        assert second.acquired
+        try:
+            first.__exit__(None, None, None)
+            assert redis_on.get(second.key) == second.token
+        finally:
+            second.__exit__(None, None, None)
+    finally:
+        first.__exit__(None, None, None)
 
 
 @needs_redis

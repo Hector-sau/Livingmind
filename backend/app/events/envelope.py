@@ -13,6 +13,7 @@ from typing import Any, Literal, Optional
 
 from pydantic import BaseModel, ConfigDict, Field
 from pydantic.alias_generators import to_camel
+from app.observability.context import current_request_id
 
 EventType = Literal[
     "plan.created",
@@ -63,6 +64,6 @@ def event(
         person_id=person_id,
         space_id=space_id,
         aggregate_id=aggregate_id,
-        correlation_id=correlation_id,
+        correlation_id=correlation_id or current_request_id(),
         payload=payload,
     )

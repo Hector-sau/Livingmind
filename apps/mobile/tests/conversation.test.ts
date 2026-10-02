@@ -1,9 +1,9 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
-import { actionablePlanId, conversationReducer, greeting, resultSummary, type Message } from '../features/chat/conversation';
+import { actionOutcomeLabel, actionablePlanId, conversationReducer, greeting, resultPresentation, resultSummary, type Message } from '../features/chat/conversation';
 import { sceneTimeline } from '../features/scenes/timeline';
-import type { ActivityRecord, Plan } from '../services/types';
+import type { ActionResult, ActivityRecord, Plan } from '../services/types';
 
 const plan = (planId: string): Plan => ({
   planId,
@@ -51,6 +51,40 @@ test('result summary and greeting wording', () => {
   assert.equal(resultSummary([r('succeeded'), r('skipped')]), '完成 1/2 项，其余未执行');
   assert.match(greeting('访客', true), /访客模式/);
   assert.match(greeting('林悦', false), /林悦/);
+});
+
+const result = (outcome: ActionResult['outcome']): ActionResult => ({
+  actionId: 'a', device: 'ac', command: 'set_target_temperature', value: 24,
+  outcome, reason: null, observedValue: outcome === 'succeeded' ? 24 : null,
+});
+
+test('lost receipts are unknown, not success or proof of non-execution', () => {
+  const results = [result('succeeded'), result('unknown')];
+  assert.equal(resultSummary(results), '完成 1/2 项，1 项结果未知');
+  assert.equal(actionOutcomeLabel('unknown'), '结果未知');
+  assert.deepEqual(resultPresentation(results, false), { title: '执行结果待确认', tone: 'amber' });
+  assert.deepEqual(resultPresentation(results, true), { title: '已确认过此计划', tone: 'amber' });
+});
+
+test('failed readback does not imply that the device was never changed', () => {
+  const results = [result('failed')];
+  assert.equal(resultSummary(results), '完成 0/1 项，其余未确认完成');
+  assert.equal(actionOutcomeLabel('failed'), '未确认完成');
+  assert.deepEqual(resultPresentation(results, false), { title: '设备调整未全部完成', tone: 'amber' });
+});
+
+test('skipped and rejected actions never produce an all-complete presentation', () => {
+  assert.equal(actionOutcomeLabel('skipped'), '已跳过');
+  assert.equal(actionOutcomeLabel('rejected'), '已拒绝');
+  assert.deepEqual(resultPresentation([result('skipped'), result('rejected')], false), {
+    title: '设备调整未全部完成', tone: 'amber',
+  });
+});
+
+test('only nonempty all-success results have a green completion presentation', () => {
+  assert.equal(resultSummary([]), '没有需要执行的动作');
+  assert.deepEqual(resultPresentation([], false), { title: '没有需要执行的动作', tone: 'muted' });
+  assert.deepEqual(resultPresentation([result('succeeded')], false), { title: '已为你调整好', tone: 'green' });
 });
 
 const rec = (over: Partial<ActivityRecord>): ActivityRecord => ({

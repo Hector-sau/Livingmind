@@ -7,6 +7,8 @@
 当前范围：**平板优先、手机兼容的 Home Living 演示闭环**。场景只有“我想休息”：计划 → 确认 → 虚拟设备回读 → 模拟入睡 / 室温事件 → 整晚模拟时钟 → 渐进唤醒或停止。
 接手或协作前先读 [AGENT-HANDOFF.md](AGENT-HANDOFF.md)（统一交接文档，在仓库根目录持续维护）。实际完成情况以 [docs/status.md](docs/status.md) 为准；验收标准见 [docs/acceptance.md](docs/acceptance.md)。
 
+准备面试或核对技术成果，从 [当前工程与评测证据](docs/interview-evidence-2026-10-02.md) 开始：包含模型选型原始结果、跨进程故障、网关未知回执、Outbox 顺序与恢复、分段日志及本轮测试报告。每条结论都标明模拟范围与未验证部分。
+
 ## 系统架构
 
 一个 Expo App、一个 FastAPI 后端、一层由后端契约生成的共享类型。App 不认识设备，只认识接口；后端不让 Agent 碰设备，只让它产出计划。
@@ -198,7 +200,7 @@ cd backend && set -a && source .env && set +a
 .venv/bin/python scripts/model_latency_bench.py --samples 24   # 延迟分布与失败分类
 ```
 
-`model_latency_bench.py` 重复调用与产品同一条路径（`ExperienceAgent.plan()`，含 JSON 解析与结构校验），输出 p50 / p90 / p95、模型贡献率、按 kind 的失败分类和按话术的分组，写入 `docs/evidence/model-latency.json`。分位数只统计成功调用——超时那条的耗时等于预算本身，混进去会把中位数做得好看。密钥从环境变量读取，不会打印、也不会写进结果文件。
+`model_latency_bench.py` 重复调用与产品同一条路径（`ExperienceAgent.plan()`，含 JSON 解析与结构校验），输出 p50 / p90 / p95、模型贡献率、按 kind 的失败分类和按话术的分组，写入 `docs/evidence/model-latency.json`。该历史脚本的分位数只统计成功调用，必须与失败/超时次数一起阅读，不能当成所有请求的用户等待时间。新增 `backend/scripts/compare_models.py` 按相同用例交错比较模型，记录服务层创建计划耗时并包含超时降级；两种计时口径应分开。密钥从环境变量读取，不会打印、也不会写进结果文件。
 
 浏览器端到端也可以用真实模型：`cd apps/mobile && python e2e/run_e2e.py --real-model`。
 

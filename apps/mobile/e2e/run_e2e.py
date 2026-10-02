@@ -742,6 +742,32 @@ def scenario_real_model(page: Page) -> None:
     shot(page, "real-model-stopped")
 
 
+def scenario_unknown_receipt(page: Page) -> None:
+    """UI-only response injection; backend transport failures have separate unit tests."""
+    def lost_receipt(route):
+        response = route.fetch()
+        assert response.ok, "confirmation itself must succeed before injecting an unknown receipt"
+        payload = response.json()
+        payload["results"][0].update(
+            outcome="unknown", observedValue=None,
+            reason="设备回执丢失，结果未知，不自动重发",
+        )
+        route.fulfill(response=response, json=payload)
+
+    page.route("**/api/plans/*/confirm", lost_receipt)
+    open_app(page, f"http://localhost:{HTTP_PORT}/")
+    set_mode(page, "rule")
+    send(page, "我想休息")
+    page.get_by_test_id("confirm-plan").click()
+    card = page.get_by_test_id("result-card")
+    card.wait_for()
+    text = card.inner_text()
+    assert "执行结果待确认" in text and "1 项结果未知" in text, text
+    assert "已为你调整好" not in text and "未执行" not in text, text
+    assert "不自动重发" in text, text
+    shot(page, "http-unknown-receipt")
+
+
 def scenario_offline(page: Page, backend: subprocess.Popen) -> None:
     """Backend goes away: the app reports it and never fakes success."""
     open_app(page, f"http://localhost:{HTTP_PORT}/")
@@ -922,6 +948,12 @@ def main() -> int:
                     scenario_model_paths(page)
 
                 run("http-model-paths", model_paths)
+
+            def unknown_receipt(page):
+                reset_backend()
+                scenario_unknown_receipt(page)
+
+            run("http-unknown-receipt", unknown_receipt)
 
             def offline(page):
                 reset_backend()

@@ -8,19 +8,24 @@ nothing, order per space is kept, and a dead bus never blocks devices.
 
 from __future__ import annotations
 
+from concurrent.futures import ThreadPoolExecutor, TimeoutError as FutureTimeout
+from threading import Event
+
 import pytest
 from sqlalchemy import select, text
 
 from app.contracts import RequestContext, RestPreference
 from app.db.models import DomainEventRow, OutboxEventRow, ServiceProjectionRow
 from app.db.session import engine, session_scope
-from app.events.outbox import dead_letters, pending_count, publish_pending
+from app.events.outbox import dead_letters, pending_count, publish_pending, retry_dead_letter
 from app.events.publisher import FailingPublisher, PostgresQueuePublisher
+from app.events.envelope import event as domain_event
 from app.repositories.sql_store import SqlStore
 from app.services.rest_service import RestService
 from tests.conftest import FakeClock
 from tests.test_persistence import needs_db
 from workers.activity_projector import CONSUMER, consume_once
+import workers.activity_projector as projector
 
 pytestmark = needs_db
 
@@ -97,9 +102,10 @@ def test_bus_outage_keeps_events_and_never_blocks_devices(service):
     assert confirmed.device_state.light_brightness == 15  # devices ran while the bus is down
 
     failing = FailingPublisher()
+    pending_before = pending_count()
     first = publish_pending(failing)
     assert first["published"] == 0 and first["failed"] == first["claimed"]
-    assert pending_count() == first["claimed"]  # nothing lost
+    assert pending_count() == pending_before  # nothing lost; later same-space rows wait behind the failed first row
 
     for _ in range(5):
         publish_pending(failing)
@@ -109,6 +115,135 @@ def test_bus_outage_keeps_events_and_never_blocks_devices(service):
     assert consume_once()["applied"] == 0
     stopped = service.stop_service(confirmed.service.service_id, _ctx())
     assert stopped.service.status == "stopped"
+
+
+def test_dead_letter_requires_explicit_requeue_and_blocks_later_same_space(service):
+    service.create_rest_plan(_ctx(), "我想休息")
+    service.create_rest_plan(_ctx(), "我想早点休息")
+    for _ in range(5):
+        publish_pending(FailingPublisher())
+    letters = dead_letters()
+    assert len(letters) == 1  # later same-space event cannot overtake the poison event
+    assert publish_pending(PostgresQueuePublisher())["claimed"] == 0
+    assert retry_dead_letter(letters[0].event_id)
+    assert not retry_dead_letter("missing")
+    assert publish_pending(PostgresQueuePublisher())["published"] == 2
+    assert dead_letters() == []
+
+
+def test_two_publishers_cannot_skip_a_locked_earlier_space_event(service):
+    service.create_rest_plan(_ctx(), "我想休息")
+    service.create_rest_plan(_ctx(), "我想早点休息")
+    entered, release = Event(), Event()
+
+    class DelayedPublisher:
+        def publish(self, events):
+            entered.set()
+            assert release.wait(10)
+            return PostgresQueuePublisher().publish(events)
+
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        first = pool.submit(publish_pending, DelayedPublisher())
+        assert entered.wait(10)
+        try:
+            assert publish_pending(PostgresQueuePublisher())["claimed"] == 0
+        finally:
+            release.set()
+        assert first.result(timeout=15)["published"] == 2
+    with session_scope() as session:
+        queued = session.scalars(select(OutboxEventRow).order_by(OutboxEventRow.seq)).all()
+        delivered = session.scalars(select(DomainEventRow).order_by(DomainEventRow.seq)).all()
+    assert [row.event_id for row in delivered] == [row.event_id for row in queued]
+
+
+def test_same_space_writers_commit_in_outbox_sequence_order(service):
+    first_event = domain_event("service.started", occurred_at=FakeClock()(),
+                               space_id="space-home-bedroom", aggregate_id="svc-order")
+    second_event = domain_event("service.stopped", occurred_at=FakeClock()(),
+                                space_id="space-home-bedroom", aggregate_id="svc-order")
+    entered, release, started = Event(), Event(), Event()
+
+    def first_writer():
+        with session_scope() as session:
+            SqlStore._write_events(session, [first_event])
+            entered.set()
+            assert release.wait(10)
+
+    def second_writer():
+        started.set()
+        SqlStore().record_events([second_event])
+
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        first = pool.submit(first_writer)
+        assert entered.wait(10)
+        second = pool.submit(second_writer)
+        assert started.wait(10)
+        try:
+            with pytest.raises(FutureTimeout):
+                second.result(timeout=0.1)
+        finally:
+            release.set()
+        first.result(timeout=15)
+        second.result(timeout=15)
+    with session_scope() as session:
+        ordered = [row.event_id for row in session.scalars(select(OutboxEventRow).order_by(OutboxEventRow.seq)).all()]
+    assert ordered == [first_event.event_id, second_event.event_id]
+
+
+def test_crash_after_delivery_before_ack_redelivers_once(service):
+    service.create_rest_plan(_ctx(), "我想休息")
+
+    class DeliverThenCrash:
+        def publish(self, events):
+            PostgresQueuePublisher().publish(events)
+            raise RuntimeError("worker died before outbox ack")
+
+    assert publish_pending(DeliverThenCrash())["failed"] == 1
+    assert pending_count() == 1
+    assert publish_pending(PostgresQueuePublisher())["published"] == 1
+    with session_scope() as session:
+        assert len(session.scalars(select(DomainEventRow)).all()) == 1
+
+
+def test_late_start_cannot_resurrect_stopped_projection(service):
+    plan = service.create_rest_plan(_ctx(), "我想休息")
+    started = service.confirm_plan(plan.plan_id, _ctx(), plan.version).service
+    service.stop_service(started.service_id, _ctx())
+    publish_pending(PostgresQueuePublisher())
+    consume_once()
+    late = domain_event("service.started", occurred_at=FakeClock()(), space_id="space-home-bedroom",
+                        aggregate_id=started.service_id, person_id=started.person_id)
+    PostgresQueuePublisher().publish([late])
+    assert consume_once()["applied"] == 1
+    with session_scope() as session:
+        assert session.get(ServiceProjectionRow, started.service_id).status == "stopped"
+
+
+def test_two_consumers_do_not_project_later_same_space_event_early(service, monkeypatch):
+    plan = service.create_rest_plan(_ctx(), "我想休息")
+    started = service.confirm_plan(plan.plan_id, _ctx(), plan.version).service
+    service.stop_service(started.service_id, _ctx())
+    publish_pending(PostgresQueuePublisher())
+    entered, release = Event(), Event()
+    original = projector._apply
+
+    def delayed_apply(session, envelope):
+        if not entered.is_set():
+            entered.set()
+            assert release.wait(10)
+        original(session, envelope)
+
+    monkeypatch.setattr(projector, "_apply", delayed_apply)
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        first = pool.submit(consume_once)
+        assert entered.wait(10)
+        try:
+            assert consume_once()["applied"] == 0
+        finally:
+            release.set()
+        assert first.result(timeout=15)["applied"] > 0
+    with session_scope() as session:
+        assert session.get(ServiceProjectionRow, started.service_id).status == "stopped"
 
 
 def test_projection_is_idempotent_and_ordered(service):

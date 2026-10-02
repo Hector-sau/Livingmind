@@ -6,7 +6,7 @@ from datetime import datetime
 
 from typing import Any
 
-from sqlalchemy import CheckConstraint, DateTime, Float, Index, Integer, String, func
+from sqlalchemy import BigInteger, CheckConstraint, DateTime, Float, Index, Integer, String, func, text
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
@@ -177,6 +177,7 @@ class OutboxEventRow(Base):
     __tablename__ = "outbox_events"
 
     event_id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    seq: Mapped[int] = mapped_column(BigInteger, nullable=False, server_default=text("nextval('livingmind_outbox_seq')"), unique=True)
     event_type: Mapped[str] = mapped_column(String(64), nullable=False)
     space_id: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
     payload: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False)

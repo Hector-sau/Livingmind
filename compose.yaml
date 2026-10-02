@@ -73,8 +73,8 @@ services:
       # Model mode only: pass the key at run time, e.g.
       #   DEEPSEEK_API_KEY=... docker compose up api
       DEEPSEEK_API_KEY: "${DEEPSEEK_API_KEY:-}"
-      DEEPSEEK_BASE_URL: "${DEEPSEEK_BASE_URL:-}"
-      DEEPSEEK_MODEL: "${DEEPSEEK_MODEL:-}"
+      DEEPSEEK_BASE_URL: "${DEEPSEEK_BASE_URL:-https://api.deepseek.com}"
+      DEEPSEEK_MODEL: "${DEEPSEEK_MODEL:-deepseek-chat}"
       LIVINGMIND_MODEL_TIMEOUT_S: "${LIVINGMIND_MODEL_TIMEOUT_S:-6}"
     healthcheck:
       # python instead of curl: the slim image ships no curl on purpose.

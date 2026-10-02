@@ -12,6 +12,7 @@ import time
 from typing import Optional
 
 from sqlalchemy import select
+from sqlalchemy.orm import aliased
 
 from app.db.models import ConsumerReceiptRow, DomainEventRow, ServiceProjectionRow
 from app.db.session import session_scope
@@ -35,11 +36,14 @@ def _apply(session, envelope: Envelope) -> None:
         )
         session.add(row)
     if envelope.event_type == "service.started":
-        row.status = "active"
+        # A delayed or redelivered start must never resurrect a terminal service.
+        if row.status == "unknown":
+            row.status = "active"
     elif envelope.event_type == "service.adjusted":
         row.adjustments += 1
     elif envelope.event_type in ("service.stopped", "service.completed", "service.failed"):
-        row.status = envelope.event_type.split(".", 1)[1]
+        if row.status not in ("stopped", "completed", "failed"):
+            row.status = envelope.event_type.split(".", 1)[1]
     elif envelope.event_type == "device.action.completed":
         row.device_actions += 1
     row.person_id = row.person_id or envelope.person_id
@@ -47,23 +51,41 @@ def _apply(session, envelope: Envelope) -> None:
 
 
 def consume_once(batch_size: int = 100) -> dict[str, int]:
-    """Read undelivered-to-me events in order and project them. Returns counts."""
-    with session_scope() as session:
-        seen = select(ConsumerReceiptRow.event_id).where(ConsumerReceiptRow.consumer == CONSUMER)
-        rows = session.scalars(
-            select(DomainEventRow)
-            .where(DomainEventRow.event_id.not_in(seen))
-            .order_by(DomainEventRow.seq)
-            .limit(batch_size)
-            .with_for_update(skip_locked=True)
-        ).all()
-        applied = 0
-        for row in rows:
-            envelope = Envelope.model_validate(row.payload)
-            _apply(session, envelope)
-            session.add(ConsumerReceiptRow(consumer=CONSUMER, event_id=envelope.event_id))
-            applied += 1
-        return {"read": len(rows), "applied": applied}
+    """Project at most ``batch_size`` events without skipping earlier same-space rows.
+
+    A second consumer cannot leap past a locked earlier event in the same space.
+    Different spaces can progress independently. Receipts and projection commit together.
+    """
+    totals = {"read": 0, "applied": 0}
+    if batch_size <= 0:
+        return totals
+    while totals["read"] < batch_size:
+        with session_scope() as session:
+            seen = select(ConsumerReceiptRow.event_id).where(ConsumerReceiptRow.consumer == CONSUMER)
+            prior = aliased(DomainEventRow)
+            earlier_unseen = (
+                select(prior.seq)
+                .where(prior.space_id == DomainEventRow.space_id,
+                       prior.seq < DomainEventRow.seq,
+                       prior.event_id.not_in(seen))
+                .exists()
+            )
+            rows = session.scalars(
+                select(DomainEventRow)
+                .where(DomainEventRow.event_id.not_in(seen), ~earlier_unseen)
+                .order_by(DomainEventRow.seq)
+                .limit(batch_size - totals["read"])
+                .with_for_update(skip_locked=True)
+            ).all()
+            if not rows:
+                break
+            for row in rows:
+                envelope = Envelope.model_validate(row.payload)
+                _apply(session, envelope)
+                session.add(ConsumerReceiptRow(consumer=CONSUMER, event_id=envelope.event_id))
+            totals["read"] += len(rows)
+            totals["applied"] += len(rows)
+    return totals
 
 
 def run(poll_seconds: float = 1.0, iterations: Optional[int] = None) -> None:

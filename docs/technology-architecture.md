@@ -1,6 +1,6 @@
 # LivingMind 技术架构与上手指南
 
-更新：2026-09-19
+更新：2026-10-03（新增独立评测、跨进程故障验证、Outbox 保序与分段日志）
 
 这份文档用于回答三类问题：项目实际用了什么技术、每项技术解决什么问题、后续怎样把演示原型升级成可持续维护的真实工程。
 
@@ -39,7 +39,7 @@ iPad / Android App                          未来语音入口
                             虚拟设备 / 未来 SpaceMind / 厂商底座
 
 PostgreSQL：业务事实、人物记忆、计划、服务、动作、Outbox、Graph checkpoint
-Redis：短期锁、冷却、幂等加速、热点状态；不可作为唯一事实来源
+Redis：短期空间锁与冷却快速判断；不缓存人物偏好或设备状态，不可作为事实来源
 事件总线：动作完成后的领域事件、审计投影、分析；默认用 PostgreSQL 队列实现，Kafka 为可选实现；都不在设备控制关键路径
 Docker Compose：在开发机和 CI 中统一启动 API、数据库、缓存和 Worker；消息中间件放在可选 profile，默认不启动
 ```
@@ -70,9 +70,13 @@ Docker Compose：在开发机和 CI 中统一启动 API、数据库、缓存和 
 | 设备 | 有状态虚拟 Adapter + `AdapterDeviceGateway`；`actionId` 幂等、`serviceEpoch` fencing、回执/回读 | 保持 `DeviceGateway` Protocol，替换为真实 SpaceMind / 厂商对端 | 虚拟 V2 路径已实现；真实对端未接入 |
 | 能源 | 在线规则 + 离线固定日仿真 | 保持边界；事件进入 Kafka 分析流 | 已实现规则与只读展示 |
 | 异步事件 | PostgreSQL Transactional Outbox → 数据库队列 → 幂等Consumer Projection；活动仍同步写入 | Kafka仅保留可选接口 | 已实现数据库队列 |
-| 语音入口 | `adapters/voice.py` 只有接口定义，没有任何调用方 | 真实网关返回文本与来源后走同一 assistant 契约 | **仅接口预留，未实现** |
+| 语音入口 | App 已实现语音回合、TTS 与设备端识别适配；外部音箱的 `adapters/voice.py` 仍只有协议 | 外部音箱/底座返回文本与来源后走同一 assistant 契约 | App 逻辑已测试；设备端识别待真机，外部音箱未接入 |
 | 容器化 | Python 3.12多阶段非root镜像 + Compose | 保持可复现冻结 | 宿主机全栈与容器E2E通过 |
-| CI | 三套后端matrix、迁移升降、TS、契约、Docker E2E | 后续提交持续保持全绿 | GitHub Actions 最新运行 `35409969801`（`bfcdd0e`）：6/6 Job 通过 |
+| CI | 三套后端matrix、迁移升降、TS、契约、Docker E2E | 后续提交持续保持全绿 | 历史 `bfcdd0e` 为 6/6；本轮本地验证见证据主索引，尚未推送触发托管 CI |
+
+本轮工程证据统一见 `docs/interview-evidence-2026-10-02.md`。两个独立服务进程共享虚拟网关的专项测试覆盖重复确认、停止、API 崩溃、Redis TTL 过期与 TCP 断连，但当前 Compose 仍为单 API 部署：虚拟设备、直接控制撤销窗口和启动恢复均未变成生产级多实例实现。测试夹具不能代替真实设备或部署验收。
+
+网关提交或查询回执发生规范化的 `OSError/TimeoutError` 时，Executor 把动作落为 `unknown`，不自动重发；未来厂商适配器需自行设置有限网络超时并转换 SDK 异常。`requestId → planId → serviceId/actionId` 将 HTTP、Agent 分段、动作结果和设备写入/回读日志关联起来。Outbox 的同空间写入用事务 advisory lock 序列化，发布/消费都阻止越过未完成的前序事件；死信保留并阻塞该空间后续事件，必须显式重投。
 
 ## 3. 1+2 Agent 与 LangGraph
 
@@ -96,17 +100,18 @@ backend/app/energy/
 backend/app/harness/
 ```
 
-### 3.2 目标 Graph
+### 3.2 当前规划 Graph
 
 ```text
 START → route_intent
   ├─ rest → load_memory → experience → energy → space_execution → harness → build_plan → END
   ├─ device_command → read_device → space_execution → harness → build_plan → END
   ├─ status → read_device → direct_answer → END
+  ├─ clarification → 请求补充信息（无计划、无设备动作）→ END
   └─ other → capability_answer → END
 ```
 
-建议新增：
+Experience 输出需要澄清时也转入 clarification。以下 `nodes/` 拆分是历史目录建议；当前节点写在 `backend/app/graph/builder.py` 中，共用 Orchestrator 的阶段方法，不要求为每个节点拆文件：
 
 ```text
 backend/app/graph/
@@ -620,7 +625,7 @@ PostgreSQL 保存业务事实；Redis 加速短期状态和跨实例协调；事
 
 ### 为什么默认没有跑 Kafka？
 
-当前只有一个后端进程和一个消费方，引入常驻中间件（约 1 GB 内存）解决不了任何现有问题。真正需要的是事务一致性与异步分发这套模式，它在 Outbox + 数据库队列里已经完整实现：至少一次投递、`event_id` 幂等、重试、死信、按空间保序、多实例 `SKIP LOCKED` 竞争消费。发布端是一个接口，换成 Kafka 只改一个实现类；需要时开 `kafka` profile 即可。
+当前演示路径不需要额外的 Kafka broker。事务一致性与异步分发由 Outbox + PostgreSQL 队列承担：至少一次投递、`event_id` 幂等、重试、死信以及按空间阻止越过未发布的早期事件。发布端保留 `EventPublisher` 接口；如果未来用 Kafka，需要另外实现、配置、测试分区键与重放语义，仓库目前没有可直接启用的 Kafka profile。
 
 ### 为什么不让事件总线直接控制灯光？
 
@@ -651,7 +656,7 @@ PostgreSQL 保存业务事实；Redis 加速短期状态和跨实例协调；事
 5. 阅读 `harness/policy.py → grants.py → executor.py → adapters/gateway.py`，理解为什么模型和 LangGraph 都没有设备权限。
 6. 完成阶段 B 后，本地查看 PostgreSQL 中的 plan、service、action 和 outbox 行。
 7. 完成阶段 D 后，用 Redis CLI 查看 cooldown 和 lock 的 TTL。
-8. 完成阶段 E 后，查看 `outbox_events` 的领取与投递过程；开启 `kafka` profile 时再用 consumer 看同样的 envelope。
+8. 查看 `outbox_events` 的领取与投递过程；用 `scripts/outbox_admin.py --list/--retry` 检查或显式重投死信。Kafka 当前未接入。
 9. 手动停止 Redis、事件总线、模型服务，验证降级路径。
 10. 最后再研究扩容、多实例和真实设备 Adapter。
 

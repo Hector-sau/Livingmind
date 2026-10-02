@@ -8,6 +8,7 @@ the space fence is rejected before touching the adapter.
 from __future__ import annotations
 
 import threading
+import time
 from datetime import datetime, timezone
 
 from app.adapters.protocol import (
@@ -16,6 +17,7 @@ from app.adapters.protocol import (
     DeviceCommandRequest,
     DeviceDescriptor,
 )
+from app.observability.events import record
 
 
 class AdapterDeviceGateway:
@@ -91,9 +93,12 @@ class AdapterDeviceGateway:
                 observed_at=None,
             )
 
+        started = time.monotonic()
         try:
             self.adapter.write(request.device_type, request.command, request.value)
         except Exception as exc:
+            record("gateway.write", actionId=request.action_id, outcome="failed",
+                   durationMs=round((time.monotonic() - started) * 1000, 3))
             receipt = DeviceCommandReceipt(
                 action_id=request.action_id,
                 status="failed",
@@ -103,9 +108,14 @@ class AdapterDeviceGateway:
                 detail=str(exc),
             )
         else:
+            record("gateway.write", actionId=request.action_id, outcome="returned",
+                   durationMs=round((time.monotonic() - started) * 1000, 3))
+            started = time.monotonic()
             try:
                 observed = self.adapter.read_value(request.device_type)
             except Exception as exc:
+                record("gateway.readback", actionId=request.action_id, outcome="failed",
+                       durationMs=round((time.monotonic() - started) * 1000, 3))
                 receipt = DeviceCommandReceipt(
                     action_id=request.action_id,
                     status="failed",
@@ -115,6 +125,8 @@ class AdapterDeviceGateway:
                     detail=f"设备写入后回读失败：{exc}",
                 )
             else:
+                record("gateway.readback", actionId=request.action_id, outcome="returned",
+                       durationMs=round((time.monotonic() - started) * 1000, 3))
                 receipt = DeviceCommandReceipt(
                     action_id=request.action_id,
                     status="completed",

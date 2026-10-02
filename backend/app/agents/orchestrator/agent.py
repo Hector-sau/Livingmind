@@ -22,6 +22,7 @@ from app.energy import EnergyIntelligence
 from app.energy.rules import TIER_LABEL
 from app.harness.policy import precheck
 from app.memory import MemoryService
+from app.observability.events import record
 from app.rules.rest_rule import PLAN_TTL
 from app.services.planner import ExperienceOutcome, Planner
 
@@ -33,7 +34,7 @@ _DEVICE = re.compile(r"灯|空调|窗帘")
 _ACTION = re.compile(r"开|关|调|设|拉|合|到")
 _STATUS = re.compile(r"现在|状态|多少|几度|怎么样了|情况")
 _NEGATED_REST = re.compile(r"(?:不想|不要|不用|别).{0,4}(?:休息|睡|躺|午睡|歇)")
-_VAGUE_ACTION = re.compile(r"(?:那个|这个|它).{0,5}(?:调|开|关|弄)|(?:调高|调低|大一点|小一点|亮一点|暗一点)$")
+_VAGUE_ACTION = re.compile(r"(?:那个|这个|它).{0,5}(?:调|开|关|弄)|(?:调高|调低)(?:一点)?$|(?:大一点|小一点|亮一点|暗一点)$")
 
 
 def clarification_question(text: str) -> str:
@@ -54,6 +55,9 @@ def route_intent(text: str) -> Intent:
         return "device_command"
     if _REST.search(t) and not _NEGATED_REST.search(t):
         return "rest"
+    if _STATUS.search(t) and (_DEVICE.search(t) or "房间" in t or "卧室" in t or "温度" in t):
+        if re.search(r"多少|几度|怎么样了|状态|情况", t):
+            return "status"
     if explicit_device_action:
         return "device_command"
     if _STATUS.search(t) and (_DEVICE.search(t) or "房间" in t or "卧室" in t or "温度" in t):
@@ -77,16 +81,18 @@ class _Trace:
         self.steps: list[AgentStep] = []
 
     def add(self, agent: AgentName, title: str, detail: str, source: StepSource, started: float, ok: bool = True) -> None:
+        elapsed_ms = (time.monotonic() - started) * 1000
         self.steps.append(
             AgentStep(
                 agent=agent,
                 title=title,
                 detail=detail,
                 source=source,
-                latency_ms=int((time.monotonic() - started) * 1000),
+                latency_ms=int(elapsed_ms),
                 ok=ok,
             )
         )
+        record("agent.stage", agent=agent, source=source, ok=ok, durationMs=round(elapsed_ms, 3))
 
 
 class Orchestrator:
@@ -278,6 +284,8 @@ class Orchestrator:
             schedule=schedule,
             wake_time=wake_time,
         )
+        record("plan.ready", planId=plan.plan_id, source=plan.source,
+               actionIds=[action.action_id for action in actions])
         return plan
 
     # ---- simplified branch: direct device command ----

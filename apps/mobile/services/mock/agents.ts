@@ -12,7 +12,7 @@ const DEVICE = /灯|空调|窗帘/;
 const ACTION = /开|关|调|设|拉|合|到/;
 const STATUS = /现在|状态|多少|几度|怎么样了|情况/;
 const NEGATED_REST = /(?:不想|不要|不用|别).{0,4}(?:休息|睡|躺|午睡|歇)/;
-const VAGUE_ACTION = /(?:那个|这个|它).{0,5}(?:调|开|关|弄)|(?:调高|调低|大一点|小一点|亮一点|暗一点)$/;
+const VAGUE_ACTION = /(?:那个|这个|它).{0,5}(?:调|开|关|弄)|(?:调高|调低)(?:一点)?$|(?:大一点|小一点|亮一点|暗一点)$/;
 
 export function routeIntent(text: string): Intent {
   const t = text.replace(/\s/g, '');
@@ -20,6 +20,9 @@ export function routeIntent(text: string): Intent {
   if (/灯/.test(t) && (/开灯.*关灯/.test(t) || /关灯.*开灯/.test(t))) return 'clarification';
   if (explicitDeviceAction && NEGATED_REST.test(t)) return 'device_command';
   if (REST.test(t) && !NEGATED_REST.test(t)) return 'rest';
+  if (STATUS.test(t) && (DEVICE.test(t) || /房间|卧室|温度/.test(t))) {
+    if (/多少|几度|怎么样了|状态|情况/.test(t)) return 'status';
+  }
   if (explicitDeviceAction) return 'device_command';
   if (STATUS.test(t) && (DEVICE.test(t) || /房间|卧室|温度/.test(t))) return 'status';
   if (VAGUE_ACTION.test(t)) return 'clarification';

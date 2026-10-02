@@ -8,14 +8,16 @@ stop that lands mid-plan prevents the remaining actions.
 from __future__ import annotations
 
 from datetime import datetime
+import time
 from typing import Callable, Optional
 
 from app.adapters.gateway import AdapterDeviceGateway
-from app.adapters.protocol import DeviceAdapter, DeviceCommandRequest, DeviceGateway
+from app.adapters.protocol import DeviceAdapter, DeviceCommandReceipt, DeviceCommandRequest, DeviceGateway
 from app.clock import Clock, utc_now
 from app.contracts import ActionExecution, ActionResult, DeviceAction, ExecutionGrant
 from app.harness.grants import grant_denial_reason
 from app.harness.policy import validate_action
+from app.observability.events import record
 
 Guard = Callable[[], Optional[str]]
 OnResult = Callable[[DeviceAction, ActionResult], None]
@@ -48,6 +50,7 @@ class Executor:
     ) -> list[ActionResult]:
         results: list[ActionResult] = []
         for action in actions:
+            started = time.monotonic()
             result = self._run_one(
                 action,
                 guard,
@@ -56,6 +59,11 @@ class Executor:
                 service_id=service_id,
                 service_epoch=service_epoch,
                 on_execution=on_execution,
+            )
+            record(
+                "action.finished", planId=plan_id, serviceId=service_id,
+                actionId=action.action_id, outcome=result.outcome,
+                durationMs=round((time.monotonic() - started) * 1000, 3),
             )
             on_result(action, result)
             results.append(result)
@@ -114,24 +122,30 @@ class Executor:
             execution.status = "dispatching"
             execution.attempt_count += 1
             self._transition(execution, on_execution)
-        receipt = self._gateway.submit(
-            DeviceCommandRequest(
-                action_id=action.action_id,
-                service_id=service_id,
-                service_epoch=service_epoch,
-                device_id=f"{self._adapter.space_id}:{action.device}",
-                device_type=action.device,
-                command=action.command,
-                value=action.value,
-                requested_at=self._clock(),
+        try:
+            receipt = self._gateway.submit(
+                DeviceCommandRequest(
+                    action_id=action.action_id,
+                    service_id=service_id,
+                    service_epoch=service_epoch,
+                    device_id=f"{self._adapter.space_id}:{action.device}",
+                    device_type=action.device,
+                    command=action.command,
+                    value=action.value,
+                    requested_at=self._clock(),
+                )
             )
-        )
+        except OSError as exc:
+            receipt = self._transport_unknown(action.action_id, exc)
         if receipt.status == "accepted":
             if execution is not None:
                 execution.status = "accepted"
                 execution.accepted_at = self._clock()
                 self._transition(execution, on_execution)
-            receipt = self._gateway.query(action.action_id) or receipt
+            try:
+                receipt = self._gateway.query(action.action_id) or receipt
+            except OSError as exc:
+                receipt = self._transport_unknown(action.action_id, exc)
         if receipt.status in ("accepted", "unknown"):
             self._finish(
                 execution,
@@ -173,6 +187,19 @@ class Executor:
             on_execution=on_execution,
         )
         return ActionResult(**base, outcome="succeeded", reason=None, observed_value=observed)
+
+    @staticmethod
+    def _transport_unknown(action_id: str, exc: OSError) -> DeviceCommandReceipt:
+        # A transport failure can occur after the physical write. Never infer "failed"
+        # or resend from a missing reply; persist unknown and let reconciliation decide.
+        return DeviceCommandReceipt(
+            action_id=action_id,
+            status="unknown",
+            observed_value=None,
+            observed_at=None,
+            error_kind="timeout" if isinstance(exc, TimeoutError) else "offline",
+            detail="设备网关回执未确认，动作结果未知；未自动重试",
+        )
 
     @staticmethod
     def _transition(execution: Optional[ActionExecution], callback: Optional[OnExecution]) -> None:

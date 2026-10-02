@@ -1,5 +1,91 @@
 # LivingMind AI 交接文档
 
+> **当前交接（2026-10-03）**：2026-10-02 的暂停点已恢复处理。剩余 Docker 失败已定位并修正，工程评测与故障处理代码已落地。当前证据主索引是 `docs/interview-evidence-2026-10-02.md`，不要用下方 2026-09-19 的历史数字替代它。此次实现基于 `f369f7d`；本轮本地提交以 `git log -1` 为准，未推送，GitHub 托管 CI 尚未运行本轮版本。
+
+## 本轮完成了什么
+
+1. **证据统一与独立评测**：`router_challenge_v1.json` 的 40 条用例用于修复两处路由错误，因此只能称回归集。`holdout_v2.json` 的 30 条模拟验收用例实测 29/30，保留 h26 的歧义误判，没有调参后冒充独立结果。指标方法、失败与边界都在证据主索引中。
+2. **真实模型对照**：`backend/scripts/compare_models.py` 对同一 12 条休息请求交错调用 chat/flash，统一提示词、6 秒超时、2000 输出预算和温度。chat 11/12 通过方向性语义检查，0 降级，服务层 P95 1452 ms；flash 9/12 通过，3 次超时降级，P95 6272 ms。原始 JSON 已保存。这是历史 96 次之后新增的 24 次真实调用，不是生产准确率或确定性提速比例；无需为恢复工作再次付费调用。
+3. **跨进程故障**：`backend/tests/test_multiprocess_gateway.py` 通过 5 条测试：并发确认、跨进程停止、崩溃恢复、慢写入跨 Redis TTL、Redis TCP 断连。两个 OS 进程运行服务层、共享 SQL/Redis 和 manager 虚拟网关；并非两个真实 HTTP 副本。当前 Compose 的虚拟设备/撤销窗口仍是进程内状态，不能据此扩成生产多副本。
+4. **网关未知结果**：新增 3 条故障用例，复现提交前断连、设备已写入但回复丢失、查询回执超时。Executor 把规范化的 OSError/TimeoutError 持久化成 unknown；重复确认不重发。App 同步区分成功、未知、失败、拒绝和跳过，未知结果不再显示绿色“已为你调整好”或“未执行”。增加 4 条前端测试和 `http-unknown-receipt` 浏览器场景；后者只注入 API 响应，真实异常语义由后端测试验证。外部适配器要设置有限超时并规范化 SDK 异常，真实设备对账仍待接入。
+5. **Outbox 顺序与恢复**：迁移 0006 增加 seq；同空间事务使用 advisory lock；Publisher/Consumer 不越过未处理的前序事件；eventId 去重；终态投影不被迟到 started 复活；死信保留并阻塞该空间，使用 `backend/scripts/outbox_admin.py --list/--retry` 显式处理。并发验证使用独立数据库连接，尚未做长期压测。
+6. **可观察性**：HTTP X-Request-ID、事件 correlationId、agent.stage、plan.ready、action.finished、gateway.write/readback 把阶段耗时与 planId/serviceId/actionId 连接起来；不记录话术、提示词或偏好值。Alembic 的 fileConfig 已设置 disable_existing_loggers=False，日志测试验证实际输出。虚拟网关的进程边界通过 actionId 关联，contextvar 不会自动跨进程。
+
+## 最新验证
+
+| 检查 | 结果 |
+|---|---|
+| 内存 + legacy（Python 3.11） | 170 通过 / 33 跳过 |
+| Docker PostgreSQL + legacy（Python 3.12） | 195 通过 / 8 跳过 |
+| Docker PostgreSQL + Redis + LangGraph | 202 通过 / 1 跳过；唯一跳过为内存模式专属断言 |
+| 全栈原始测试报告 | `docs/evidence/engineering-regression-2026-10-03.xml` |
+| 前端与契约 | 92/92、类型检查通过；重新生成 API 类型无 diff |
+| 本地内存后端浏览器 E2E | 28/28（含未知结果展示；模型为本地桩；非真机） |
+| Docker API 浏览器 E2E | UI 最后一处修正前 27/27；PostgreSQL + Redis + LangGraph + 两个事件 Worker；新增第 28 场景的容器复测待恢复 Docker daemon |
+| Docker 镜像与迁移 | 当前源代码镜像构建通过；0006 → 0005 → 0006 通过 |
+| GitHub / 真机 / SpaceMind | 本轮未推送；未验真机与真实外部设备 |
+
+Docker E2E 结束后的队列快照：pending=0、dead_letters=0、domain_events=74、consumer_receipts=74。它只证明这个隔离验收环境的队列已经处理完，不代表生产吞吐。30 次加入观测后的内存规则链路原始结果保存在 `docs/evidence/rule-path-observed-2026-10-03.json`，仅作本地烟雾基线。
+
+最后一次环境状态：完成 27 场景 Docker 验收后，`docker compose -p livingmind-eval down` 已成功，测试数据卷保留。前端新增未知结果展示后尝试启动容器复测，Docker socket 的 networks/version 接口返回 500，`/_ping` 超时；未擅自重启共享 Docker Desktop、删除卷或重置环境。恢复 daemon 后先核对该隔离项目状态，再按下方命令补测 28 场景。后端源代码没有在 202/1 通过之后再修改。
+
+暂停时剩余失败不是设备重复执行：测试杀死进程后立即再次确认，原 Redis token 尚未过期，正确返回 SPACE_BUSY。现在测试先核对租约存续时的拒绝，再等 3 秒测试租约过期，验证不重放。另一个日志捕获失败原因为迁移关闭了日志器；已修复根因并取消仅 spy 方法调用的弱断言。
+
+## 运行与复现
+
+本轮临时 Python 环境是 `/private/tmp/livingmind-eval-venv`（Python 3.11）。仓库原 `backend/.venv` 仍为旧 Python 3.9；不要直接继续在该环境安装当前依赖。临时环境若被系统清理，应另建 Python 3.11/3.12 环境并按 constraints 安装。移动端已执行 npm ci 恢复锁定依赖，Playwright/Chromium 已可用。
+
+在仓库根目录复现全栈测试（仅连接专用测试数据库）：
+
+```bash
+POSTGRES_HOST_PORT=55432 REDIS_HOST_PORT=56379 docker compose -p livingmind-eval up -d --wait postgres redis
+docker compose -p livingmind-eval build api
+docker compose -p livingmind-eval run --rm --no-deps \
+  -e LIVINGMIND_TEST_STORE=sql \
+  -e LIVINGMIND_TEST_DATABASE_URL=postgresql+psycopg://livingmind:livingmind@postgres:5432/livingmind \
+  -e LIVINGMIND_TEST_REDIS_URL=redis://redis:6379/15 \
+  -e LIVINGMIND_REDIS_URL=redis://redis:6379/15 \
+  -e LIVINGMIND_DEMO_LOCAL_HOUR= \
+  -e LIVINGMIND_ORCHESTRATOR=langgraph \
+  api pytest -q -p no:cacheprovider
+docker compose -p livingmind-eval down
+```
+
+测试必须清空 Compose 的演示时钟，且业务 Redis 与测试 Redis 使用同一个专用 DB 15。使用构建镜像测试；Mac 上逐文件只读挂载源码会显著拖慢测试。本轮没有清理测试数据库卷，勿操作其他 Compose 项目。
+
+恢复 Docker 后补测最终 UI（在可信本地测试网络使用；模型是本地桩，不调用付费 API）：
+
+```bash
+POSTGRES_HOST_PORT=55432 REDIS_HOST_PORT=56379 \
+LIVINGMIND_ORCHESTRATOR=langgraph \
+DEEPSEEK_API_KEY=e2e-stub-key \
+DEEPSEEK_BASE_URL=http://host.docker.internal:8195 \
+LIVINGMIND_MODEL_TIMEOUT_S=2 \
+LIVINGMIND_CORS_ORIGINS=http://localhost:8191,http://127.0.0.1:8191 \
+docker compose -p livingmind-eval up -d --wait
+/private/tmp/livingmind-eval-venv/bin/python -u apps/mobile/e2e/run_e2e.py \
+  --external-backend http://127.0.0.1:8000 --stub-bind 0.0.0.0
+docker compose -p livingmind-eval down
+```
+
+若临时 Python 环境已被清理，先在新 Python 3.11/3.12 环境安装 `apps/mobile/e2e/requirements.txt` 并执行 `python -m playwright install chromium`，替换上面的解释器路径。截图写入被忽略的 `apps/mobile/e2e/.out/screens/`；必要时自行归档。不要使用 `down -v` 删除验收数据卷。
+
+## 下一位 Agent 的步骤与边界
+
+1. 先读本节、证据主索引及 git status / git log；保留任何后来新增的用户改动。最新测试结果只适用于包含这些改动的版本。
+2. 先恢复宿主 Docker daemon 后补跑最新 28 场景；用户要求发布时，核对并推送本轮已有本地提交，再检查 GitHub 三套后端配置与 Docker E2E；目前只有本地证据。
+3. 后续模型优化应另建 v3 验收集，明确解决 h26 或方向性语义错误；不要在 v2 上调参后继续称它为未接触的测试集。
+4. 真正扩容前先做独立、持久化网关；补实例所有权恢复、不同计划竞争、网关本身崩溃后的回执恢复与设备对账。现有短锁没有续租，不宣称所有网络分区下的 exactly-once。
+5. 真机 development build、设备端语音识别和至少一种真实设备验收需要对应设备与接口；当前所有设备演示与本文故障验证都是虚拟设备。
+6. 简历表述从证据主索引取，只写本人能讲清并经团队确认的贡献。Redis 是协调锁/冷却，不是数据缓存；Kafka 未接入；本轮没有新增“缓存提速百分比”。
+7. npm ci 报告 12 个依赖 advisories（8 moderate / 4 high），尚未逐项归因；后续单独评审锁定依赖，不直接运行会跨版本升级的 audit fix --force。
+
+**给接手 AI 的指令**：先核对本节与仓库实际状态；本轮基础工程验证已经完成，不要重复推倒架构或为补指标无目的调用模型。按用户的新目标选择上面的后续项，所有新数字保留原始结果；真实硬件与托管 CI 未验的部分保持明确标注。
+
+---
+
+以下为截至 2026-09-19 的阶段历史，保留项目背景；当前状态优先采用本文顶部。
+
 更新日期：2026-09-19
 仓库位置：`/Users/macbookair/Desktop/Business/项目材料整理/Livingmind/livingmind-app/`  
 当前分支：`main`  
@@ -38,7 +124,7 @@
 | 稳定性与接口预留 | 自动时钟与环境调整互斥；调整等待时仍可停止且迟到响应不回写；重置通过服务代次和设备代次隔离旧任务；设备回读异常结果化；模拟入睡、三档起床时间；真实设备 / 语音协议预留；能源研究绘图使用迁入后的权重路径 | 后端 115 项测试；端到端 `http-stop-during-event`；`adapters/protocol.py`、`adapters/voice.py`、`docs/team-workflow.md`、`docs/demo-freeze.md` |
 | D（云端） | 三段网页版录屏脚本；主张证据表（28 条，Markdown + 5 页 PDF）；`eas.json` 开发版配置、平板安装与真机验收清单 | `apps/mobile/e2e/record_demo.py`、`scripts/build_evidence.py`、`docs/evidence.md`、`docs/device-build.md` |
 | 工程化升级 | 明确并实现 LangGraph、PostgreSQL、Redis、数据库 Outbox 事件总线与 Docker 的职责、边界和关键数据流；表结构、Redis Key、并发语义与验收证据均有对应代码 | `docs/technology-architecture.md`、`docs/status.md` |
-| 项目指标指南 | 聚焦面试最常见的响应效率、Redis缓存、稳定性规模与能源效果；提供DeepSeek 45次延迟基线和Redis缓存前后对比方案，其他模块以机制与测试事实说明；**尚未运行新的性能评测** | `docs/project-metrics.md` |
+| 项目指标指南 | 现已统一历史 96 次模型调用、本轮 24 次交错对照和独立模拟路由结果；Redis 只讲协调可靠性，缓存实验仍属未来项 | `docs/project-metrics.md`、本文顶部证据主索引 |
 | T1 Docker 基线 | 后端镜像（Python 3.12、多阶段、非root、依赖锁）、可配置宿主端口、能源JSON只读挂载、失败自动清理的`verify-t1.sh` | 用户Mac实测：镜像构建；127通过/18跳过；PostgreSQL迁移；Redis/API healthy；用户`livingmind`；镜像无`.env`；宿主机休息闭环通过；镜像96,471,430 bytes |
 | T2 PostgreSQL 持久化 | 同步栈 SQLAlchemy 2 + psycopg3 + Alembic；`Store` 协议 + 内存/SQL 两种实现（都返回副本，强制“改完必须存”）；偏好、计划、服务、整晚步骤、动作结果、活动记录、空间代次、进行中标记全部落库；数据库约束：每空间一个 active 服务（部分唯一索引）、夜间步骤 `UPDATE … WHERE status='pending' RETURNING` 只认领一次 | 同一套测试换存储再跑一遍（`LIVINGMIND_TEST_STORE=sql`）；重启恢复、并发认领、绕过服务层插入第二个 active 被数据库拒绝；网页端到端在两种存储下各 20/20 |
 | T3 LangGraph 规划图 | 编排器拆成阶段方法，legacy 与 graph 共用同一批方法；`StateGraph` 路由 + 四分支；依赖不进状态因此 checkpoint 可序列化；`LIVINGMIND_ORCHESTRATOR=legacy\|langgraph`；等价定义与对照脚本 | `LIVINGMIND_ORCHESTRATOR=langgraph` 下整套测试通过；`scripts/compare_orchestrators.py` 5 组输入全部等价；配数据库时 `PostgresSaver` 自建 checkpoint 表 |
@@ -63,7 +149,7 @@
 | T5 Outbox + 事件总线 | **已完成（数据库队列实现）** | Kafka 实现按用户决定不写：没有 broker 可验证；接口留在 `EventPublisher` |
 | T6 集成与冻结 | **已完成** | 本地完整回归与 GitHub Actions 6/6 均通过；真机属于单独的设备验收 |
 | A 真机验收 | 未做 | 用户暂无 iPad；所有界面验证来自网页版，不能替代真机 |
-| 真实模型的多次延迟统计 | 已规划、未执行 | 用户已同意后续多次调用并做响应效率优化前后对比；当前仍只有2035 ms单次样本。方法和结果模板见 `docs/project-metrics.md`，不为每个模块制造百分比 |
+| 真实模型的多次延迟统计 | 已执行并保存原始结果 | 历史 96 次 + 本轮 24 次交错对照；样本、计时范围和限制见 `docs/project-metrics.md` 与当前证据主索引 |
 | C 视觉整理 | 已完成 | 未做项见 `docs/ui-polish.md` 顶部 |
 | ⑦ 整晚服务 | **已完成** | 模拟时钟，由按钮或自动播放推进；不是真实定时器 |
 | ⑧ 主 Agent / 执行 Agent / 记忆 / 能源规则 | **已完成** | 如何如实描述见 0.4 |
