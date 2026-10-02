@@ -1,12 +1,12 @@
 # 实现状态
 
-> **2026-10-03 当前回归**：暂停时的 Redis 残留租约测试与 Alembic 日志器问题已修复。默认后端 **170 通过 / 33 跳过**；Docker SQL+legacy **195/8**；Docker SQL+Redis+LangGraph **202/1**；全栈唯一跳过项为内存模式专属断言，原始报告在 `docs/evidence/engineering-regression-2026-10-03.xml`。前端类型检查与 **92/92**、契约重新生成无 diff、本地内存后端浏览器 **28/28** 已通过。GitHub 托管 CI 与真机仍未做本轮验收。
+> **2026-10-03 当前回归**：默认后端 **170 通过 / 33 跳过**；SQL+legacy **195/8**；SQL+Redis+LangGraph **202/1**；全栈唯一跳过项为内存专属断言。前端类型检查与 **92/92**、契约一致、本地内存浏览器 **28/28** 已通过。GitHub 提交 `7867d9c` 的 [CI 37038661216](https://github.com/Hector-sau/Livingmind/actions/runs/37038661216) **6/6 Job 全绿**，三套后端数字一致，Docker 浏览器 **28/28**。原始证据为 `docs/evidence/engineering-regression-2026-10-03.xml` 和 `docs/evidence/github-ci-37038661216.json`；真机仍未验。
 
 > 指标口径：本文件早期“只有一次真实 DeepSeek 调用”的描述属于历史记录。可核对证据包含 `docs/evidence/model-latency-*.json` 的历史 96 次，以及 `holdout-v2-model-paired-2026-10-02.json` 的新增 24 次交错调用；详见 `docs/interview-evidence-2026-10-02.md`。F+G 的旧测试数只作历史基线。
 
 > 本轮新增：独立模拟路由集 29/30；交错模型对照 chat 11/12 通过方向性语义检查、flash 9/12，分别 0/3 次降级。两服务进程共享虚拟网关验证并发确认、停止、崩溃、Redis TTL 与 TCP 断连；三种网关回执丢失均持久化 unknown 且不重发。Outbox 迁移 0006 升降通过，验证并发写入/发布/消费、死信重投和迟到事件。请求 ID 与 Agent 分段、动作及写入/回读日志已关联。细节和限制统一见证据主索引，不能沿用历史 GitHub 6/6 作为本提交的结果。
 
-> **Docker 交付验收补充**：当前镜像的 API（PostgreSQL + Redis + LangGraph）与两个事件 Worker 启动后，原有浏览器场景 **27/27** 通过。随后新增 unknown 的如实展示，最终前端本地 28/28 通过，但 Docker daemon 的 500/健康探针超时阻断了最新容器复测。不能写成 Docker 28/28。27 场景验收末尾队列 pending=0、dead_letters=0，已投递事件及消费回执均为 74。迁移 0006→0005→0006 通过。模型路径使用本地桩。
+> **Docker 交付验收补充**：最终 unknown 展示已在 GitHub Docker 浏览器 **28/28** 验证，使用 PostgreSQL + Redis + 默认 legacy 编排和两个事件 Worker；LangGraph 由全栈后端 Job 覆盖。本机此前 LangGraph 容器浏览器 **27/27**，其队列快照 pending=0、dead_letters=0、投递事件/消费回执各 74。随后本机 Docker 内部元数据打开缓慢，授权重启后仍未恢复，不能将 CI 通过说成本机修复。0006→0005→0006 本地迁移与 CI head→0002→head 均通过。模型路径使用本地桩，真实硬件未接入。
 
 > **界面收尾**：成功、未知、失败、拒绝和跳过分别显示；unknown 不再误报“已为你调整好”或“未执行”。`conversation.test.ts` 新增 4 条测试，`http-unknown-receipt` 为响应注入型展示测试；传输故障与不重发由后端故障用例独立验证。
 

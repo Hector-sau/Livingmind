@@ -9,7 +9,7 @@
 | PostgreSQL 业务约束 | `backend/app/repositories/sql_store.py`、`backend/tests/test_persistence.py` | 数据库约束不替代真实设备幂等与多实例联调 |
 | Redis 协调 | `backend/app/cache/locks.py`、`backend/app/cache/cooldown.py`、`backend/tests/test_cache_coordination.py` | 短锁和冷却；未做数据缓存提速实验；锁无续租 |
 | 事务出箱 | `backend/app/events/outbox.py`、`backend/tests/test_outbox_events.py`；独立数据库连接并发写入、发布、消费已验证 | PostgreSQL 事件队列；按空间保序；未接 Kafka，未做长期生产压力测试 |
-| 自动化回归 | 本轮 Docker 全栈 **202 通过 / 1 跳过**；默认后端 **170/33**；前端 **92**，本地内存后端浏览器 **28/28** | 全栈原始 JUnit：`docs/evidence/engineering-regression-2026-10-03.xml`；唯一跳过项是仅适用内存模式的断言；Docker 浏览器旧 27 场景通过，最新第 28 场景待 daemon 恢复后复测；不代替真机验收 |
+| 自动化回归 | 全栈 **202 通过 / 1 跳过**；默认后端 **170/33**；前端 **92**；本地内存浏览器与 GitHub Docker 浏览器均 **28/28** | 本地 JUnit：`docs/evidence/engineering-regression-2026-10-03.xml`；托管记录：`docs/evidence/github-ci-37038661216.json`（`7867d9c`，6/6 Job）；不代替真机验收 |
 
 ## 2026-10-02 本轮新增、可复查的实验
 
@@ -25,7 +25,7 @@
 | Outbox 顺序与恢复 | 同空间两个写入事务按顺序提交；两个 publisher 和两个 consumer 都不能越过被锁住的早期事件；投递后崩溃重试不重复入队；死信显式重投；迟到 started 不使 stopped 投影复活 | `backend/alembic/versions/0006_outbox_order.py`、`backend/tests/test_outbox_events.py`。死信阻塞该空间后续事件，需人工处理；并非全局严格排序 |
 | 本地链路基线 | 加入分段日志后，30 次内存规则模式 TestClient：计划 P50/P95 1/1 ms，确认 P50/P95 2/3 ms | `docs/evidence/rule-path-observed-2026-10-03.json`；较早记录保留在 `rule-path-local-2026-10-02.json`。毫秒取整、进程内虚拟设备；只作烟雾基线，不用于真实网络性能或提速声明 |
 
-本轮默认后端回归：170 通过、33 跳过；Docker PostgreSQL + legacy：195/8；Docker PostgreSQL + Redis + LangGraph：202/1；前端类型检查与 92 项测试通过，契约重新生成无 diff。最终 UI 的本地内存后端浏览器 28/28；UI 最后一处修正前 Docker 全栈浏览器 27/27，新增场景容器复测被 Docker daemon 的 500/健康探针超时阻断。模型路径使用本地桩。0006→0005→0006 迁移通过。27 场景 Docker E2E 末尾队列 pending=0、dead_letters=0，投递事件/消费回执均为74（验收快照，非吞吐统计）。GitHub CI、真机及真实硬件未做本轮验收。
+本轮本地与 GitHub 三套后端结果一致：内存 170 通过、33 跳过；PostgreSQL + legacy 195/8；PostgreSQL + Redis + LangGraph 202/1。前端类型检查与 92 项测试通过，契约重新生成无 diff。最终 UI 的本地内存浏览器 28/28；[GitHub CI 37038661216](https://github.com/Hector-sau/Livingmind/actions/runs/37038661216) 对 `7867d9c` 的 Docker 浏览器也 28/28，六项 Job 全部通过。CI 浏览器使用 Compose 默认 legacy 编排，LangGraph 由独立后端 Job 覆盖；模型使用本地桩。本机最终容器复测仍受 Docker 内部存储启动问题阻断，不能称本机 Docker 已修复。0006→0005→0006 本地迁移与 CI 的 head→0002→head 均通过。先前本机 27 场景 E2E 末尾队列 pending=0、dead_letters=0，投递事件/消费回执均为74（历史验收快照，非吞吐统计）。真机及真实硬件未验。
 
 暂停前失败的根因已查明：崩溃后的进程不能主动释放 Redis 租约，立即重试被 `SPACE_BUSY` 拒绝是正确行为。测试现在先核对租约存续时的拒绝，再等短测试租约过期并验证不重放。另一个日志问题来自 Alembic `fileConfig` 默认关闭已有日志器；已通过 `disable_existing_loggers=False` 修复，并使用真实日志 Handler 验证输出，而不是只 spy 方法调用。
 

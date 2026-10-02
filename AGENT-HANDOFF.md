@@ -1,6 +1,6 @@
 # LivingMind AI 交接文档
 
-> **当前交接（2026-10-03）**：2026-10-02 的暂停点已恢复处理。剩余应用测试失败已修正，工程评测与故障处理代码已落地，实施提交为 `d651229`。当前证据主索引是 `docs/interview-evidence-2026-10-02.md`，不要用下方 2026-09-19 的历史数字替代它。用户已确认先推送，由 GitHub CI 补验本机 Docker 故障阻断的最终场景；托管状态必须按当前 commit 查询，不能沿用旧绿灯。本节是推送前保存的本地证据与恢复记录。
+> **当前交接（2026-10-03）**：工程实现 `d651229` 已随 `7867d9c` 推送到 GitHub main；该发布提交的 [CI 37038661216](https://github.com/Hector-sau/Livingmind/actions/runs/37038661216) **6/6 Job 全部通过**，包括 Docker 浏览器 **28/28**。机器可读记录在 `docs/evidence/github-ci-37038661216.json`。当前证据主索引为 `docs/interview-evidence-2026-10-02.md`。本机 Docker 存储启动问题仍未解决，不与干净 GitHub Runner 的通过混淆；下方 2026-09-19 数字仅为历史。
 
 ## 本轮完成了什么
 
@@ -21,9 +21,9 @@
 | 全栈原始测试报告 | `docs/evidence/engineering-regression-2026-10-03.xml` |
 | 前端与契约 | 92/92、类型检查通过；重新生成 API 类型无 diff |
 | 本地内存后端浏览器 E2E | 28/28（含未知结果展示；模型为本地桩；非真机） |
-| Docker API 浏览器 E2E | UI 最后一处修正前 27/27；PostgreSQL + Redis + LangGraph + 两个事件 Worker；新增第 28 场景的容器复测待恢复 Docker daemon |
+| Docker API 浏览器 E2E | GitHub CI 28/28（PostgreSQL + Redis + legacy + 两个 Worker）；本机此前 LangGraph 组合 27/27，最终 UI 的本机容器复测仍待恢复 daemon |
 | Docker 镜像与迁移 | 当前源代码镜像构建通过；0006 → 0005 → 0006 通过 |
-| GitHub / 真机 / SpaceMind | 已授权推送并由 CI 补验 Docker；托管结果按 commit 查询；未验真机与真实外部设备 |
+| GitHub / 真机 / SpaceMind | `7867d9c` 的三套后端、契约、前端、Docker 浏览器共 6 项 Job 通过；真机与真实外部设备未验 |
 
 Docker E2E 结束后的队列快照：pending=0、dead_letters=0、domain_events=74、consumer_receipts=74。它只证明这个隔离验收环境的队列已经处理完，不代表生产吞吐。30 次加入观测后的内存规则链路原始结果保存在 `docs/evidence/rule-path-observed-2026-10-03.json`，仅作本地烟雾基线。
 
@@ -77,7 +77,7 @@ docker compose -p livingmind-eval down
 ## 下一位 Agent 的步骤与边界
 
 1. 先读本节、证据主索引及 git status / git log；保留任何后来新增的用户改动。最新测试结果只适用于包含这些改动的版本。
-2. 本轮已获用户授权推送并以 GitHub CI 补验 Docker，先核对远端 headSha 与运行结果。宿主 Docker 的元数据打开缓慢仍需单独处理，不能把 GitHub 通过误写为本机 Docker 已修复。
+2. 本轮代码已推送并经 CI 6/6 验证；后续文档提交不改变该代码基线，最新远端 headSha 的状态仍应单独核对。宿主 Docker 的元数据打开缓慢需要独立诊断；不得删除内部数据库、镜像或卷来换取绿灯。恢复后清理本任务 created 容器并补跑本机 LangGraph 容器组合，不操作其他项目。
 3. 后续模型优化应另建 v3 验收集，明确解决 h26 或方向性语义错误；不要在 v2 上调参后继续称它为未接触的测试集。
 4. 真正扩容前先做独立、持久化网关；补实例所有权恢复、不同计划竞争、网关本身崩溃后的回执恢复与设备对账。现有短锁没有续租，不宣称所有网络分区下的 exactly-once。
 5. 真机 development build、设备端语音识别和至少一种真实设备验收需要对应设备与接口；当前所有设备演示与本文故障验证都是虚拟设备。
