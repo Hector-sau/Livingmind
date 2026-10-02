@@ -1,6 +1,6 @@
 # LivingMind AI 交接文档
 
-> **当前交接（2026-10-03）**：2026-10-02 的暂停点已恢复处理。剩余 Docker 失败已定位并修正，工程评测与故障处理代码已落地。当前证据主索引是 `docs/interview-evidence-2026-10-02.md`，不要用下方 2026-09-19 的历史数字替代它。此次实现基于 `f369f7d`；本轮本地提交以 `git log -1` 为准，未推送，GitHub 托管 CI 尚未运行本轮版本。
+> **当前交接（2026-10-03）**：2026-10-02 的暂停点已恢复处理。剩余应用测试失败已修正，工程评测与故障处理代码已落地，实施提交为 `d651229`。当前证据主索引是 `docs/interview-evidence-2026-10-02.md`，不要用下方 2026-09-19 的历史数字替代它。用户已确认先推送，由 GitHub CI 补验本机 Docker 故障阻断的最终场景；托管状态必须按当前 commit 查询，不能沿用旧绿灯。本节是推送前保存的本地证据与恢复记录。
 
 ## 本轮完成了什么
 
@@ -23,11 +23,15 @@
 | 本地内存后端浏览器 E2E | 28/28（含未知结果展示；模型为本地桩；非真机） |
 | Docker API 浏览器 E2E | UI 最后一处修正前 27/27；PostgreSQL + Redis + LangGraph + 两个事件 Worker；新增第 28 场景的容器复测待恢复 Docker daemon |
 | Docker 镜像与迁移 | 当前源代码镜像构建通过；0006 → 0005 → 0006 通过 |
-| GitHub / 真机 / SpaceMind | 本轮未推送；未验真机与真实外部设备 |
+| GitHub / 真机 / SpaceMind | 已授权推送并由 CI 补验 Docker；托管结果按 commit 查询；未验真机与真实外部设备 |
 
 Docker E2E 结束后的队列快照：pending=0、dead_letters=0、domain_events=74、consumer_receipts=74。它只证明这个隔离验收环境的队列已经处理完，不代表生产吞吐。30 次加入观测后的内存规则链路原始结果保存在 `docs/evidence/rule-path-observed-2026-10-03.json`，仅作本地烟雾基线。
 
 最后一次环境状态：完成 27 场景 Docker 验收后，`docker compose -p livingmind-eval down` 已成功，测试数据卷保留。前端新增未知结果展示后尝试启动容器复测，Docker socket 的 networks/version 接口返回 500，`/_ping` 超时；未擅自重启共享 Docker Desktop、删除卷或重置环境。恢复 daemon 后先核对该隔离项目状态，再按下方命令补测 28 场景。后端源代码没有在 202/1 通过之后再修改。
+
+**2026-10-03 后续恢复记录**：用户已授权重启 Docker，并要求完成后推送 GitHub。实施提交为 `d651229`。已执行 Desktop restart，以及一次 graceful stop/start；引擎一度响应，但容器创建仍慢，最新启动日志出现 `containerd: waiting for response from boltdb open`，`/version` 和 `/info` 仍超时。此时不能认定磁盘损坏，也没有删除元数据、镜像或数据卷。中止的是本任务的挂起 Compose 客户端；可能留有该测试项目的 created 容器，恢复后用 `docker compose -p livingmind-eval ps -a` 核对，不操作其他项目。
+
+GitHub 网络曾有 DNS/TLS 超时，Git 默认 osxkeychain helper 也长时间等待。现有 GitHub CLI 登录可用，采用仅本次命令生效的 `git -c credential.helper= -c 'credential.helper=!gh auth git-credential' fetch origin` 成功，远端相对 `d651229` 为 0 个新增、本地 1 个未推送提交；没有更改全局认证配置。先前已成功的托管运行 `35458403011` 对应旧提交 `f369f7d`，不可计入新提交证据。用户随后明确选择“先推送，由 GitHub CI 验收”；推送后检查最新运行的三套后端、契约、前端和 Docker 浏览器六项 Job，失败时保留日志并定位，不为绿灯删减用例。查询入口：[GitHub Actions](https://github.com/Hector-sau/Livingmind/actions/workflows/ci.yml)，或 `gh run list --repo Hector-sau/Livingmind --branch main --limit 3`，务必核对 headSha。
 
 暂停时剩余失败不是设备重复执行：测试杀死进程后立即再次确认，原 Redis token 尚未过期，正确返回 SPACE_BUSY。现在测试先核对租约存续时的拒绝，再等 3 秒测试租约过期，验证不重放。另一个日志捕获失败原因为迁移关闭了日志器；已修复根因并取消仅 spy 方法调用的弱断言。
 
@@ -73,7 +77,7 @@ docker compose -p livingmind-eval down
 ## 下一位 Agent 的步骤与边界
 
 1. 先读本节、证据主索引及 git status / git log；保留任何后来新增的用户改动。最新测试结果只适用于包含这些改动的版本。
-2. 先恢复宿主 Docker daemon 后补跑最新 28 场景；用户要求发布时，核对并推送本轮已有本地提交，再检查 GitHub 三套后端配置与 Docker E2E；目前只有本地证据。
+2. 本轮已获用户授权推送并以 GitHub CI 补验 Docker，先核对远端 headSha 与运行结果。宿主 Docker 的元数据打开缓慢仍需单独处理，不能把 GitHub 通过误写为本机 Docker 已修复。
 3. 后续模型优化应另建 v3 验收集，明确解决 h26 或方向性语义错误；不要在 v2 上调参后继续称它为未接触的测试集。
 4. 真正扩容前先做独立、持久化网关；补实例所有权恢复、不同计划竞争、网关本身崩溃后的回执恢复与设备对账。现有短锁没有续租，不宣称所有网络分区下的 exactly-once。
 5. 真机 development build、设备端语音识别和至少一种真实设备验收需要对应设备与接口；当前所有设备演示与本文故障验证都是虚拟设备。
