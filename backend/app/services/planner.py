@@ -14,6 +14,7 @@ from typing import Callable, Optional
 from app import config
 from app.agents.experience import ExperienceAgent, ExperienceError
 from app.agents.experience.provider import ChatProvider, DeepSeekProvider
+from app.agents.experience.semantics import direction_violation, directions
 from app.contracts import DeviceState, Person, PlanGeneration, PlannerInfo, PlannerMode, PlanSource, RestPreference
 from app.rules.rest_rule import adjustment_rule, rest_rule_text
 
@@ -44,6 +45,7 @@ class ExperienceOutcome:
     generation: PlanGeneration
     fallback_reason: Optional[str]
     clarification_question: Optional[str] = None
+    allow_energy_adjustment: bool = True
 
 
 def _rule_generation(mode: PlannerMode, latency_ms: int, reason: Optional[str]) -> PlanGeneration:
@@ -82,6 +84,11 @@ class Planner:
             model=self._provider.model if self._provider else None,
             timeout_ms=int(self._timeout_s * 1000),
         )
+
+    def close(self) -> None:
+        close = getattr(self._provider, "close", None)
+        if close is not None:
+            close()
 
     def _model(self, person: Person, state: DeviceState, prompt: str):
         """Returns (settings, result, error_reason, latency_ms)."""
@@ -126,6 +133,9 @@ class Planner:
         generation = PlanGeneration(
             mode_requested="model", provider=result.provider, model=result.model, latency_ms=latency, fallback_reason=None, goal=out.goal
         )
+        semantic_question = direction_violation(utterance, person.rest_preference, device_state, settings)
+        if semantic_question:
+            notes.append("语义检查未通过：不创建计划，请用户澄清")
         return ExperienceOutcome(
             settings,
             out.goal,
@@ -133,7 +143,8 @@ class Planner:
             "model",
             generation,
             None,
-            out.clarification_question if out.needs_clarification else None,
+            (out.clarification_question if out.needs_clarification else None) or semantic_question,
+            allow_energy_adjustment="ac_target_temp_c" not in directions(utterance),
         )
 
     def plan_adjustment(
@@ -170,7 +181,8 @@ class Planner:
 def provider_from_config() -> Optional[ChatProvider]:
     if config.MODEL_PROVIDER == "deepseek" and config.DEEPSEEK_API_KEY:
         return DeepSeekProvider(
-            config.DEEPSEEK_API_KEY, config.DEEPSEEK_MODEL, config.DEEPSEEK_BASE_URL, config.MODEL_MAX_TOKENS
+            config.DEEPSEEK_API_KEY, config.DEEPSEEK_MODEL, config.DEEPSEEK_BASE_URL, config.MODEL_MAX_TOKENS,
+            reuse_connections=config.MODEL_REUSE_CONNECTIONS,
         )
     return None
 

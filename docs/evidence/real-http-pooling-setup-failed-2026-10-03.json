@@ -1,0 +1,845 @@
+{
+  "run_status": "invalid_setup_before_model_call",
+  "actual_model_calls": 0,
+  "exclude_from_performance_and_quality_metrics": true,
+  "setup_failure": "FastAPI dependency used a RestService default argument; deepcopy of its RLock failed before the provider was reached. Fixed with a zero-argument closure and covered by test_http_benchmark.py. Rows below are failed HTTP setup attempts, not paid model calls.",
+  "recorded_at_utc": "2026-10-03T03:36:31.186546+00:00",
+  "model": "deepseek-flash",
+  "scope": "loopback HTTP API + real DeepSeek; memory store; no device execution",
+  "synthetic": true,
+  "human_reviewed": false,
+  "dataset": "exploratory-v3-ten-cases",
+  "timeout_s": 6,
+  "temperature": 0.3,
+  "max_tokens": 2000,
+  "call_budget": 40,
+  "order": "alternated by case and repetition; no warm-up calls",
+  "rows": [
+    {
+      "id": "a01",
+      "repeat": 0,
+      "variant": "fresh",
+      "request_id": "545db405cd6b413cb27fa8b15d848e5a",
+      "person": "person-lin",
+      "utterance": "今晚打算休息，沿用我的偏好",
+      "expected": {
+        "light": "same",
+        "ac": "same",
+        "curtain": "same"
+      },
+      "verdict": "error",
+      "source": null,
+      "wall_ms": 39.711,
+      "details": [
+        "HTTPStatusError"
+      ],
+      "usage": null
+    },
+    {
+      "id": "a01",
+      "repeat": 0,
+      "variant": "pooled",
+      "request_id": "65d7b41d7ad4493e9a7b833cfd847777",
+      "person": "person-lin",
+      "utterance": "今晚打算休息，沿用我的偏好",
+      "expected": {
+        "light": "same",
+        "ac": "same",
+        "curtain": "same"
+      },
+      "verdict": "error",
+      "source": null,
+      "wall_ms": 16.612,
+      "details": [
+        "HTTPStatusError"
+      ],
+      "usage": null
+    },
+    {
+      "id": "a02",
+      "repeat": 0,
+      "variant": "pooled",
+      "request_id": "35a77f54fedb47229e0235f13d321fae",
+      "person": "person-chen",
+      "utterance": "我要休息，按我平常的设置",
+      "expected": {
+        "light": "same",
+        "ac": "same",
+        "curtain": "same"
+      },
+      "verdict": "error",
+      "source": null,
+      "wall_ms": 2.59,
+      "details": [
+        "HTTPStatusError"
+      ],
+      "usage": null
+    },
+    {
+      "id": "a02",
+      "repeat": 0,
+      "variant": "fresh",
+      "request_id": "7cb78d2cadca405688345b7c37afade6",
+      "person": "person-chen",
+      "utterance": "我要休息，按我平常的设置",
+      "expected": {
+        "light": "same",
+        "ac": "same",
+        "curtain": "same"
+      },
+      "verdict": "error",
+      "source": null,
+      "wall_ms": 2.312,
+      "details": [
+        "HTTPStatusError"
+      ],
+      "usage": null
+    },
+    {
+      "id": "a03",
+      "repeat": 0,
+      "variant": "fresh",
+      "request_id": "ca92dc7619bc4c1da06196c843011dc8",
+      "person": "person-zhou",
+      "utterance": "准备睡了，按我的习惯设置",
+      "expected": {
+        "light": "same",
+        "ac": "same",
+        "curtain": "same"
+      },
+      "verdict": "error",
+      "source": null,
+      "wall_ms": 2.257,
+      "details": [
+        "HTTPStatusError"
+      ],
+      "usage": null
+    },
+    {
+      "id": "a03",
+      "repeat": 0,
+      "variant": "pooled",
+      "request_id": "a0c344ae4fd24cf6a232b4ce1b8c7fdf",
+      "person": "person-zhou",
+      "utterance": "准备睡了，按我的习惯设置",
+      "expected": {
+        "light": "same",
+        "ac": "same",
+        "curtain": "same"
+      },
+      "verdict": "error",
+      "source": null,
+      "wall_ms": 2.115,
+      "details": [
+        "HTTPStatusError"
+      ],
+      "usage": null
+    },
+    {
+      "id": "a04",
+      "repeat": 0,
+      "variant": "pooled",
+      "request_id": "f56bb8c782a743e9ac5ffbae3ccbf70d",
+      "person": "person-guest",
+      "utterance": "想休息了，使用默认设置",
+      "expected": {
+        "light": "same",
+        "ac": "same",
+        "curtain": "same"
+      },
+      "verdict": "error",
+      "source": null,
+      "wall_ms": 2.207,
+      "details": [
+        "HTTPStatusError"
+      ],
+      "usage": null
+    },
+    {
+      "id": "a04",
+      "repeat": 0,
+      "variant": "fresh",
+      "request_id": "ab88affeea9c4eefab13ada04d73fd3c",
+      "person": "person-guest",
+      "utterance": "想休息了，使用默认设置",
+      "expected": {
+        "light": "same",
+        "ac": "same",
+        "curtain": "same"
+      },
+      "verdict": "error",
+      "source": null,
+      "wall_ms": 2.141,
+      "details": [
+        "HTTPStatusError"
+      ],
+      "usage": null
+    },
+    {
+      "id": "a05",
+      "repeat": 0,
+      "variant": "fresh",
+      "request_id": "62dcccb9d9264119af23f1aaad3e2165",
+      "person": "person-lin",
+      "utterance": "想休息，空调比平常调凉一些",
+      "expected": {
+        "light": "same",
+        "ac": "lower",
+        "curtain": "same"
+      },
+      "verdict": "error",
+      "source": null,
+      "wall_ms": 2.195,
+      "details": [
+        "HTTPStatusError"
+      ],
+      "usage": null
+    },
+    {
+      "id": "a05",
+      "repeat": 0,
+      "variant": "pooled",
+      "request_id": "b36cf87cb64d4a7389ff10125e08df6d",
+      "person": "person-lin",
+      "utterance": "想休息，空调比平常调凉一些",
+      "expected": {
+        "light": "same",
+        "ac": "lower",
+        "curtain": "same"
+      },
+      "verdict": "error",
+      "source": null,
+      "wall_ms": 2.044,
+      "details": [
+        "HTTPStatusError"
+      ],
+      "usage": null
+    },
+    {
+      "id": "a06",
+      "repeat": 0,
+      "variant": "pooled",
+      "request_id": "626f61ffcbee4e2fb42ba1939d8cc510",
+      "person": "person-chen",
+      "utterance": "想休息，空调比平常调暖一些",
+      "expected": {
+        "light": "same",
+        "ac": "higher",
+        "curtain": "same"
+      },
+      "verdict": "error",
+      "source": null,
+      "wall_ms": 2.658,
+      "details": [
+        "HTTPStatusError"
+      ],
+      "usage": null
+    },
+    {
+      "id": "a06",
+      "repeat": 0,
+      "variant": "fresh",
+      "request_id": "68530f7ce35a4f088c2ce41c09945d49",
+      "person": "person-chen",
+      "utterance": "想休息，空调比平常调暖一些",
+      "expected": {
+        "light": "same",
+        "ac": "higher",
+        "curtain": "same"
+      },
+      "verdict": "error",
+      "source": null,
+      "wall_ms": 2.273,
+      "details": [
+        "HTTPStatusError"
+      ],
+      "usage": null
+    },
+    {
+      "id": "a07",
+      "repeat": 0,
+      "variant": "fresh",
+      "request_id": "1dcb39e261dd4f94a7477624bd687955",
+      "person": "person-zhou",
+      "utterance": "想休息，灯光比平常暗一点",
+      "expected": {
+        "light": "lower",
+        "ac": "same",
+        "curtain": "same"
+      },
+      "verdict": "error",
+      "source": null,
+      "wall_ms": 2.369,
+      "details": [
+        "HTTPStatusError"
+      ],
+      "usage": null
+    },
+    {
+      "id": "a07",
+      "repeat": 0,
+      "variant": "pooled",
+      "request_id": "45ac9860da7a4889bc478764d0fb77b7",
+      "person": "person-zhou",
+      "utterance": "想休息，灯光比平常暗一点",
+      "expected": {
+        "light": "lower",
+        "ac": "same",
+        "curtain": "same"
+      },
+      "verdict": "error",
+      "source": null,
+      "wall_ms": 2.172,
+      "details": [
+        "HTTPStatusError"
+      ],
+      "usage": null
+    },
+    {
+      "id": "a08",
+      "repeat": 0,
+      "variant": "pooled",
+      "request_id": "677fbf3e912542f58d73b9b938608f93",
+      "person": "person-lin",
+      "utterance": "想休息，灯光比平常亮一些",
+      "expected": {
+        "light": "higher",
+        "ac": "same",
+        "curtain": "same"
+      },
+      "verdict": "error",
+      "source": null,
+      "wall_ms": 1.994,
+      "details": [
+        "HTTPStatusError"
+      ],
+      "usage": null
+    },
+    {
+      "id": "a08",
+      "repeat": 0,
+      "variant": "fresh",
+      "request_id": "ce84bb2ea85b4cfc8de771323d192036",
+      "person": "person-lin",
+      "utterance": "想休息，灯光比平常亮一些",
+      "expected": {
+        "light": "higher",
+        "ac": "same",
+        "curtain": "same"
+      },
+      "verdict": "error",
+      "source": null,
+      "wall_ms": 2.178,
+      "details": [
+        "HTTPStatusError"
+      ],
+      "usage": null
+    },
+    {
+      "id": "a09",
+      "repeat": 0,
+      "variant": "fresh",
+      "request_id": "6f28aa9b9b01432fa6d5951f10964486",
+      "person": "person-chen",
+      "utterance": "想休息，窗帘比平常打开一些",
+      "expected": {
+        "light": "same",
+        "ac": "same",
+        "curtain": "higher"
+      },
+      "verdict": "error",
+      "source": null,
+      "wall_ms": 2.112,
+      "details": [
+        "HTTPStatusError"
+      ],
+      "usage": null
+    },
+    {
+      "id": "a09",
+      "repeat": 0,
+      "variant": "pooled",
+      "request_id": "910064652c69475fa40a28fc3b2690be",
+      "person": "person-chen",
+      "utterance": "想休息，窗帘比平常打开一些",
+      "expected": {
+        "light": "same",
+        "ac": "same",
+        "curtain": "higher"
+      },
+      "verdict": "error",
+      "source": null,
+      "wall_ms": 2.111,
+      "details": [
+        "HTTPStatusError"
+      ],
+      "usage": null
+    },
+    {
+      "id": "a10",
+      "repeat": 0,
+      "variant": "pooled",
+      "request_id": "db4f43fc33cc4540954b60dbe90098fb",
+      "person": "person-chen",
+      "utterance": "想休息，窗帘完全关上",
+      "expected": {
+        "light": "same",
+        "ac": "same",
+        "curtain": "lower"
+      },
+      "verdict": "error",
+      "source": null,
+      "wall_ms": 2.063,
+      "details": [
+        "HTTPStatusError"
+      ],
+      "usage": null
+    },
+    {
+      "id": "a10",
+      "repeat": 0,
+      "variant": "fresh",
+      "request_id": "0d6ca4fc3b4c407aaf541fb7c9db0424",
+      "person": "person-chen",
+      "utterance": "想休息，窗帘完全关上",
+      "expected": {
+        "light": "same",
+        "ac": "same",
+        "curtain": "lower"
+      },
+      "verdict": "error",
+      "source": null,
+      "wall_ms": 2.053,
+      "details": [
+        "HTTPStatusError"
+      ],
+      "usage": null
+    },
+    {
+      "id": "a01",
+      "repeat": 1,
+      "variant": "pooled",
+      "request_id": "aff0196177a64b85be40ce3191f364fe",
+      "person": "person-lin",
+      "utterance": "今晚打算休息，沿用我的偏好",
+      "expected": {
+        "light": "same",
+        "ac": "same",
+        "curtain": "same"
+      },
+      "verdict": "error",
+      "source": null,
+      "wall_ms": 2.09,
+      "details": [
+        "HTTPStatusError"
+      ],
+      "usage": null
+    },
+    {
+      "id": "a01",
+      "repeat": 1,
+      "variant": "fresh",
+      "request_id": "e111280f64564a1b8bea3f2e3a30a37d",
+      "person": "person-lin",
+      "utterance": "今晚打算休息，沿用我的偏好",
+      "expected": {
+        "light": "same",
+        "ac": "same",
+        "curtain": "same"
+      },
+      "verdict": "error",
+      "source": null,
+      "wall_ms": 2.079,
+      "details": [
+        "HTTPStatusError"
+      ],
+      "usage": null
+    },
+    {
+      "id": "a02",
+      "repeat": 1,
+      "variant": "fresh",
+      "request_id": "d83819420fb14b4c8965eb912f04d5a4",
+      "person": "person-chen",
+      "utterance": "我要休息，按我平常的设置",
+      "expected": {
+        "light": "same",
+        "ac": "same",
+        "curtain": "same"
+      },
+      "verdict": "error",
+      "source": null,
+      "wall_ms": 2.064,
+      "details": [
+        "HTTPStatusError"
+      ],
+      "usage": null
+    },
+    {
+      "id": "a02",
+      "repeat": 1,
+      "variant": "pooled",
+      "request_id": "cc342d7cdb4f4817b4a32bd2532ca22a",
+      "person": "person-chen",
+      "utterance": "我要休息，按我平常的设置",
+      "expected": {
+        "light": "same",
+        "ac": "same",
+        "curtain": "same"
+      },
+      "verdict": "error",
+      "source": null,
+      "wall_ms": 2.011,
+      "details": [
+        "HTTPStatusError"
+      ],
+      "usage": null
+    },
+    {
+      "id": "a03",
+      "repeat": 1,
+      "variant": "pooled",
+      "request_id": "114cb8621e4d4aaea403d170eea06c62",
+      "person": "person-zhou",
+      "utterance": "准备睡了，按我的习惯设置",
+      "expected": {
+        "light": "same",
+        "ac": "same",
+        "curtain": "same"
+      },
+      "verdict": "error",
+      "source": null,
+      "wall_ms": 2.058,
+      "details": [
+        "HTTPStatusError"
+      ],
+      "usage": null
+    },
+    {
+      "id": "a03",
+      "repeat": 1,
+      "variant": "fresh",
+      "request_id": "d6d26f8554c84cac8f236ad562ac6d83",
+      "person": "person-zhou",
+      "utterance": "准备睡了，按我的习惯设置",
+      "expected": {
+        "light": "same",
+        "ac": "same",
+        "curtain": "same"
+      },
+      "verdict": "error",
+      "source": null,
+      "wall_ms": 2.04,
+      "details": [
+        "HTTPStatusError"
+      ],
+      "usage": null
+    },
+    {
+      "id": "a04",
+      "repeat": 1,
+      "variant": "fresh",
+      "request_id": "f508085aa2d4404b8572778f2ef89360",
+      "person": "person-guest",
+      "utterance": "想休息了，使用默认设置",
+      "expected": {
+        "light": "same",
+        "ac": "same",
+        "curtain": "same"
+      },
+      "verdict": "error",
+      "source": null,
+      "wall_ms": 2.07,
+      "details": [
+        "HTTPStatusError"
+      ],
+      "usage": null
+    },
+    {
+      "id": "a04",
+      "repeat": 1,
+      "variant": "pooled",
+      "request_id": "b15ed0ccb5b24d70a713387e6126f0f6",
+      "person": "person-guest",
+      "utterance": "想休息了，使用默认设置",
+      "expected": {
+        "light": "same",
+        "ac": "same",
+        "curtain": "same"
+      },
+      "verdict": "error",
+      "source": null,
+      "wall_ms": 1.976,
+      "details": [
+        "HTTPStatusError"
+      ],
+      "usage": null
+    },
+    {
+      "id": "a05",
+      "repeat": 1,
+      "variant": "pooled",
+      "request_id": "1b2b0f954b3a4067a23de1f401abc6f7",
+      "person": "person-lin",
+      "utterance": "想休息，空调比平常调凉一些",
+      "expected": {
+        "light": "same",
+        "ac": "lower",
+        "curtain": "same"
+      },
+      "verdict": "error",
+      "source": null,
+      "wall_ms": 2.069,
+      "details": [
+        "HTTPStatusError"
+      ],
+      "usage": null
+    },
+    {
+      "id": "a05",
+      "repeat": 1,
+      "variant": "fresh",
+      "request_id": "d4fc05f780d24dbdb61eeee9802da0b5",
+      "person": "person-lin",
+      "utterance": "想休息，空调比平常调凉一些",
+      "expected": {
+        "light": "same",
+        "ac": "lower",
+        "curtain": "same"
+      },
+      "verdict": "error",
+      "source": null,
+      "wall_ms": 1.96,
+      "details": [
+        "HTTPStatusError"
+      ],
+      "usage": null
+    },
+    {
+      "id": "a06",
+      "repeat": 1,
+      "variant": "fresh",
+      "request_id": "cce1a0988a46474ca45255afebc4a6e7",
+      "person": "person-chen",
+      "utterance": "想休息，空调比平常调暖一些",
+      "expected": {
+        "light": "same",
+        "ac": "higher",
+        "curtain": "same"
+      },
+      "verdict": "error",
+      "source": null,
+      "wall_ms": 2.077,
+      "details": [
+        "HTTPStatusError"
+      ],
+      "usage": null
+    },
+    {
+      "id": "a06",
+      "repeat": 1,
+      "variant": "pooled",
+      "request_id": "4e2ad02cd0824f42858a018bd191f318",
+      "person": "person-chen",
+      "utterance": "想休息，空调比平常调暖一些",
+      "expected": {
+        "light": "same",
+        "ac": "higher",
+        "curtain": "same"
+      },
+      "verdict": "error",
+      "source": null,
+      "wall_ms": 5.196,
+      "details": [
+        "HTTPStatusError"
+      ],
+      "usage": null
+    },
+    {
+      "id": "a07",
+      "repeat": 1,
+      "variant": "pooled",
+      "request_id": "0ad006fca5ec4784a54a2dabb1e488a5",
+      "person": "person-zhou",
+      "utterance": "想休息，灯光比平常暗一点",
+      "expected": {
+        "light": "lower",
+        "ac": "same",
+        "curtain": "same"
+      },
+      "verdict": "error",
+      "source": null,
+      "wall_ms": 4.522,
+      "details": [
+        "HTTPStatusError"
+      ],
+      "usage": null
+    },
+    {
+      "id": "a07",
+      "repeat": 1,
+      "variant": "fresh",
+      "request_id": "3b9d7c764a65457591fcdb66a9b30c78",
+      "person": "person-zhou",
+      "utterance": "想休息，灯光比平常暗一点",
+      "expected": {
+        "light": "lower",
+        "ac": "same",
+        "curtain": "same"
+      },
+      "verdict": "error",
+      "source": null,
+      "wall_ms": 2.514,
+      "details": [
+        "HTTPStatusError"
+      ],
+      "usage": null
+    },
+    {
+      "id": "a08",
+      "repeat": 1,
+      "variant": "fresh",
+      "request_id": "78faf8bc37934fe683651e24fbb1dfc5",
+      "person": "person-lin",
+      "utterance": "想休息，灯光比平常亮一些",
+      "expected": {
+        "light": "higher",
+        "ac": "same",
+        "curtain": "same"
+      },
+      "verdict": "error",
+      "source": null,
+      "wall_ms": 2.17,
+      "details": [
+        "HTTPStatusError"
+      ],
+      "usage": null
+    },
+    {
+      "id": "a08",
+      "repeat": 1,
+      "variant": "pooled",
+      "request_id": "489770e1667b45c79553a772bcacfc7f",
+      "person": "person-lin",
+      "utterance": "想休息，灯光比平常亮一些",
+      "expected": {
+        "light": "higher",
+        "ac": "same",
+        "curtain": "same"
+      },
+      "verdict": "error",
+      "source": null,
+      "wall_ms": 2.237,
+      "details": [
+        "HTTPStatusError"
+      ],
+      "usage": null
+    },
+    {
+      "id": "a09",
+      "repeat": 1,
+      "variant": "pooled",
+      "request_id": "e7f98331feaa472390fcc314269653a4",
+      "person": "person-chen",
+      "utterance": "想休息，窗帘比平常打开一些",
+      "expected": {
+        "light": "same",
+        "ac": "same",
+        "curtain": "higher"
+      },
+      "verdict": "error",
+      "source": null,
+      "wall_ms": 2.093,
+      "details": [
+        "HTTPStatusError"
+      ],
+      "usage": null
+    },
+    {
+      "id": "a09",
+      "repeat": 1,
+      "variant": "fresh",
+      "request_id": "8428d102dd764ea68303f5ab6c09e65c",
+      "person": "person-chen",
+      "utterance": "想休息，窗帘比平常打开一些",
+      "expected": {
+        "light": "same",
+        "ac": "same",
+        "curtain": "higher"
+      },
+      "verdict": "error",
+      "source": null,
+      "wall_ms": 2.145,
+      "details": [
+        "HTTPStatusError"
+      ],
+      "usage": null
+    },
+    {
+      "id": "a10",
+      "repeat": 1,
+      "variant": "fresh",
+      "request_id": "acec58a519574f22bac85ff331416de6",
+      "person": "person-chen",
+      "utterance": "想休息，窗帘完全关上",
+      "expected": {
+        "light": "same",
+        "ac": "same",
+        "curtain": "lower"
+      },
+      "verdict": "error",
+      "source": null,
+      "wall_ms": 2.035,
+      "details": [
+        "HTTPStatusError"
+      ],
+      "usage": null
+    },
+    {
+      "id": "a10",
+      "repeat": 1,
+      "variant": "pooled",
+      "request_id": "49f5425221bc4f68a9ccc2f4e7b6e574",
+      "person": "person-chen",
+      "utterance": "想休息，窗帘完全关上",
+      "expected": {
+        "light": "same",
+        "ac": "same",
+        "curtain": "lower"
+      },
+      "verdict": "error",
+      "source": null,
+      "wall_ms": 2.103,
+      "details": [
+        "HTTPStatusError"
+      ],
+      "usage": null
+    }
+  ],
+  "summary": [
+    {
+      "variant": "fresh",
+      "requests": 20,
+      "pass": 0,
+      "fail": 0,
+      "fallback": 0,
+      "clarification": 0,
+      "errors": 20,
+      "p50_ms": 2.141,
+      "p95_ms": 2.514,
+      "usage_reported_count": 0
+    },
+    {
+      "variant": "pooled",
+      "requests": 20,
+      "pass": 0,
+      "fail": 0,
+      "fallback": 0,
+      "clarification": 0,
+      "errors": 20,
+      "p50_ms": 2.103,
+      "p95_ms": 5.196,
+      "usage_reported_count": 0
+    }
+  ]
+}

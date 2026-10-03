@@ -1,6 +1,173 @@
 {
   "components": {
     "schemas": {
+      "ActionExecution": {
+        "description": "Durable command ledger entry, separate from the user-facing action result.",
+        "properties": {
+          "acceptedAt": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Acceptedat"
+          },
+          "actionId": {
+            "title": "Actionid",
+            "type": "string"
+          },
+          "attemptCount": {
+            "minimum": 0.0,
+            "title": "Attemptcount",
+            "type": "integer"
+          },
+          "command": {
+            "enum": [
+              "set_brightness",
+              "set_target_temperature",
+              "set_open_percent"
+            ],
+            "title": "Command",
+            "type": "string"
+          },
+          "completedAt": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Completedat"
+          },
+          "device": {
+            "enum": [
+              "light",
+              "ac",
+              "curtain"
+            ],
+            "title": "Device",
+            "type": "string"
+          },
+          "errorDetail": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Errordetail"
+          },
+          "errorKind": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Errorkind"
+          },
+          "grantId": {
+            "title": "Grantid",
+            "type": "string"
+          },
+          "observedAt": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Observedat"
+          },
+          "observedValue": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Observedvalue"
+          },
+          "planId": {
+            "title": "Planid",
+            "type": "string"
+          },
+          "requestedAt": {
+            "format": "date-time",
+            "title": "Requestedat",
+            "type": "string"
+          },
+          "requestedValue": {
+            "title": "Requestedvalue",
+            "type": "number"
+          },
+          "serviceEpoch": {
+            "title": "Serviceepoch",
+            "type": "integer"
+          },
+          "serviceId": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Serviceid"
+          },
+          "spaceId": {
+            "title": "Spaceid",
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "pending",
+              "dispatching",
+              "accepted",
+              "completed",
+              "rejected",
+              "failed",
+              "unknown",
+              "cancelled"
+            ],
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "actionId",
+          "grantId",
+          "planId",
+          "serviceId",
+          "spaceId",
+          "device",
+          "command",
+          "requestedValue",
+          "serviceEpoch",
+          "status",
+          "attemptCount",
+          "requestedAt"
+        ],
+        "title": "ActionExecution",
+        "type": "object"
+      },
       "ActionResult": {
         "properties": {
           "actionId": {
@@ -991,6 +1158,7 @@
         "properties": {
           "code": {
             "enum": [
+              "CLARIFICATION_REQUIRED",
               "NOT_EDITABLE",
               "VALIDATION_ERROR",
               "NOT_FOUND",
@@ -2004,6 +2172,18 @@
         "title": "PolicyRuleResult",
         "type": "object"
       },
+      "ReconcileActionRequest": {
+        "properties": {
+          "context": {
+            "$ref": "#/components/schemas/RequestContext"
+          }
+        },
+        "required": [
+          "context"
+        ],
+        "title": "ReconcileActionRequest",
+        "type": "object"
+      },
       "RecoveryStatus": {
         "description": "Result of the startup reconciliation; observable evidence, not a claim of exact device recovery.",
         "properties": {
@@ -2670,6 +2850,99 @@
   },
   "openapi": "3.1.0",
   "paths": {
+    "/api/actions/{action_id}/reconcile": {
+      "post": {
+        "description": "Recheck an uncertain action's receipt without issuing another device command.",
+        "operationId": "reconcileAction",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "action_id",
+            "required": true,
+            "schema": {
+              "title": "Action Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReconcileActionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ActionExecution"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          }
+        },
+        "summary": "Reconcile Action",
+        "tags": [
+          "devices"
+        ]
+      }
+    },
     "/api/assistant/messages": {
       "post": {
         "description": "Main Agent entry: routes the message and returns a plan (to confirm) or a short answer.",

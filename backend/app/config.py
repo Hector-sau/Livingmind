@@ -48,6 +48,9 @@ DEEPSEEK_MODEL = os.getenv("DEEPSEEK_MODEL", "deepseek-chat")
 # of reasoning on the harder utterances, which spent a 400-token budget before a single character
 # of the answer was written. 2000 leaves room for the reasoning and the JSON object after it.
 MODEL_MAX_TOKENS = int(os.getenv("LIVINGMIND_MODEL_MAX_TOKENS", "2000"))
+# Optional experiment: the 40-call HTTP comparison did not improve P95. Keep the
+# established transport as default until a larger representative run justifies it.
+MODEL_REUSE_CONNECTIONS = os.getenv("LIVINGMIND_MODEL_REUSE_CONNECTIONS", "0") == "1"
 
 # ---- environment events (step 6) ----
 EVENT_COOLDOWN_S = float(os.getenv("LIVINGMIND_EVENT_COOLDOWN_S", "30"))

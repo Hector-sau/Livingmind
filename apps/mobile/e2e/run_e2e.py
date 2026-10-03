@@ -446,12 +446,24 @@ def scenario_clarification(page: Page, url: str, label: str) -> None:
 
     # 3. Conflicting device request is clarified, not guessed.
     send(page, "先开灯再关灯")
-    assert "打开还是关闭" in last_assistant(page), last_assistant(page)
+    assert "相反的操作" in last_assistant(page), last_assistant(page)
     assert page.get_by_test_id("service-strip").count() == 0
 
     # 4. Negated rest with an explicit command goes to the device branch, not the rest branch.
     send(page, "我不想休息，只想关灯")
     page.get_by_text("设备指令：灯光亮度调到 0%", exact=False).first.wait_for()
+
+    # Explicit negation cannot create a new plan or get concatenated into the next command.
+    plans_before = page.get_by_test_id("plan-message").count()
+    send(page, "不要关灯")
+    assert "限制条件" in last_assistant(page), last_assistant(page)
+    assert page.get_by_test_id("plan-message").count() == plans_before
+    send(page, "灯调到 25%")
+    page.get_by_text("设备指令：灯光亮度调到 25%", exact=False).first.wait_for()
+    page.get_by_test_id("confirm-plan").last.click()
+    page.wait_for_function("document.querySelectorAll('[data-testid=\"result-card\"]').length >= 2")
+    assert "25%" in page.get_by_test_id("result-card").last.inner_text()
+    assert page.get_by_test_id("service-strip").count() == 0
     assert page.get_by_test_id("service-strip").count() == 0, "a negated rest request must not start a service"
     shot(page, f"{label}-clarify-resolved")
 

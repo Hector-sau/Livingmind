@@ -52,8 +52,14 @@ def run(cases: list[dict], service: RestService | None = None, dataset: str = "r
             continue
         context = RequestContext(account_id="demo-account", person_id=case["person"], space_id=SPACE)
         started = time.monotonic()
-        plan = service.create_rest_plan(context, case["utterance"], "model")
+        reply = service.handle_message(context, case["utterance"], "model", force_rest=True,
+                                       conversation_id=f"eval-{case['id']}")
         wall_ms = int((time.monotonic() - started) * 1000)
+        if reply.plan is None:
+            semantics.append({"id": case["id"], "verdict": "clarification", "source": None,
+                              "wall_ms": wall_ms, "details": [reply.text], "fallback_reason": None})
+            continue
+        plan = reply.plan
         score = score_case(case, PERSONS[case["person"]].rest_preference, plan)
         semantics.append({
             "id": case["id"], "verdict": score.verdict, "source": plan.source,
@@ -69,6 +75,7 @@ def run(cases: list[dict], service: RestService | None = None, dataset: str = "r
             "pass": sum(item["verdict"] == "pass" for item in semantics),
             "fail": sum(item["verdict"] == "fail" for item in semantics),
             "fallback": sum(item["verdict"] == "fallback" for item in semantics),
+            "clarification": sum(item["verdict"] == "clarification" for item in semantics),
             "total": len(semantics), "p50_ms": percentile(timings, 0.5), "p95_ms": percentile(timings, 0.95),
             "rows": semantics,
         },
@@ -81,7 +88,10 @@ def main() -> int:
     parser.add_argument("--dataset", type=Path, default=CASES_PATH, help="labelled JSON; default is the development regression set")
     parser.add_argument("--output", type=Path, help="write machine-readable results to this path")
     args = parser.parse_args()
-    cases = json.loads(args.dataset.read_text(encoding="utf-8"))["cases"]
+    dataset = json.loads(args.dataset.read_text(encoding="utf-8"))
+    cases = dataset["cases"]
+    if args.model and dataset.get("status") == "candidate_not_accepted":
+        parser.error("candidate dataset requires human review before paid acceptance evaluation")
     service = None
     provider = None
     if args.model:
@@ -93,6 +103,7 @@ def main() -> int:
             store=MemoryStore(), preferences=InMemoryPreferenceRepository(),
         )
     result = run(cases, service, args.dataset.stem)
+    result["human_reviewed"] = dataset.get("human_reviewed", False)
     result["provider"] = provider.name if provider else None
     result["model"] = provider.model if provider else None
     if args.output:
@@ -100,11 +111,12 @@ def main() -> int:
         args.output.write_text(json.dumps(result, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     route, semantic = result["route"], result["semantic"]
     print(f"route {route['correct']}/{route['total']}; model semantics {semantic['pass']}/{semantic['total']} pass, "
-          f"{semantic['fallback']} fallback; P50/P95 {semantic['p50_ms']}/{semantic['p95_ms']} ms")
+          f"{semantic['fallback']} fallback, {semantic['clarification']} clarification; "
+          f"P50/P95 {semantic['p50_ms']}/{semantic['p95_ms']} ms")
     for item in route["rows"]:
         if not item["correct"]:
             print(f"route mismatch {item['id']}: {item['expected']} -> {item['actual']}")
-    return 0 if route["correct"] == route["total"] and semantic["fail"] == 0 else 1
+    return 0 if route["correct"] == route["total"] and semantic["fail"] == 0 and semantic["clarification"] == 0 else 1
 
 
 if __name__ == "__main__":

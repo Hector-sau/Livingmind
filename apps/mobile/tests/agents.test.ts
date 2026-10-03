@@ -19,6 +19,12 @@ const ROUTES: [string, string][] = [
   ['先开灯再关灯', 'clarification'],
   ['空调温度现在多少？', 'status'],
   ['请调低一点', 'clarification'],
+  ['空调开了又关了，你确认一下', 'clarification'],
+  ['窗帘打开又关上，你确认一下', 'clarification'],
+  ['不要关灯', 'clarification'],
+  ['别把窗帘拉开', 'clarification'],
+  ['我想休息，只调空调，其他不要动', 'clarification'],
+  ['我想睡觉，灯保持现在这样', 'clarification'],
 ];
 
 test('mock router matches backend routing cases', () => {
@@ -81,6 +87,25 @@ test('mock clarification waits for a follow-up in the same conversation', async 
   const second = await api.sendMessage({ context, text: '灯调到20%', conversationId: 'chat-1' });
   assert.equal(second.kind, 'plan');
   assert.deepEqual(second.plan!.actions.map((a) => [a.device, a.value]), [['light', 20]]);
+});
+
+test('mock negation does not leak into the follow-up command', async () => {
+  const api = createMockApi({ latencyMs: 0 });
+  const context = ctx('person-lin');
+  const first = await api.sendMessage({ context, text: '不要关灯', conversationId: 'safe' });
+  assert.equal(first.kind, 'clarification');
+  assert.equal(first.plan, null);
+  const second = await api.sendMessage({ context, text: '灯调到20%', conversationId: 'safe' });
+  assert.deepEqual(second.plan!.actions.map((a) => [a.device, a.value]), [['light', 20]]);
+  const done = await api.confirmPlan(second.plan!.planId, { context, planVersion: 1 });
+  assert.equal(done.deviceState.lightBrightness, 20);
+  assert.equal(done.service, null);
+});
+
+test('mock legacy rest endpoint cannot bypass clarification', async () => {
+  const api = createMockApi({ latencyMs: 0 });
+  await assert.rejects(api.createRestPlan({ context: ctx('person-lin'), utterance: '我想休息，只调空调', mode: 'rule' }),
+    (e: any) => e.code === 'CLARIFICATION_REQUIRED');
 });
 
 test('mock memory: own preference only, edits change the next plan, eco applies', async () => {

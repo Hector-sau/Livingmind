@@ -3,6 +3,7 @@ import logging
 import re
 import time
 import uuid
+from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
@@ -22,9 +23,18 @@ if not _http_log.handlers:
     _http_log.addHandler(_handler)
 
 
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    yield
+    from app.services.rest_service import close_rest_service
+    from app.graph.runtime import close_checkpointer
+    close_rest_service()
+    close_checkpointer()
+
+
 def create_app() -> FastAPI:
     # One schema per model (no -Input/-Output split) keeps generated TS names stable.
-    app = FastAPI(title=APP_NAME, version=APP_VERSION, separate_input_output_schemas=False)
+    app = FastAPI(title=APP_NAME, version=APP_VERSION, separate_input_output_schemas=False, lifespan=lifespan)
 
     @app.middleware("http")
     async def request_trace(request: Request, call_next):

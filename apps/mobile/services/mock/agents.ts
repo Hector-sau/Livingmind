@@ -14,8 +14,22 @@ const STATUS = /现在|状态|多少|几度|怎么样了|情况/;
 const NEGATED_REST = /(?:不想|不要|不用|别).{0,4}(?:休息|睡|躺|午睡|歇)/;
 const VAGUE_ACTION = /(?:那个|这个|它).{0,5}(?:调|开|关|弄)|(?:调高|调低)(?:一点)?$|(?:大一点|小一点|亮一点|暗一点)$/;
 
+// Conservative mirror of experience/semantics.py; not general language understanding.
+export function requestClarification(text: string): string | null {
+  const t = text.replace(/\s/g, '');
+  const negated = /(?:不要|别|不用|不许|禁止)(?:把|将)?(?:卧室的?)?(?:(?:灯光?|空调|窗帘)(?:再)?)?(?:关|开|拉|调|变|动|设|亮|暗)/;
+  const limited = /(?:只|仅)(?:调|调整|控制)|其他.{0,3}(?:别|不要|不).{0,2}动|(?:灯光?|空调|窗帘|温度).{0,4}(?:保持现在|保持当前|不变)/;
+  if (negated.test(t) || limited.test(t)) return '我不会把限制条件当成操作。请直接说明要调整的设备和目标值，例如“空调调到 24 度”；这次不会启动整晚联动。';
+  for (const clause of t.split(/[，,。；;]/)) {
+    const devices = new Set((clause.match(/灯(?:光)?|空调|窗帘/g) ?? []).map((d) => d.replace('灯光', '灯')));
+    if (devices.size === 1 && /开.*关|关.*开|拉开.*拉上|拉上.*拉开/.test(clause)) return '这句话包含相反的操作。请说明你是想查询状态，还是设置一个明确的最终值。';
+  }
+  return null;
+}
+
 export function routeIntent(text: string): Intent {
   const t = text.replace(/\s/g, '');
+  if (requestClarification(t)) return 'clarification';
   const explicitDeviceAction = DEVICE.test(t) && ACTION.test(t);
   if (/灯/.test(t) && (/开灯.*关灯/.test(t) || /关灯.*开灯/.test(t))) return 'clarification';
   if (explicitDeviceAction && NEGATED_REST.test(t)) return 'device_command';
@@ -30,6 +44,8 @@ export function routeIntent(text: string): Intent {
 }
 
 export function clarificationQuestion(text: string): string {
+  const guarded = requestClarification(text);
+  if (guarded) return guarded;
   const t = text.replace(/\s/g, '');
   if (/灯/.test(t) && (/开灯.*关灯/.test(t) || /关灯.*开灯/.test(t))) return '你希望灯最终打开还是关闭？';
   return '请说明要调整灯、空调还是窗帘，并告诉我目标值，例如“灯调到 20%”。';

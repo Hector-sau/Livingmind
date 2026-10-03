@@ -1,6 +1,6 @@
 # LivingMind 主流项目指标与面试证据指南
 
-更新：2026-10-03。当前可信数字与边界以 `docs/interview-evidence-2026-10-02.md`、原始评测 JSON 和 `docs/evidence/engineering-regression-2026-10-03.xml` 为准；下方早期模板仅供历史参考，不能直接摘入简历。
+更新：2026-10-03 第二轮。当前可信数字与边界以 `docs/interview-evidence-2026-10-02.md`、原始评测 JSON 和 `docs/evidence/implementation-*.xml` 为准；[设计与验证记录](design-and-validation-2026-10-03.md) 解释本轮取舍。下方早期模板仅供历史参考，不能直接摘入简历。新改动尚未推送，旧 CI 不覆盖新修改。
 
 这份文档只保留技术面试中常见、容易解释且真正有价值的数字。项目不需要给每个模块都制造百分比；大多数能力用“实现了什么、怎样保证正确、有哪些测试”说明即可。
 
@@ -21,9 +21,10 @@
 
 | 维度 | 当前数据 | 状态与限制 | 证据 |
 |---|---:|---|---|
-| 后端测试 | 全栈 202 通过 / 1 跳过；SQL+legacy 195/8；内存 170/33 | 本轮实跑；全栈唯一跳过项是仅适用内存模式的断言 | `backend/tests/`、`docs/evidence/engineering-regression-2026-10-03.xml` |
-| 前端测试 | 92 项通过，类型检查通过 | 包含 unknown/失败/跳过/空结果的如实展示 | `apps/mobile/tests/`、`docs/status.md` |
-| 端到端场景 | 最终 UI 在本地内存后端 28/28；GitHub Docker 浏览器 28/28 | 托管运行 37038661216，提交 7867d9c；本机 Docker 存储故障未排除；网页端不能代替平板真机 | `apps/mobile/e2e/`、`docs/evidence/github-ci-37038661216.json` |
+| 后端测试 | 全栈 231 通过 / 1 跳过；SQL+legacy 224/8；内存 199/33 | 本机 Python 3.11；全栈连接隔离 Docker SQL/Redis；唯一跳过项仅适用内存模式 | `backend/tests/`、`docs/evidence/implementation-*.xml` |
+| 前端测试 | 94 项通过，类型检查通过 | 包含结果如实展示与本轮否定/澄清同步 | `apps/mobile/tests/`、`docs/status.md` |
+| 端到端场景 | 本机 Docker API+LangGraph 浏览器 28/28 | 本轮实跑，模型为桩；网页端不能代替平板真机。旧托管 CI 37038661216 对应 7867d9c，不能作为本轮证据 | `docs/evidence/docker-browser-2026-10-03.json` |
+| 连接复用配对实验 | 真实 deepseek-flash 各 20 次；P50 1529.759→1393.337 ms，P95 2642.971→2972.948 ms | 新增 40 次实际调用；10 条模拟话术，两遍；方向检查各 20/20；**不支持总体提速结论，默认关闭复用** | `docs/evidence/real-http-pooling-2026-10-03.json` |
 | DeepSeek 模型对比 | chat 48/48 被采纳、成功调用 P95 1450 ms；flash 46/48 被采纳、成功调用 P95 3539 ms | 合计 96 次真实调用；5 条重复话术与 4 个人设；不是端到端延迟或陌生表达准确率 | `docs/evidence/model-latency-*.json` |
 | 独立验收与交错对照 | 路由 29/30；chat 11/12 语义通过、0 降级、服务层计划 P95 1452 ms；flash 9/12 通过、3 降级、P95 6272 ms | 2026-10-02 模拟用例，小样本；chat 仍有 1 条语义错误；不是生产或真机数据 | `docs/evidence/holdout-v2-*.json` |
 | 电网购电 | 13.61 → 0.76 kWh/day，下降 94.4% | 给定固定日仿真，不是真实家庭实测 | `simulation/home-energy/data/provided-day-comparison.json` |
@@ -32,7 +33,7 @@
 
 当前可核对的工程规模表述是：
 
-> Docker 全栈后端202项测试通过、前端92项通过，覆盖计划确认、停止抢占、设备回读、整晚服务，并补充跨进程故障、回执丢失与 Outbox 并发恢复测试。浏览器场景数以本页当前数据表为准。
+> 连接隔离 Docker 数据库的全栈后端231项测试通过、前端94项通过，覆盖计划确认、停止抢占、设备回读、整晚服务，并补充请求语义保护和未知动作核对。浏览器场景数以本页当前数据表为准；本轮修改尚未托管 CI 验证。
 
 三类检查口径不同，应分开报告，不合并成一个“成功率”。这些是模拟/本地测试，不是真实用户流量或真机结果。
 

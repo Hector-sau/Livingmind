@@ -13,6 +13,7 @@ from fastapi.responses import JSONResponse
 from app.contracts import ErrorBody, ErrorCode, ErrorResponse
 
 STATUS_BY_CODE: dict[str, int] = {
+    "CLARIFICATION_REQUIRED": 409,
     "VALIDATION_ERROR": 422,
     "NOT_FOUND": 404,
     "FORBIDDEN_CONTEXT": 403,

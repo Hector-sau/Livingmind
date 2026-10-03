@@ -108,6 +108,8 @@ class Store(Protocol):
 
     def get_action_execution(self, action_id: str) -> Optional[ActionExecution]: ...
 
+    def resolve_unknown_action(self, execution: ActionExecution, result: ActionResult) -> Optional[ActionExecution]: ...
+
     def unresolved_action_executions(self) -> list[ActionExecution]: ...
 
     # ---- activity ----
@@ -276,6 +278,17 @@ class MemoryStore:
     def get_action_execution(self, action_id: str) -> Optional[ActionExecution]:
         item = self._action_executions.get(action_id)
         return item.model_copy(deep=True) if item else None
+
+    def resolve_unknown_action(self, execution: ActionExecution, result: ActionResult) -> Optional[ActionExecution]:
+        current = self.get_action_execution(execution.action_id)
+        if current is None or current.status != "unknown":
+            return current
+        self.save_action_execution(execution)
+        record = self._plans.get(execution.plan_id)
+        if record:
+            record.results = [result.model_copy(deep=True) if item.action_id == execution.action_id
+                              and item.outcome == "unknown" else item for item in record.results]
+        return execution.model_copy(deep=True)
 
     def unresolved_action_executions(self) -> list[ActionExecution]:
         return [

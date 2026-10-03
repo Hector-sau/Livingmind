@@ -39,12 +39,20 @@ class DeepSeekProvider:
         base_url: str = "https://api.deepseek.com",
         max_tokens: int = 2000,
         usage_sink: Callable[[dict], None] | None = None,
+        reuse_connections: bool = False,
     ):
         self._api_key = api_key
         self.model = model
         self._base_url = base_url.rstrip("/")
         self._max_tokens = max_tokens
         self._usage_sink = usage_sink
+        # Client is safe to share between synchronous request threads. No result or
+        # person data is cached; only HTTP connections are reused. Bound the pool.
+        self._client = httpx.Client(limits=httpx.Limits(max_connections=20, max_keepalive_connections=10)) if reuse_connections else None
+
+    def close(self) -> None:
+        if self._client is not None:
+            self._client.close()
 
     def complete_json(self, system: str, user: str, timeout_s: float) -> str:
         if not self._api_key:
@@ -58,7 +66,8 @@ class DeepSeekProvider:
             "stream": False,
         }
         try:
-            res = httpx.post(
+            post = self._client.post if self._client is not None else httpx.post
+            res = post(
                 f"{self._base_url}/chat/completions",
                 headers={"Authorization": f"Bearer {self._api_key}", "Content-Type": "application/json"},
                 json=body,

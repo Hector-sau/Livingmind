@@ -2,6 +2,8 @@
 
 更新：2026-10-03（模型评测保留 2026-10-02 原始记录）。此表按可核对的代码、测试与原始结果整理；个人贡献待团队成员逐项确认。
 
+本日第二轮未提交增量的设计、实验与后续步骤见 [设计与验证记录](design-and-validation-2026-10-03.md)。**本轮没有新的 GitHub CI 结果**，以下把本地新验证和已发布的历史证据分开。
+
 | 主张 | 当前证据 | 边界 |
 |---|---|---|
 | 受控设备执行 | `backend/app/harness/`、`backend/app/adapters/gateway.py`、`backend/tests/test_execution_authority.py` | 已在虚拟网关验证；真实厂商网关尚未接入 |
@@ -9,9 +11,13 @@
 | PostgreSQL 业务约束 | `backend/app/repositories/sql_store.py`、`backend/tests/test_persistence.py` | 数据库约束不替代真实设备幂等与多实例联调 |
 | Redis 协调 | `backend/app/cache/locks.py`、`backend/app/cache/cooldown.py`、`backend/tests/test_cache_coordination.py` | 短锁和冷却；未做数据缓存提速实验；锁无续租 |
 | 事务出箱 | `backend/app/events/outbox.py`、`backend/tests/test_outbox_events.py`；独立数据库连接并发写入、发布、消费已验证 | PostgreSQL 事件队列；按空间保序；未接 Kafka，未做长期生产压力测试 |
-| 自动化回归 | 全栈 **202 通过 / 1 跳过**；默认后端 **170/33**；前端 **92**；本地内存浏览器与 GitHub Docker 浏览器均 **28/28** | 本地 JUnit：`docs/evidence/engineering-regression-2026-10-03.xml`；托管记录：`docs/evidence/github-ci-37038661216.json`（`7867d9c`，6/6 Job）；不代替真机验收 |
+| 自动化回归（本轮） | 本机 Python 3.11 连接 Docker SQL+Redis+LangGraph **231 通过 / 1 跳过**；默认后端 **199/33**；前端 **94**；本机 Docker API+LangGraph 浏览器 **28/28** | `docs/evidence/implementation-*.xml`、`docker-browser-2026-10-03.json`；新改动未托管 CI，不代替真机验收 |
+| 请求语义保护 | 12 条新增开发回归；前端 Mock 和浏览器澄清流程同步 | 明确否定/限制先澄清；只检查列出的方向模式，不是通用语言理解。旧 v2 的失败已用于开发，新 v3 30 条候选待人工审核 |
+| 连接复用实验 | deepseek-flash 真实 40 次：每组 20 次；P50 1529.759→1393.337 ms，P95 2642.971→2972.948 ms，均通过预置方向检查 | `real-http-pooling-2026-10-03.json`；本地 HTTP API+内存存储，不含平板/设备；**P95 未改善，默认不启用**。不与模型选型的 96 次混算 |
+| 未知动作回执核对 | 14 条故障回归；只 query 不 submit；同事务更新账本/计划；停止后不续跑 | `tests/test_action_reconciliation.py`；网关回执仍在进程内，未实现跨网关重启恢复；App 专用按钮未接 |
+| 依赖风险记录 | 23 个受影响包，来自 3 个根公告 | `npm-audit-2026-10-03.json`；未完成可达性审计或修补，不宣称风险已消除 |
 
-## 2026-10-02 本轮新增、可复查的实验
+## 2026-10-02 至首次 10-03 发布的历史实验
 
 | 实验 | 实测结果 | 原始记录与边界 |
 |---|---|---|
@@ -48,10 +54,10 @@ python scripts/compare_models.py --models deepseek-chat deepseek-flash
 
 阅读原始 JSON 时分清 `route.correct/total`、`semantic.pass/fail/fallback` 和 `usage_reported_count`。模型 P95 包含超时后的降级耗时，不包含 HTTP App 往返、用户确认或设备动作；本地规则链路是独立指标，不能与模型耗时相减算“提速”。修改提示词或路由后，v2 就不再是未接触的验收集，应冻结旧结果并建立下一版本。
 
-## 待补实验
+## 待补实验（按当前状态更新）
 
-1. 给 holdout `h26` 的歧义制定新版本修复计划；**不要在 v2 上继续调参后仍声称它是独立集**。
-2. 已覆盖重复确认期间的 Redis TTL 与 TCP 中断；下一步验证不同计划竞争、网关进程自身重启、持久化回执与设备最终状态对账。当前虚拟网关只把 API 进程崩溃隔离开，并不具备自身崩溃后的持久化恢复。
+1. `h26` 歧义已修复为澄清。v2 已进入历史/回归角色；审核并冻结 v3 候选标签后，才能获得新的未调参验收结果。
+2. 当前已补只读回执核对，尚需独立持久化网关、按所有权启动恢复和两个真实 API 实例。再验证不同计划竞争、网关自身重启和所有写入路径；不要把已有的服务层多进程夹具当成部署验收。
 3. 对 Outbox 做更长时间的并发压力试验与跨空间公平性检查；保留死信人工处理的运维说明。
 4. 在真实平板、真实网络和至少一种真实设备上建立端到端延迟与回读基线；本地毫秒数字不可外推。
 

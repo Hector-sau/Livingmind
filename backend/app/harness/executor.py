@@ -137,6 +137,8 @@ class Executor:
             )
         except OSError as exc:
             receipt = self._transport_unknown(action.action_id, exc)
+        if receipt.action_id != action.action_id:
+            receipt = self._mismatched_receipt(action.action_id)
         if receipt.status == "accepted":
             if execution is not None:
                 execution.status = "accepted"
@@ -146,6 +148,8 @@ class Executor:
                 receipt = self._gateway.query(action.action_id) or receipt
             except OSError as exc:
                 receipt = self._transport_unknown(action.action_id, exc)
+            if receipt.action_id != action.action_id:
+                receipt = self._mismatched_receipt(action.action_id)
         if receipt.status in ("accepted", "unknown"):
             self._finish(
                 execution,
@@ -187,6 +191,11 @@ class Executor:
             on_execution=on_execution,
         )
         return ActionResult(**base, outcome="succeeded", reason=None, observed_value=observed)
+
+    @staticmethod
+    def _mismatched_receipt(action_id: str) -> DeviceCommandReceipt:
+        return DeviceCommandReceipt(action_id, "unknown", None, None, "unknown",
+                                    "设备回执不属于当前动作，结果待核对；未自动重试")
 
     @staticmethod
     def _transport_unknown(action_id: str, exc: OSError) -> DeviceCommandReceipt:

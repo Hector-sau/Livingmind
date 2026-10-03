@@ -1,0 +1,229 @@
+{
+  "version": 3,
+  "status": "candidate_not_accepted",
+  "human_reviewed": false,
+  "reviewer": null,
+  "purpose": "待人工审核的新验收候选集。本轮未按这些标签调参或统计准确率；不是独立人工评测。需要审核语义歧义及产品支持范围后冻结版本。",
+  "cases": [
+    {
+      "id": "v301",
+      "person": "person-lin",
+      "utterance": "我今晚想提早睡，使用我的休息设置",
+      "intent": "rest",
+      "expect": {
+        "light": "same",
+        "ac": "same",
+        "curtain": "same"
+      }
+    },
+    {
+      "id": "v302",
+      "person": "person-chen",
+      "utterance": "现在准备躺下休息，请按个人偏好安排",
+      "intent": "rest",
+      "expect": {
+        "light": "same",
+        "ac": "same",
+        "curtain": "same"
+      }
+    },
+    {
+      "id": "v303",
+      "person": "person-zhou",
+      "utterance": "午休时间到了，沿用我的偏好",
+      "intent": "rest",
+      "expect": {
+        "light": "same",
+        "ac": "same",
+        "curtain": "same"
+      }
+    },
+    {
+      "id": "v304",
+      "person": "person-guest",
+      "utterance": "我在这里临时休息，按默认环境就好",
+      "intent": "rest",
+      "expect": {
+        "light": "same",
+        "ac": "same",
+        "curtain": "same"
+      }
+    },
+    {
+      "id": "v305",
+      "person": "person-lin",
+      "utterance": "今天休息时把空调设得比通常更凉些",
+      "intent": "rest",
+      "expect": {
+        "light": "same",
+        "ac": "lower",
+        "curtain": "same"
+      }
+    },
+    {
+      "id": "v306",
+      "person": "person-chen",
+      "utterance": "想休息，灯光比平常更柔和",
+      "intent": "rest",
+      "expect": {
+        "light": "lower",
+        "ac": "same",
+        "curtain": "same"
+      }
+    },
+    {
+      "id": "v307",
+      "person": "person-zhou",
+      "utterance": "准备睡觉，空调比平常调暖一点",
+      "intent": "rest",
+      "expect": {
+        "light": "same",
+        "ac": "higher",
+        "curtain": "same"
+      }
+    },
+    {
+      "id": "v308",
+      "person": "person-guest",
+      "utterance": "准备午睡，窗帘关上",
+      "intent": "rest",
+      "expect": {
+        "light": "same",
+        "ac": "same",
+        "curtain": "same"
+      }
+    },
+    {
+      "id": "v309",
+      "person": "person-lin",
+      "utterance": "请将灯的亮度设到 22%",
+      "intent": "device_command"
+    },
+    {
+      "id": "v310",
+      "person": "person-chen",
+      "utterance": "把空调调到 23 度",
+      "intent": "device_command"
+    },
+    {
+      "id": "v311",
+      "person": "person-zhou",
+      "utterance": "窗帘开到 35%",
+      "intent": "device_command"
+    },
+    {
+      "id": "v312",
+      "person": "person-guest",
+      "utterance": "把卧室灯打开",
+      "intent": "device_command"
+    },
+    {
+      "id": "v313",
+      "person": "person-lin",
+      "utterance": "卧室灯现在有多亮？",
+      "intent": "status"
+    },
+    {
+      "id": "v314",
+      "person": "person-chen",
+      "utterance": "请告诉我空调当前的设定温度",
+      "intent": "status"
+    },
+    {
+      "id": "v315",
+      "person": "person-zhou",
+      "utterance": "我只想知道窗帘目前是什么状态",
+      "intent": "status"
+    },
+    {
+      "id": "v316",
+      "person": "person-guest",
+      "utterance": "房间当前温度是多少？",
+      "intent": "status"
+    },
+    {
+      "id": "v317",
+      "person": "person-lin",
+      "utterance": "不要把灯关掉",
+      "intent": "clarification"
+    },
+    {
+      "id": "v318",
+      "person": "person-chen",
+      "utterance": "请别打开窗帘",
+      "intent": "clarification"
+    },
+    {
+      "id": "v319",
+      "person": "person-zhou",
+      "utterance": "我想休息，只调空调，不要动灯",
+      "intent": "clarification"
+    },
+    {
+      "id": "v320",
+      "person": "person-guest",
+      "utterance": "窗帘拉开又拉上，帮我确认一下",
+      "intent": "clarification"
+    },
+    {
+      "id": "v321",
+      "person": "person-lin",
+      "utterance": "把那个改一下",
+      "intent": "clarification"
+    },
+    {
+      "id": "v322",
+      "person": "person-chen",
+      "utterance": "灯亮一点但也暗一点",
+      "intent": "clarification"
+    },
+    {
+      "id": "v323",
+      "person": "person-zhou",
+      "utterance": "把空调关机",
+      "intent": "clarification"
+    },
+    {
+      "id": "v324",
+      "person": "person-guest",
+      "utterance": "想休息，但灯保持现在的亮度",
+      "intent": "clarification"
+    },
+    {
+      "id": "v325",
+      "person": "person-lin",
+      "utterance": "帮我查附近餐厅",
+      "intent": "other"
+    },
+    {
+      "id": "v326",
+      "person": "person-chen",
+      "utterance": "替我订一张火车票",
+      "intent": "other"
+    },
+    {
+      "id": "v327",
+      "person": "person-zhou",
+      "utterance": "我不想休息，先去上班",
+      "intent": "other"
+    },
+    {
+      "id": "v328",
+      "person": "person-guest",
+      "utterance": "介绍一下今天的新闻",
+      "intent": "other"
+    },
+    {
+      "id": "v329",
+      "person": "person-lin",
+      "utterance": "给另一个人物改一下偏好",
+      "intent": "other"
+    },
+    {
+      "id": "v330",
+      "person": "person-chen",
+      "utterance": "帮我发送电子邮件",
+      "intent": "other"
+    }
+  ]
+}

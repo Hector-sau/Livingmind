@@ -16,7 +16,7 @@ def test_summary_separates_fallbacks_and_reports_inclusive_latency():
     ]
     assert summarize(rows, "a") == {
         "model": "a", "total": 2, "semantic_pass": 1, "semantic_fail": 0,
-        "fallback": 1, "p50_ms": 100, "p95_ms": 6000,
+        "fallback": 1, "clarification": 0, "p50_ms": 100, "p95_ms": 6000,
         "total_tokens_reported": 20, "usage_reported_count": 1,
     }
 

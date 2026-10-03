@@ -9,6 +9,8 @@
 
 准备面试或核对技术成果，从 [当前工程与评测证据](docs/interview-evidence-2026-10-02.md) 开始：包含模型选型原始结果、跨进程故障、网关未知回执、Outbox 顺序与恢复、分段日志及本轮测试报告。每条结论都标明模拟范围与未验证部分。
 
+想理解为什么这样设计，读 [设计过程与验证记录](docs/design-and-validation-2026-10-03.md)：请求理解的安全边界、40 次真实调用为什么没有支持默认开启连接复用、回执丢失后怎样核对，以及尚待完成的独立网关与双 API 验证。
+
 ## 系统架构
 
 一个 Expo App、一个 FastAPI 后端、一层由后端契约生成的共享类型。App 不认识设备，只认识接口；后端不让 Agent 碰设备，只让它产出计划。
@@ -20,7 +22,7 @@
 | 页面层 | 12 个功能模块（对话、设备、语音、整晚、场景、证据、能源…），只调接口层 | `apps/mobile/features/` |
 | 接口层 | 同一套方法两种实现：前端模拟与真实 HTTP，切换不改页面 | `apps/mobile/services/{mock,http}/` |
 | 共享类型 | 由后端 OpenAPI 生成，禁止手改 | `packages/api-client/` |
-| 路由与错误 | 21 个端点，统一错误结构与错误码 | `backend/app/api/` |
+| 路由与错误 | 统一错误结构与错误码；未知动作支持只读回执核对 | `backend/app/api/` |
 | 服务编排 | 单空间串行锁、计划生命周期、整晚服务、撤销窗口 | `backend/app/services/rest_service.py` |
 | 主 Agent | 意图路由与三个阶段的编排，产出协作轨迹 | `backend/app/agents/orchestrator/` |
 | 体验 Agent | **唯一会调用大模型的环节**，失败降级为规则并记录原因 | `backend/app/agents/experience/` |

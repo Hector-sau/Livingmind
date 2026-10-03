@@ -16,6 +16,7 @@ from langgraph.graph import END, START, StateGraph
 
 from app.adapters.protocol import DeviceAdapter
 from app.agents.orchestrator.agent import INTENT_LABEL, Orchestrator, _Trace, route_intent
+from app.agents.experience.semantics import request_clarification
 from app.graph.state import LivingMindState
 
 AdapterFor = Callable[[str], DeviceAdapter]
@@ -34,7 +35,7 @@ def build_graph(orchestrator: Orchestrator, adapter_for: AdapterFor, new_id: New
 
         t0 = time.monotonic()
         forced = state.get("forced_intent")
-        intent = forced or route_intent(state["utterance"])
+        intent = "clarification" if request_clarification(state["utterance"]) else (forced or route_intent(state["utterance"]))
         trace.add(
             "orchestrator",
             f"识别意图：{INTENT_LABEL[intent]}",

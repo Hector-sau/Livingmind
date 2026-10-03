@@ -1,8 +1,36 @@
 # LivingMind AI 交接文档
 
-> **当前交接（2026-10-03）**：工程实现 `d651229` 已随 `7867d9c` 推送到 GitHub main；该发布提交的 [CI 37038661216](https://github.com/Hector-sau/Livingmind/actions/runs/37038661216) **6/6 Job 全部通过**，包括 Docker 浏览器 **28/28**。机器可读记录在 `docs/evidence/github-ci-37038661216.json`。当前证据主索引为 `docs/interview-evidence-2026-10-02.md`。本机 Docker 存储启动问题仍未解决，不与干净 GitHub Runner 的通过混淆；下方 2026-09-19 数字仅为历史。
+> **当前交接（2026-10-03，第二批记录）**：用户批准继续实施。基线 `main = dd09d40`，本轮修改保留在本地工作区，尚未提交/推送；旧提交 `7867d9c` 的 CI 6/6 不能证明本轮改动。先读 [设计与验证记录](docs/design-and-validation-2026-10-03.md)，再读下面的待办。此次 Docker 本机实际可构建、启动、运行浏览器验收，没有删除任何数据卷；旧故障根因未确认。
 
-## 本轮完成了什么
+## 当前已完成与验证
+
+- **请求语义保护**：明确否定、只调某设备、保持不变和同设备冲突先澄清；模型结果还检查支持范围内的调整方向。澄清后的明确设备命令替换旧歧义，不拼接成反向动作。legacy、LangGraph、旧休息端点和前端 Mock 均同步。
+- **评测边界**：12 条新增开发回归已通过；v1 中三条受限范围请求明确改为澄清。v2 的 h26 已用于修复，现在是历史/回归材料，旧结果未改写。30 条 `holdout_v3_candidate.json` 待人工审核，未作为新准确率证据。
+- **HTTP 测量**：160 次本地桩 + 40 次真实 deepseek-flash 配对调用。真实调用每组 20 次均通过预置方向检查；复用连接 P50 1529.759→1393.337 ms，但 P95 2642.971→2972.948 ms。**没有总体提速结论，连接复用默认关闭**。用户授权 DeepSeek 使用，但本轮无需重复消费；初次工具配置错误的 40 个 HTTP 失败请求实际模型调用 0 次，单独标记无效记录。
+- **未知动作核对**：`POST /api/actions/{action_id}/reconcile` 只查询已有回执，不提交设备动作；SQL 行锁保护终态并同事务更新账本/计划结果；停止后的迟到回执不会重启服务。14 条故障测试。尚无 App 核对按钮，也未实现持久化独立网关。
+- **本机回归**：Python 3.11 内存 199/33；PostgreSQL+legacy 224/8；连接隔离 Docker PostgreSQL+Redis 的 LangGraph 231/1。前端 94/94 与类型检查通过，契约已重新生成。Docker API（Python 3.12、LangGraph）+两个 Worker 的浏览器 **28/28**，包含扩展后的否定澄清；模型是本地桩，非真机。报告为 `docs/evidence/implementation-*.xml` 和 `docker-browser-2026-10-03.json`。
+- **依赖审计**：23 个受影响包（16 high、7 moderate），来自 braces/node-forge/uuid 三个根公告；已保存原始审计和初步依赖归因。未完成可达性分析或兼容补丁，不运行 `audit fix --force`，不宣称已清除风险。
+
+## 下一位 Agent 从这里继续
+
+1. 读 `docs/design-and-validation-2026-10-03.md` 与 git diff，保留本轮未提交改动；不要回退到旧版本或重新运行付费实验凑数字。
+2. 完成人工 v3 标签审核再冻结验收集；写明未审核的标签不是客观正确答案。代码检查、默认/SQL/全栈回归及浏览器验证可以继续独立推进。
+3. **下一项主要开发是独立持久化虚拟网关**：回执、状态、代次跨网关重启可恢复；覆盖所有写入路径（计划、直接控制、撤销）；同 actionId 不重复写。当前网关仍在 API 进程内，不能直接扩容。
+4. 网关完成后再做两个真实 HTTP API 实例，补按执行所有权/租约的启动恢复。测试不同计划竞争、停止、Redis TTL/断连、API 崩溃、网关自身崩溃；目前两个 OS 进程服务层测试不能替代这项验收。
+5. 把核对入口和单次状态变更记录接到 App/活动页；unknown 继续如实显示，不因为核对成功自动重启服务。然后重跑三套后端、契约、前端和 Docker 浏览器。
+6. 本轮没有推送；后续按用户发布指令提交/推送，再核对新 headSha 对应的 CI。真机和真实 SpaceMind/厂商设备验收另列，不用模拟结果代替。
+
+临时环境仍是 `/private/tmp/livingmind-eval-venv`，数据库仅用 Compose 项目 `livingmind-eval` 的专用测试卷、宿主 55432 与 Redis 56379/15；测试会清空该专用库，不能指向其他项目。原有 `backend/.venv` 是 Python 3.9。所有新增说明都在仓库，无外部 Pages；保留历史实验文件，不把旧的“仅一次调用”或旧 CI 结论摘成当前状态。
+
+收尾状态：本任务隔离容器与网络已通过 `docker compose -p livingmind-eval down` 收起，**数据卷保留**，没有操作其他项目。OpenAPI 与 TS 类型连续生成的 SHA-256 一致；`git diff --check` 通过。新代码、测试、原始结果和文档均在本地工作区，交接时不要遗漏未跟踪的新文件。
+
+---
+
+## 前一轮记录（历史，已由顶部更新取代）
+
+工程实现 `d651229` 已随 `7867d9c` 推送；[CI 37038661216](https://github.com/Hector-sau/Livingmind/actions/runs/37038661216) 6/6，包括 Docker 浏览器 28/28。以下记录说明旧版本的实现和故障经过，不是本轮未提交修改的验收结果。
+
+### 前一轮完成了什么
 
 1. **证据统一与独立评测**：`router_challenge_v1.json` 的 40 条用例用于修复两处路由错误，因此只能称回归集。`holdout_v2.json` 的 30 条模拟验收用例实测 29/30，保留 h26 的歧义误判，没有调参后冒充独立结果。指标方法、失败与边界都在证据主索引中。
 2. **真实模型对照**：`backend/scripts/compare_models.py` 对同一 12 条休息请求交错调用 chat/flash，统一提示词、6 秒超时、2000 输出预算和温度。chat 11/12 通过方向性语义检查，0 降级，服务层 P95 1452 ms；flash 9/12 通过，3 次超时降级，P95 6272 ms。原始 JSON 已保存。这是历史 96 次之后新增的 24 次真实调用，不是生产准确率或确定性提速比例；无需为恢复工作再次付费调用。
@@ -11,7 +39,7 @@
 5. **Outbox 顺序与恢复**：迁移 0006 增加 seq；同空间事务使用 advisory lock；Publisher/Consumer 不越过未处理的前序事件；eventId 去重；终态投影不被迟到 started 复活；死信保留并阻塞该空间，使用 `backend/scripts/outbox_admin.py --list/--retry` 显式处理。并发验证使用独立数据库连接，尚未做长期压测。
 6. **可观察性**：HTTP X-Request-ID、事件 correlationId、agent.stage、plan.ready、action.finished、gateway.write/readback 把阶段耗时与 planId/serviceId/actionId 连接起来；不记录话术、提示词或偏好值。Alembic 的 fileConfig 已设置 disable_existing_loggers=False，日志测试验证实际输出。虚拟网关的进程边界通过 actionId 关联，contextvar 不会自动跨进程。
 
-## 最新验证
+### 前一轮验证
 
 | 检查 | 结果 |
 |---|---|
@@ -74,7 +102,7 @@ docker compose -p livingmind-eval down
 
 若临时 Python 环境已被清理，先在新 Python 3.11/3.12 环境安装 `apps/mobile/e2e/requirements.txt` 并执行 `python -m playwright install chromium`，替换上面的解释器路径。截图写入被忽略的 `apps/mobile/e2e/.out/screens/`；必要时自行归档。不要使用 `down -v` 删除验收数据卷。
 
-## 下一位 Agent 的步骤与边界
+### 前一轮交接步骤（历史，当前任务以顶部为准）
 
 1. 先读本节、证据主索引及 git status / git log；保留任何后来新增的用户改动。最新测试结果只适用于包含这些改动的版本。
 2. 本轮代码已推送并经 CI 6/6 验证；后续文档提交不改变该代码基线，最新远端 headSha 的状态仍应单独核对。宿主 Docker 的元数据打开缓慢需要独立诊断；不得删除内部数据库、镜像或卷来换取绿灯。恢复后清理本任务 created 容器并补跑本机 LangGraph 容器组合，不操作其他项目。

@@ -1,0 +1,2545 @@
+{
+  "recorded_at_utc": "2026-10-03T03:32:35.255628+00:00",
+  "scope": "loopback HTTP API + local model stub; memory store; legacy; no TLS; no real inference",
+  "synthetic": true,
+  "paid_calls": 0,
+  "order": "alternated per repetition",
+  "runs": [
+    {
+      "variant": "fresh",
+      "concurrency": 1,
+      "warmup_requests": 2,
+      "new_model_connections": 20,
+      "wall_seconds": 0.088,
+      "summary": {
+        "requests": 20,
+        "valid_plans": 20,
+        "errors": 0,
+        "p50_ms": 4.349,
+        "p95_ms": 4.881
+      },
+      "rows": [
+        {
+          "request_id": "d1c27b28884e42799117323e985c7d27",
+          "elapsed_ms": 5.661,
+          "status": 200,
+          "valid": true,
+          "error": null,
+          "stages": {
+            "orchestrator": 0.011,
+            "memory": 0.007,
+            "experience": 3.054,
+            "energy": 0.013,
+            "space_execution": 0.04,
+            "harness": 0.008
+          }
+        },
+        {
+          "request_id": "4ff6ccbb3bb346308a52e727f42152b3",
+          "elapsed_ms": 4.451,
+          "status": 200,
+          "valid": true,
+          "error": null,
+          "stages": {
+            "orchestrator": 0.007,
+            "memory": 0.007,
+            "experience": 3.113,
+            "energy": 0.014,
+            "space_execution": 0.036,
+            "harness": 0.007
+          }
+        },
+        {
+          "request_id": "309d00772d604ca8ae50263a50cb91b6",
+          "elapsed_ms": 4.881,
+          "status": 200,
+          "valid": true,
+          "error": null,
+          "stages": {
+            "orchestrator": 0.008,
+            "memory": 0.007,
+            "experience": 3.616,
+            "energy": 0.009,
+            "space_execution": 0.032,
+            "harness": 0.007
+          }
+        },
+        {
+          "request_id": "b0fbb12af4854b47b797510b1ad41981",
+          "elapsed_ms": 4.179,
+          "status": 200,
+          "valid": true,
+          "error": null,
+          "stages": {
+            "orchestrator": 0.007,
+            "memory": 0.006,
+            "experience": 3.0,
+            "energy": 0.008,
+            "space_execution": 0.031,
+            "harness": 0.007
+          }
+        },
+        {
+          "request_id": "18666954f45f4673b020674685668a33",
+          "elapsed_ms": 4.878,
+          "status": 200,
+          "valid": true,
+          "error": null,
+          "stages": {
+            "orchestrator": 0.008,
+            "memory": 0.007,
+            "experience": 3.134,
+            "energy": 0.009,
+            "space_execution": 0.036,
+            "harness": 0.007
+          }
+        },
+        {
+          "request_id": "14086d780393415ca2bbe1f517c9fdc0",
+          "elapsed_ms": 4.31,
+          "status": 200,
+          "valid": true,
+          "error": null,
+          "stages": {
+            "orchestrator": 0.006,
+            "memory": 0.006,
+            "experience": 3.051,
+            "energy": 0.01,
+            "space_execution": 0.032,
+            "harness": 0.006
+          }
+        },
+        {
+          "request_id": "aece8596cc1b46669a069b8327956bbd",
+          "elapsed_ms": 4.499,
+          "status": 200,
+          "valid": true,
+          "error": null,
+          "stages": {
+            "orchestrator": 0.006,
+            "memory": 0.005,
+            "experience": 2.947,
+            "energy": 0.008,
+            "space_execution": 0.028,
+            "harness": 0.006
+          }
+        },
+        {
+          "request_id": "98cb6143c98b4f05863fb1490fe55608",
+          "elapsed_ms": 4.006,
+          "status": 200,
+          "valid": true,
+          "error": null,
+          "stages": {
+            "orchestrator": 0.006,
+            "memory": 0.005,
+            "experience": 2.875,
+            "energy": 0.007,
+            "space_execution": 0.028,
+            "harness": 0.006
+          }
+        },
+        {
+          "request_id": "bab9547bb9ee4324a05e05d6e65ce556",
+          "elapsed_ms": 4.431,
+          "status": 200,
+          "valid": true,
+          "error": null,
+          "stages": {
+            "orchestrator": 0.005,
+            "memory": 0.004,
+            "experience": 2.921,
+            "energy": 0.007,
+            "space_execution": 0.032,
+            "harness": 0.006
+          }
+        },
+        {
+          "request_id": "e0726769c201475cb584415bcb6de4c4",
+          "elapsed_ms": 3.959,
+          "status": 200,
+          "valid": true,
+          "error": null,
+          "stages": {
+            "orchestrator": 0.005,
+            "memory": 0.004,
+            "experience": 2.85,
+            "energy": 0.007,
+            "space_execution": 0.028,
+            "harness": 0.006
+          }
+        },
+        {
+          "request_id": "8498a50a378d4be09d9dc29b76df5702",
+          "elapsed_ms": 4.434,
+          "status": 200,
+          "valid": true,
+          "error": null,
+          "stages": {
+            "orchestrator": 0.006,
+            "memory": 0.004,
+            "experience": 2.963,
+            "energy": 0.007,
+            "space_execution": 0.028,
+            "harness": 0.006
+          }
+        },
+        {
+          "request_id": "7bc6bc3b82ef4e05a54d177b98f5e669",
+          "elapsed_ms": 3.984,
+          "status": 200,
+          "valid": true,
+          "error": null,
+          "stages": {
+            "orchestrator": 0.005,
+            "memory": 0.004,
+            "experience": 2.856,
+            "energy": 0.007,
+            "space_execution": 0.03,
+            "harness": 0.006
+          }
+        },
+        {
+          "request_id": "293f2ea3c4544e7ba651f1d7d882e60c",
+          "elapsed_ms": 4.447,
+          "status": 200,
+          "valid": true,
+          "error": null,
+          "stages": {
+            "orchestrator": 0.006,
+            "memory": 0.004,
+            "experience": 2.982,
+            "energy": 0.007,
+            "space_execution": 0.033,
+            "harness": 0.006
+          }
+        },
+        {
+          "request_id": "ef4dd598c5554f398bc79c4a205bd634",
+          "elapsed_ms": 4.003,
+          "status": 200,
+          "valid": true,
+          "error": null,
+          "stages": {
+            "orchestrator": 0.006,
+            "memory": 0.004,
+            "experience": 2.878,
+            "energy": 0.007,
+            "space_execution": 0.03,
+            "harness": 0.006
+          }
+        },
+        {
+          "request_id": "6df38844cb944c618f600d505e68b928",
+          "elapsed_ms": 4.448,
+          "status": 200,
+          "valid": true,
+          "error": null,
+          "stages": {
+            "orchestrator": 0.005,
+            "memory": 0.004,
+            "experience": 2.938,
+            "energy": 0.007,
+            "space_execution": 0.027,
+            "harness": 0.006
+          }
+        },
+        {
+          "request_id": "4decf304682147a78a3b634fff825db0",
+          "elapsed_ms": 4.015,
+          "status": 200,
+          "valid": true,
+          "error": null,
+          "stages": {
+            "orchestrator": 0.007,
+            "memory": 0.005,
+            "experience": 2.873,
+            "energy": 0.007,
+            "space_execution": 0.028,
+            "harness": 0.006
+          }
+        },
+        {
+          "request_id": "33328cc13a6b43488da83f4da56b9e04",
+          "elapsed_ms": 4.349,
+          "status": 200,
+          "valid": true,
+          "error": null,
+          "stages": {
+            "orchestrator": 0.007,
+            "memory": 0.004,
+            "experience": 2.862,
+            "energy": 0.007,
+            "space_execution": 0.027,
+            "harness": 0.006
+          }
+        },
+        {
+          "request_id": "4416ba69f4e64e478904c6561eb11019",
+          "elapsed_ms": 4.049,
+          "status": 200,
+          "valid": true,
+          "error": null,
+          "stages": {
+            "orchestrator": 0.007,
+            "memory": 0.004,
+            "experience": 2.921,
+            "energy": 0.007,
+            "space_execution": 0.027,
+            "harness": 0.006
+          }
+        },
+        {
+          "request_id": "66c2d4ab719b4a53b8f335909b7d97a9",
+          "elapsed_ms": 4.768,
+          "status": 200,
+          "valid": true,
+          "error": null,
+          "stages": {
+            "orchestrator": 0.007,
+            "memory": 0.004,
+            "experience": 2.981,
+            "energy": 0.007,
+            "space_execution": 0.031,
+            "harness": 0.006
+          }
+        },
+        {
+          "request_id": "12ae42a401c14032ba7c8bb99d46ef64",
+          "elapsed_ms": 4.01,
+          "status": 200,
+          "valid": true,
+          "error": null,
+          "stages": {
+            "orchestrator": 0.008,
+            "memory": 0.005,
+            "experience": 2.846,
+            "energy": 0.007,
+            "space_execution": 0.028,
+            "harness": 0.006
+          }
+        }
+      ],
+      "repeat": 0
+    },
+    {
+      "variant": "pooled",
+      "concurrency": 1,
+      "warmup_requests": 2,
+      "new_model_connections": 0,
+      "wall_seconds": 0.05,
+      "summary": {
+        "requests": 20,
+        "valid_plans": 20,
+        "errors": 0,
+        "p50_ms": 1.418,
+        "p95_ms": 1.878
+      },
+      "rows": [
+        {
+          "request_id": "797f37fd47484ab09ec359fd103332f3",
+          "elapsed_ms": 1.861,
+          "status": 200,
+          "valid": true,
+          "error": null,
+          "stages": {
+            "orchestrator": 0.01,
+            "memory": 0.006,
+            "experience": 0.448,
+            "energy": 0.01,
+            "space_execution": 0.047,
+            "harness": 0.008
+          }
+        },
+        {
+          "request_id": "2941b8e5b6c447acba550855532eeba1",
+          "elapsed_ms": 1.457,
+          "status": 200,
+          "valid": true,
+          "error": null,
+          "stages": {
+            "orchestrator": 0.006,
+            "memory": 0.005,
+            "experience": 0.338,
+            "energy": 0.007,
+            "space_execution": 0.03,
+            "harness": 0.007
+          }
+        },
+        {
+          "request_id": "318867203e824731926f238dbdaa0bec",
+          "elapsed_ms": 1.498,
+          "status": 200,
+          "valid": true,
+          "error": null,
+          "stages": {
+            "orchestrator": 0.005,
+            "memory": 0.004,
+            "experience": 0.307,
+            "energy": 0.007,
+            "space_execution": 0.028,
+            "harness": 0.006
+          }
+        },
+        {
+          "request_id": "08ec8525e9b2451584329c072f0c4e30",
+          "elapsed_ms": 1.407,
+          "status": 200,
+          "valid": true,
+          "error": null,
+          "stages": {
+            "orchestrator": 0.006,
+            "memory": 0.005,
+            "experience": 0.331,
+            "energy": 0.008,
+            "space_execution": 0.029,
+            "harness": 0.006
+          }
+        },
+        {
+          "request_id": "5556d5cfdeb242e5942783c6218f2e82",
+          "elapsed_ms": 1.393,
+          "status": 200,
+          "valid": true,
+          "error": null,
+          "stages": {
+            "orchestrator": 0.005,
+            "memory": 0.004,
+            "experience": 0.314,
+            "energy": 0.007,
+            "space_execution": 0.027,
+            "harness": 0.006
+          }
+        },
+        {
+          "request_id": "71e64d3d4afd43a390e0c97b5050b81b",
+          "elapsed_ms": 1.878,
+          "status": 200,
+          "valid": true,
+          "error": null,
+          "stages": {
+            "orchestrator": 0.008,
+            "memory": 0.006,
+            "experience": 0.807,
+            "energy": 0.007,
+            "space_execution": 0.028,
+            "harness": 0.006
+          }
+        },
+        {
+          "request_id": "30d666dc4c9347c89924e428e95eb993",
+          "elapsed_ms": 1.334,
+          "status": 200,
+          "valid": true,
+          "error": null,
+          "stages": {
+            "orchestrator": 0.005,
+            "memory": 0.004,
+            "experience": 0.296,
+            "energy": 0.007,
+            "space_execution": 0.028,
+            "harness": 0.006
+          }
+        },
+        {
+          "request_id": "d76cdbd1ee664365836be37d8b8c7168",
+          "elapsed_ms": 1.384,
+          "status": 200,
+          "valid": true,
+          "error": null,
+          "stages": {
+            "orchestrator": 0.006,
+            "memory": 0.005,
+            "experience": 0.315,
+            "energy": 0.007,
+            "space_execution": 0.03,
+            "harness": 0.006
+          }
+        },
+        {
+          "request_id": "e4a650adc99b47bbba605525faa8637c",
+          "elapsed_ms": 21.161,
+          "status": 200,
+          "valid": true,
+          "error": null,
+          "stages": {
+            "orchestrator": 0.005,
+            "memory": 0.004,
+            "experience": 19.865,
+            "energy": 0.012,
+            "space_execution": 0.039,
+            "harness": 0.008
+          }
+        },
+        {
+          "request_id": "32330d5fd39b4784868c20ab77d4b95f",
+          "elapsed_ms": 1.734,
+          "status": 200,
+          "valid": true,
+          "error": null,
+          "stages": {
+            "orchestrator": 0.011,
+            "memory": 0.009,
+            "experience": 0.364,
+            "energy": 0.009,
+            "space_execution": 0.032,
+            "harness": 0.007
+          }
+        },
+        {
+          "request_id": "6e40a0f99b804ff5a42ad11c51a3cf1a",
+          "elapsed_ms": 1.583,
+          "status": 200,
+          "valid": true,
+          "error": null,
+          "stages": {
+            "orchestrator": 0.007,
+            "memory": 0.005,
+            "experience": 0.434,
+            "energy": 0.008,
+            "space_execution": 0.032,
+            "harness": 0.007
+          }
+        },
+        {
+          "request_id": "92eb032b1874484a95e5809ffb887450",
+          "elapsed_ms": 1.435,
+          "status": 200,
+          "valid": true,
+          "error": null,
+          "stages": {
+            "orchestrator": 0.006,
+            "memory": 0.005,
+            "experience": 0.326,
+            "energy": 0.007,
+            "space_execution": 0.029,
+            "harness": 0.006
+          }
+        },
+        {
+          "request_id": "8b75fdcee865412ba24659a429bf8f72",
+          "elapsed_ms": 1.409,
+          "status": 200,
+          "valid": true,
+          "error": null,
+          "stages": {
+            "orchestrator": 0.005,
+            "memory": 0.004,
+            "experience": 0.321,
+            "energy": 0.007,
+            "space_execution": 0.028,
+            "harness": 0.006
+          }
+        },
+        {
+          "request_id": "e13b25f727bb4a8897716d71b7229967",
+          "elapsed_ms": 1.477,
+          "status": 200,
+          "valid": true,
+          "error": null,
+          "stages": {
+            "orchestrator": 0.005,
+            "memory": 0.004,
+            "experience": 0.317,
+            "energy": 0.007,
+            "space_execution": 0.028,
+            "harness": 0.006
+          }
+        },
+        {
+          "request_id": "78803f58abb349cbae2f472a49a71e09",
+          "elapsed_ms": 1.342,
+          "status": 200,
+          "valid": true,
+          "error": null,
+          "stages": {
+            "orchestrator": 0.005,
+            "memory": 0.004,
+            "experience": 0.301,
+            "energy": 0.007,
+            "space_execution": 0.028,
+            "harness": 0.006
+          }
+        },
+        {
+          "request_id": "ac06a5a67cf649c3935917c5099354df",
+          "elapsed_ms": 1.314,
+          "status": 200,
+          "valid": true,
+          "error": null,
+          "stages": {
+            "orchestrator": 0.005,
+            "memory": 0.004,
+            "experience": 0.281,
+            "energy": 0.006,
+            "space_execution": 0.027,
+            "harness": 0.006
+          }
+        },
+        {
+          "request_id": "f347a43193d343c08296482631c41560",
+          "elapsed_ms": 1.418,
+          "status": 200,
+          "valid": true,
+          "error": null,
+          "stages": {
+            "orchestrator": 0.005,
+            "memory": 0.004,
+            "experience": 0.304,
+            "energy": 0.007,
+            "space_execution": 0.028,
+            "harness": 0.006
+          }
+        },
+        {
+          "request_id": "a6c5e1f711cf48658b55b5079e99e05f",
+          "elapsed_ms": 1.345,
+          "status": 200,
+          "valid": true,
+          "error": null,
+          "stages": {
+            "orchestrator": 0.005,
+            "memory": 0.004,
+            "experience": 0.304,
+            "energy": 0.007,
+            "space_execution": 0.027,
+            "harness": 0.006
+          }
+        },
+        {
+          "request_id": "0200cf8301984d14809c3c29c2879456",
+          "elapsed_ms": 1.351,
+          "status": 200,
+          "valid": true,
+          "error": null,
+          "stages": {
+            "orchestrator": 0.005,
+            "memory": 0.004,
+            "experience": 0.303,
+            "energy": 0.006,
+            "space_execution": 0.027,
+            "harness": 0.006
+          }
+        },
+        {
+          "request_id": "d9923f8bdb9d469183476caf07fe1edb",
+          "elapsed_ms": 1.455,
+          "status": 200,
+          "valid": true,
+          "error": null,
+          "stages": {
+            "orchestrator": 0.005,
+            "memory": 0.004,
+            "experience": 0.385,
+            "energy": 0.006,
+            "space_execution": 0.028,
+            "harness": 0.006
+          }
+        }
+      ],
+      "repeat": 0
+    },
+    {
+      "variant": "pooled",
+      "concurrency": 1,
+      "warmup_requests": 2,
+      "new_model_connections": 0,
+      "wall_seconds": 0.03,
+      "summary": {
+        "requests": 20,
+        "valid_plans": 20,
+        "errors": 0,
+        "p50_ms": 1.445,
+        "p95_ms": 1.671
+      },
+      "rows": [
+        {
+          "request_id": "24c453ab09b1491fa27c3f092d466f48",
+          "elapsed_ms": 1.488,
+          "status": 200,
+          "valid": true,
+          "error": null,
+          "stages": {
+            "orchestrator": 0.007,
+            "memory": 0.005,
+            "experience": 0.346,
+            "energy": 0.009,
+            "space_execution": 0.035,
+            "harness": 0.007
+          }
+        },
+        {
+          "request_id": "8d102a29814f4cb892d6672b47a2c233",
+          "elapsed_ms": 1.457,
+          "status": 200,
+          "valid": true,
+          "error": null,
+          "stages": {
+            "orchestrator": 0.006,
+            "memory": 0.005,
+            "experience": 0.331,
+            "energy": 0.007,
+            "space_execution": 0.029,
+            "harness": 0.006
+          }
+        },
+        {
+          "request_id": "89bae16b7ff24dc0b9b5307cf0ab6899",
+          "elapsed_ms": 2.008,
+          "status": 200,
+          "valid": true,
+          "error": null,
+          "stages": {
+            "orchestrator": 0.008,
+            "memory": 0.005,
+            "experience": 0.351,
+            "energy": 0.008,
+            "space_execution": 0.031,
+            "harness": 0.007
+          }
+        },
+        {
+          "request_id": "1f975ddf82f845b0be05237b3f1bfe77",
+          "elapsed_ms": 1.468,
+          "status": 200,
+          "valid": true,
+          "error": null,
+          "stages": {
+            "orchestrator": 0.007,
+            "memory": 0.004,
+            "experience": 0.317,
+            "energy": 0.007,
+            "space_execution": 0.035,
+            "harness": 0.006
+          }
+        },
+        {
+          "request_id": "844a9040025740e2aec82373cc3df8d3",
+          "elapsed_ms": 1.438,
+          "status": 200,
+          "valid": true,
+          "error": null,
+          "stages": {
+            "orchestrator": 0.006,
+            "memory": 0.004,
+            "experience": 0.324,
+            "energy": 0.007,
+            "space_execution": 0.028,
+            "harness": 0.007
+          }
+        },
+        {
+          "request_id": "41906c6d1d9c4cdd8013702bb016902c",
+          "elapsed_ms": 1.671,
+          "status": 200,
+          "valid": true,
+          "error": null,
+          "stages": {
+            "orchestrator": 0.007,
+            "memory": 0.004,
+            "experience": 0.433,
+            "energy": 0.007,
+            "space_execution": 0.031,
+            "harness": 0.006
+          }
+        },
+        {
+          "request_id": "fd08ba25cab64a0392fee34402d7df9e",
+          "elapsed_ms": 1.505,
+          "status": 200,
+          "valid": true,
+          "error": null,
+          "stages": {
+            "orchestrator": 0.008,
+            "memory": 0.005,
+            "experience": 0.332,
+            "energy": 0.008,
+            "space_execution": 0.03,
+            "harness": 0.007
+          }
+        },
+        {
+          "request_id": "5f775d181a03497fa468ca792e875241",
+          "elapsed_ms": 1.445,
+          "status": 200,
+          "valid": true,
+          "error": null,
+          "stages": {
+            "orchestrator": 0.007,
+            "memory": 0.004,
+            "experience": 0.322,
+            "energy": 0.007,
+            "space_execution": 0.027,
+            "harness": 0.006
+          }
+        },
+        {
+          "request_id": "412df3fd24864c718c5a8e60cba90afe",
+          "elapsed_ms": 1.508,
+          "status": 200,
+          "valid": true,
+          "error": null,
+          "stages": {
+            "orchestrator": 0.007,
+            "memory": 0.006,
+            "experience": 0.403,
+            "energy": 0.007,
+            "space_execution": 0.028,
+            "harness": 0.006
+          }
+        },
+        {
+          "request_id": "d708d2dfaed34892a3f65d2d8c212f38",
+          "elapsed_ms": 1.382,
+          "status": 200,
+          "valid": true,
+          "error": null,
+          "stages": {
+            "orchestrator": 0.007,
+            "memory": 0.006,
+            "experience": 0.329,
+            "energy": 0.007,
+            "space_execution": 0.028,
+            "harness": 0.006
+          }
+        },
+        {
+          "request_id": "3f4aed99a9ac45fba99b88e6305d5b8a",
+          "elapsed_ms": 1.46,
+          "status": 200,
+          "valid": true,
+          "error": null,
+          "stages": {
+            "orchestrator": 0.006,
+            "memory": 0.005,
+            "experience": 0.341,
+            "energy": 0.007,
+            "space_execution": 0.029,
+            "harness": 0.007
+          }
+        },
+        {
+          "request_id": "f6a27261de434e62b46c0ebf6e9c2578",
+          "elapsed_ms": 1.386,
+          "status": 200,
+          "valid": true,
+          "error": null,
+          "stages": {
+            "orchestrator": 0.005,
+            "memory": 0.004,
+            "experience": 0.375,
+            "energy": 0.006,
+            "space_execution": 0.028,
+            "harness": 0.006
+          }
+        },
+        {
+          "request_id": "dde553a080d64904bdf7b61327118ac7",
+          "elapsed_ms": 1.327,
+          "status": 200,
+          "valid": true,
+          "error": null,
+          "stages": {
+            "orchestrator": 0.005,
+            "memory": 0.004,
+            "experience": 0.298,
+            "energy": 0.006,
+            "space_execution": 0.027,
+            "harness": 0.006
+          }
+        },
+        {
+          "request_id": "f1aaeff3744a49c389425d7135741fcd",
+          "elapsed_ms": 1.296,
+          "status": 200,
+          "valid": true,
+          "error": null,
+          "stages": {
+            "orchestrator": 0.005,
+            "memory": 0.004,
+            "experience": 0.277,
+            "energy": 0.006,
+            "space_execution": 0.028,
+            "harness": 0.006
+          }
+        },
+        {
+          "request_id": "88a9d9b04484404086a2e05e56efb45a",
+          "elapsed_ms": 1.397,
+          "status": 200,
+          "valid": true,
+          "error": null,
+          "stages": {
+            "orchestrator": 0.005,
+            "memory": 0.004,
+            "experience": 0.385,
+            "energy": 0.006,
+            "space_execution": 0.028,
+            "harness": 0.006
+          }
+        },
+        {
+          "request_id": "da5ff11969c9450a9c8a745326ca8eeb",
+          "elapsed_ms": 1.353,
+          "status": 200,
+          "valid": true,
+          "error": null,
+          "stages": {
+            "orchestrator": 0.005,
+            "memory": 0.004,
+            "experience": 0.324,
+            "energy": 0.006,
+            "space_execution": 0.026,
+            "harness": 0.006
+          }
+        },
+        {
+          "request_id": "790789fa43bb4eccb0184a23653cf198",
+          "elapsed_ms": 1.481,
+          "status": 200,
+          "valid": true,
+          "error": null,
+          "stages": {
+            "orchestrator": 0.005,
+            "memory": 0.004,
+            "experience": 0.334,
+            "energy": 0.007,
+            "space_execution": 0.033,
+            "harness": 0.006
+          }
+        },
+        {
+          "request_id": "0f45465e8b134038a4509790fcae2a34",
+          "elapsed_ms": 1.64,
+          "status": 200,
+          "valid": true,
+          "error": null,
+          "stages": {
+            "orchestrator": 0.006,
+            "memory": 0.005,
+            "experience": 0.421,
+            "energy": 0.007,
+            "space_execution": 0.029,
+            "harness": 0.006
+          }
+        },
+        {
+          "request_id": "53eb0f8f10794265be2354118cb8aa7c",
+          "elapsed_ms": 1.335,
+          "status": 200,
+          "valid": true,
+          "error": null,
+          "stages": {
+            "orchestrator": 0.005,
+            "memory": 0.004,
+            "experience": 0.312,
+            "energy": 0.006,
+            "space_execution": 0.027,
+            "harness": 0.006
+          }
+        },
+        {
+          "request_id": "af039e5f54d842d0a531dba0f5c55ac0",
+          "elapsed_ms": 1.414,
+          "status": 200,
+          "valid": true,
+          "error": null,
+          "stages": {
+            "orchestrator": 0.006,
+            "memory": 0.004,
+            "experience": 0.328,
+            "energy": 0.007,
+            "space_execution": 0.027,
+            "harness": 0.006
+          }
+        }
+      ],
+      "repeat": 1
+    },
+    {
+      "variant": "fresh",
+      "concurrency": 1,
+      "warmup_requests": 2,
+      "new_model_connections": 20,
+      "wall_seconds": 0.091,
+      "summary": {
+        "requests": 20,
+        "valid_plans": 20,
+        "errors": 0,
+        "p50_ms": 4.456,
+        "p95_ms": 5.069
+      },
+      "rows": [
+        {
+          "request_id": "9d28217edc044bd985dbbe2212573d5b",
+          "elapsed_ms": 5.705,
+          "status": 200,
+          "valid": true,
+          "error": null,
+          "stages": {
+            "orchestrator": 0.009,
+            "memory": 0.007,
+            "experience": 3.81,
+            "energy": 0.01,
+            "space_execution": 0.039,
+            "harness": 0.009
+          }
+        },
+        {
+          "request_id": "4e8d9902a45c4ab98e586b5c0f6cec5c",
+          "elapsed_ms": 4.873,
+          "status": 200,
+          "valid": true,
+          "error": null,
+          "stages": {
+            "orchestrator": 0.007,
+            "memory": 0.006,
+            "experience": 3.56,
+            "energy": 0.009,
+            "space_execution": 0.036,
+            "harness": 0.008
+          }
+        },
+        {
+          "request_id": "31c581b81166453d987c9a49f717bda0",
+          "elapsed_ms": 5.069,
+          "status": 200,
+          "valid": true,
+          "error": null,
+          "stages": {
+            "orchestrator": 0.007,
+            "memory": 0.005,
+            "experience": 3.427,
+            "energy": 0.009,
+            "space_execution": 0.033,
+            "harness": 0.007
+          }
+        },
+        {
+          "request_id": "9fc836b5ef4b4c3c9818dd1576230e08",
+          "elapsed_ms": 4.524,
+          "status": 200,
+          "valid": true,
+          "error": null,
+          "stages": {
+            "orchestrator": 0.006,
+            "memory": 0.005,
+            "experience": 3.31,
+            "energy": 0.008,
+            "space_execution": 0.032,
+            "harness": 0.007
+          }
+        },
+        {
+          "request_id": "266fa182156949758542890615168ae4",
+          "elapsed_ms": 4.847,
+          "status": 200,
+          "valid": true,
+          "error": null,
+          "stages": {
+            "orchestrator": 0.006,
+            "memory": 0.005,
+            "experience": 3.287,
+            "energy": 0.008,
+            "space_execution": 0.034,
+            "harness": 0.007
+          }
+        },
+        {
+          "request_id": "cd3020be4574416e99cfc0881758654e",
+          "elapsed_ms": 4.346,
+          "status": 200,
+          "valid": true,
+          "error": null,
+          "stages": {
+            "orchestrator": 0.006,
+            "memory": 0.004,
+            "experience": 3.195,
+            "energy": 0.008,
+            "space_execution": 0.03,
+            "harness": 0.007
+          }
+        },
+        {
+          "request_id": "2f8f5c8a5c4a4f3ebe31b36bf10ed847",
+          "elapsed_ms": 4.978,
+          "status": 200,
+          "valid": true,
+          "error": null,
+          "stages": {
+            "orchestrator": 0.007,
+            "memory": 0.005,
+            "experience": 3.297,
+            "energy": 0.011,
+            "space_execution": 0.034,
+            "harness": 0.007
+          }
+        },
+        {
+          "request_id": "7de054fb34684bd3b1e416d7f2b2d69c",
+          "elapsed_ms": 4.361,
+          "status": 200,
+          "valid": true,
+          "error": null,
+          "stages": {
+            "orchestrator": 0.008,
+            "memory": 0.005,
+            "experience": 3.156,
+            "energy": 0.008,
+            "space_execution": 0.03,
+            "harness": 0.006
+          }
+        },
+        {
+          "request_id": "ef30652457224915a329159c2c5fa8c6",
+          "elapsed_ms": 4.55,
+          "status": 200,
+          "valid": true,
+          "error": null,
+          "stages": {
+            "orchestrator": 0.007,
+            "memory": 0.005,
+            "experience": 3.048,
+            "energy": 0.007,
+            "space_execution": 0.029,
+            "harness": 0.006
+          }
+        },
+        {
+          "request_id": "30627550c3af4ce4bb70631797f88ef6",
+          "elapsed_ms": 4.031,
+          "status": 200,
+          "valid": true,
+          "error": null,
+          "stages": {
+            "orchestrator": 0.005,
+            "memory": 0.004,
+            "experience": 2.889,
+            "energy": 0.009,
+            "space_execution": 0.029,
+            "harness": 0.006
+          }
+        },
+        {
+          "request_id": "7ea3790407254b0f8691d6869d67d259",
+          "elapsed_ms": 4.61,
+          "status": 200,
+          "valid": true,
+          "error": null,
+          "stages": {
+            "orchestrator": 0.005,
+            "memory": 0.005,
+            "experience": 3.058,
+            "energy": 0.009,
+            "space_execution": 0.035,
+            "harness": 0.008
+          }
+        },
+        {
+          "request_id": "96d636a0033442ca963849ff14f920fd",
+          "elapsed_ms": 4.047,
+          "status": 200,
+          "valid": true,
+          "error": null,
+          "stages": {
+            "orchestrator": 0.005,
+            "memory": 0.004,
+            "experience": 2.944,
+            "energy": 0.007,
+            "space_execution": 0.032,
+            "harness": 0.006
+          }
+        },
+        {
+          "request_id": "02fc87de8cd348d599a435aa17b13850",
+          "elapsed_ms": 4.515,
+          "status": 200,
+          "valid": true,
+          "error": null,
+          "stages": {
+            "orchestrator": 0.007,
+            "memory": 0.004,
+            "experience": 2.955,
+            "energy": 0.009,
+            "space_execution": 0.032,
+            "harness": 0.007
+          }
+        },
+        {
+          "request_id": "3a224b826f50423591e410ae02aa4a20",
+          "elapsed_ms": 4.097,
+          "status": 200,
+          "valid": true,
+          "error": null,
+          "stages": {
+            "orchestrator": 0.007,
+            "memory": 0.005,
+            "experience": 2.975,
+            "energy": 0.007,
+            "space_execution": 0.028,
+            "harness": 0.006
+          }
+        },
+        {
+          "request_id": "d923299ccc3c45f2adcc0be23cdadcd9",
+          "elapsed_ms": 4.531,
+          "status": 200,
+          "valid": true,
+          "error": null,
+          "stages": {
+            "orchestrator": 0.006,
+            "memory": 0.005,
+            "experience": 2.936,
+            "energy": 0.008,
+            "space_execution": 0.033,
+            "harness": 0.007
+          }
+        },
+        {
+          "request_id": "3cbaff0ab64a4671a2341aed7f32574d",
+          "elapsed_ms": 3.942,
+          "status": 200,
+          "valid": true,
+          "error": null,
+          "stages": {
+            "orchestrator": 0.006,
+            "memory": 0.004,
+            "experience": 2.843,
+            "energy": 0.007,
+            "space_execution": 0.028,
+            "harness": 0.006
+          }
+        },
+        {
+          "request_id": "28404398e2a540e6ae2ab8dc6fea73e2",
+          "elapsed_ms": 4.416,
+          "status": 200,
+          "valid": true,
+          "error": null,
+          "stages": {
+            "orchestrator": 0.006,
+            "memory": 0.004,
+            "experience": 2.91,
+            "energy": 0.008,
+            "space_execution": 0.027,
+            "harness": 0.006
+          }
+        },
+        {
+          "request_id": "3830d692f2de42fcab3a0113cfa0c148",
+          "elapsed_ms": 4.08,
+          "status": 200,
+          "valid": true,
+          "error": null,
+          "stages": {
+            "orchestrator": 0.007,
+            "memory": 0.004,
+            "experience": 2.963,
+            "energy": 0.007,
+            "space_execution": 0.027,
+            "harness": 0.006
+          }
+        },
+        {
+          "request_id": "19bc113a6abe49518f90e5a61df55ae6",
+          "elapsed_ms": 4.456,
+          "status": 200,
+          "valid": true,
+          "error": null,
+          "stages": {
+            "orchestrator": 0.007,
+            "memory": 0.004,
+            "experience": 2.9,
+            "energy": 0.007,
+            "space_execution": 0.028,
+            "harness": 0.006
+          }
+        },
+        {
+          "request_id": "6e799b843be643448cb1437d10b8f372",
+          "elapsed_ms": 4.129,
+          "status": 200,
+          "valid": true,
+          "error": null,
+          "stages": {
+            "orchestrator": 0.006,
+            "memory": 0.005,
+            "experience": 3.029,
+            "energy": 0.007,
+            "space_execution": 0.031,
+            "harness": 0.006
+          }
+        }
+      ],
+      "repeat": 1
+    },
+    {
+      "variant": "fresh",
+      "concurrency": 5,
+      "warmup_requests": 2,
+      "new_model_connections": 20,
+      "wall_seconds": 0.044,
+      "summary": {
+        "requests": 20,
+        "valid_plans": 20,
+        "errors": 0,
+        "p50_ms": 9.384,
+        "p95_ms": 13.634
+      },
+      "rows": [
+        {
+          "request_id": "3b94d6d1652c490985139a8cd36d543b",
+          "elapsed_ms": 13.155,
+          "status": 200,
+          "valid": true,
+          "error": null,
+          "stages": {
+            "orchestrator": 0.008,
+            "memory": 0.006,
+            "experience": 6.652,
+            "energy": 0.008,
+            "space_execution": 0.035,
+            "harness": 0.007
+          }
+        },
+        {
+          "request_id": "d0d8c5103854407b8814084b6396aafb",
+          "elapsed_ms": 14.547,
+          "status": 200,
+          "valid": true,
+          "error": null,
+          "stages": {
+            "orchestrator": 0.006,
+            "memory": 0.005,
+            "experience": 7.955,
+            "energy": 0.011,
+            "space_execution": 0.039,
+            "harness": 0.008
+          }
+        },
+        {
+          "request_id": "d43d7c774a564d9799442169bb024acf",
+          "elapsed_ms": 9.89,
+          "status": 200,
+          "valid": true,
+          "error": null,
+          "stages": {
+            "orchestrator": 0.008,
+            "memory": 0.007,
+            "experience": 5.162,
+            "energy": 0.01,
+            "space_execution": 0.042,
+            "harness": 0.008
+          }
+        },
+        {
+          "request_id": "142ae90bcac2467697ccc12906a5b457",
+          "elapsed_ms": 13.634,
+          "status": 200,
+          "valid": true,
+          "error": null,
+          "stages": {
+            "orchestrator": 0.008,
+            "memory": 0.005,
+            "experience": 5.934,
+            "energy": 0.009,
+            "space_execution": 0.036,
+            "harness": 0.008
+          }
+        },
+        {
+          "request_id": "b8cc566fe34c40298e32bba8fa6d1bad",
+          "elapsed_ms": 13.554,
+          "status": 200,
+          "valid": true,
+          "error": null,
+          "stages": {
+            "orchestrator": 0.006,
+            "memory": 0.005,
+            "experience": 8.892,
+            "energy": 0.008,
+            "space_execution": 0.035,
+            "harness": 0.007
+          }
+        },
+        {
+          "request_id": "3186bcea31654c809922bfabcad21d67",
+          "elapsed_ms": 10.46,
+          "status": 200,
+          "valid": true,
+          "error": null,
+          "stages": {
+            "orchestrator": 0.006,
+            "memory": 0.005,
+            "experience": 4.284,
+            "energy": 0.019,
+            "space_execution": 0.082,
+            "harness": 0.016
+          }
+        },
+        {
+          "request_id": "745d789ba9794c079996b48288d4a9f4",
+          "elapsed_ms": 8.04,
+          "status": 200,
+          "valid": true,
+          "error": null,
+          "stages": {
+            "orchestrator": 0.007,
+            "memory": 0.006,
+            "experience": 4.233,
+            "energy": 0.009,
+            "space_execution": 0.035,
+            "harness": 0.008
+          }
+        },
+        {
+          "request_id": "1cec17bdd56941389d1dd435e991084c",
+          "elapsed_ms": 8.68,
+          "status": 200,
+          "valid": true,
+          "error": null,
+          "stages": {
+            "orchestrator": 0.006,
+            "memory": 0.005,
+            "experience": 4.501,
+            "energy": 0.007,
+            "space_execution": 0.032,
+            "harness": 0.007
+          }
+        },
+        {
+          "request_id": "13a93638cab64432a3d4e43af59eb2c7",
+          "elapsed_ms": 12.15,
+          "status": 200,
+          "valid": true,
+          "error": null,
+          "stages": {
+            "orchestrator": 0.007,
+            "memory": 0.004,
+            "experience": 7.361,
+            "energy": 0.008,
+            "space_execution": 0.035,
+            "harness": 0.008
+          }
+        },
+        {
+          "request_id": "4d12ee359c4f4fca83a00e7365f05c81",
+          "elapsed_ms": 9.185,
+          "status": 200,
+          "valid": true,
+          "error": null,
+          "stages": {
+            "orchestrator": 0.019,
+            "memory": 0.005,
+            "experience": 5.498,
+            "energy": 0.008,
+            "space_execution": 0.031,
+            "harness": 0.007
+          }
+        },
+        {
+          "request_id": "87dbce2f5fdb4295a0a155d3f77e6a1b",
+          "elapsed_ms": 8.503,
+          "status": 200,
+          "valid": true,
+          "error": null,
+          "stages": {
+            "orchestrator": 0.008,
+            "memory": 0.005,
+            "experience": 5.247,
+            "energy": 0.008,
+            "space_execution": 0.032,
+            "harness": 0.007
+          }
+        },
+        {
+          "request_id": "af9acad40706444eb87313a7d64bb6b6",
+          "elapsed_ms": 7.977,
+          "status": 200,
+          "valid": true,
+          "error": null,
+          "stages": {
+            "orchestrator": 0.007,
+            "memory": 0.005,
+            "experience": 4.88,
+            "energy": 0.008,
+            "space_execution": 0.033,
+            "harness": 0.008
+          }
+        },
+        {
+          "request_id": "7291d696e35347bfaf10ca0b405e8ce8",
+          "elapsed_ms": 10.321,
+          "status": 200,
+          "valid": true,
+          "error": null,
+          "stages": {
+            "orchestrator": 0.007,
+            "memory": 0.005,
+            "experience": 5.032,
+            "energy": 0.007,
+            "space_execution": 0.03,
+            "harness": 0.007
+          }
+        },
+        {
+          "request_id": "032607b5082d47f480f5c254c9c654b5",
+          "elapsed_ms": 10.004,
+          "status": 200,
+          "valid": true,
+          "error": null,
+          "stages": {
+            "orchestrator": 0.006,
+            "memory": 0.005,
+            "experience": 4.674,
+            "energy": 0.007,
+            "space_execution": 0.032,
+            "harness": 0.007
+          }
+        },
+        {
+          "request_id": "f76a0b184fd5423d9a28f7a8646bc7eb",
+          "elapsed_ms": 8.142,
+          "status": 200,
+          "valid": true,
+          "error": null,
+          "stages": {
+            "orchestrator": 0.008,
+            "memory": 0.005,
+            "experience": 4.102,
+            "energy": 0.009,
+            "space_execution": 0.035,
+            "harness": 0.007
+          }
+        },
+        {
+          "request_id": "823e4a88653444b6858a7866d88042e5",
+          "elapsed_ms": 9.37,
+          "status": 200,
+          "valid": true,
+          "error": null,
+          "stages": {
+            "orchestrator": 0.007,
+            "memory": 0.004,
+            "experience": 5.384,
+            "energy": 0.009,
+            "space_execution": 0.033,
+            "harness": 0.007
+          }
+        },
+        {
+          "request_id": "05416e6b2f5f4487ac4978485763b6e5",
+          "elapsed_ms": 9.408,
+          "status": 200,
+          "valid": true,
+          "error": null,
+          "stages": {
+            "orchestrator": 0.006,
+            "memory": 0.005,
+            "experience": 6.406,
+            "energy": 0.008,
+            "space_execution": 0.032,
+            "harness": 0.007
+          }
+        },
+        {
+          "request_id": "a21f189735e248a7a1da5fb779bf2285",
+          "elapsed_ms": 9.384,
+          "status": 200,
+          "valid": true,
+          "error": null,
+          "stages": {
+            "orchestrator": 0.01,
+            "memory": 0.006,
+            "experience": 4.117,
+            "energy": 0.007,
+            "space_execution": 0.028,
+            "harness": 0.006
+          }
+        },
+        {
+          "request_id": "344546e0b0d6465a9b4f4f32bbac8be7",
+          "elapsed_ms": 8.871,
+          "status": 200,
+          "valid": true,
+          "error": null,
+          "stages": {
+            "orchestrator": 0.007,
+            "memory": 0.005,
+            "experience": 4.222,
+            "energy": 0.006,
+            "space_execution": 0.031,
+            "harness": 0.006
+          }
+        },
+        {
+          "request_id": "3268badfb7c7476ca86023fe826887c8",
+          "elapsed_ms": 8.29,
+          "status": 200,
+          "valid": true,
+          "error": null,
+          "stages": {
+            "orchestrator": 0.007,
+            "memory": 0.005,
+            "experience": 4.734,
+            "energy": 0.006,
+            "space_execution": 0.028,
+            "harness": 0.006
+          }
+        }
+      ],
+      "repeat": 0
+    },
+    {
+      "variant": "pooled",
+      "concurrency": 5,
+      "warmup_requests": 2,
+      "new_model_connections": 4,
+      "wall_seconds": 0.031,
+      "summary": {
+        "requests": 20,
+        "valid_plans": 20,
+        "errors": 0,
+        "p50_ms": 7.103,
+        "p95_ms": 10.386
+      },
+      "rows": [
+        {
+          "request_id": "83de59f5b0be437f975d7b8e55d1866b",
+          "elapsed_ms": 10.386,
+          "status": 200,
+          "valid": true,
+          "error": null,
+          "stages": {
+            "orchestrator": 0.006,
+            "memory": 0.004,
+            "experience": 5.198,
+            "energy": 0.009,
+            "space_execution": 0.034,
+            "harness": 0.007
+          }
+        },
+        {
+          "request_id": "421f510a984a4c119fe82b85c32ac842",
+          "elapsed_ms": 7.402,
+          "status": 200,
+          "valid": true,
+          "error": null,
+          "stages": {
+            "orchestrator": 0.008,
+            "memory": 0.005,
+            "experience": 2.987,
+            "energy": 0.009,
+            "space_execution": 0.038,
+            "harness": 0.008
+          }
+        },
+        {
+          "request_id": "15323da8e0474e99afe37605337fdf2f",
+          "elapsed_ms": 7.319,
+          "status": 200,
+          "valid": true,
+          "error": null,
+          "stages": {
+            "orchestrator": 0.008,
+            "memory": 0.006,
+            "experience": 2.273,
+            "energy": 0.01,
+            "space_execution": 0.039,
+            "harness": 0.008
+          }
+        },
+        {
+          "request_id": "d19c2e3deec345d3b3acd673d303d6e9",
+          "elapsed_ms": 11.064,
+          "status": 200,
+          "valid": true,
+          "error": null,
+          "stages": {
+            "orchestrator": 0.008,
+            "memory": 0.006,
+            "experience": 5.698,
+            "energy": 0.009,
+            "space_execution": 0.034,
+            "harness": 0.007
+          }
+        },
+        {
+          "request_id": "70740154179d4c54aa6ed2183e54706b",
+          "elapsed_ms": 8.849,
+          "status": 200,
+          "valid": true,
+          "error": null,
+          "stages": {
+            "orchestrator": 0.006,
+            "memory": 0.005,
+            "experience": 3.702,
+            "energy": 0.01,
+            "space_execution": 0.037,
+            "harness": 0.008
+          }
+        },
+        {
+          "request_id": "6d3ebc35c2414ec0a2867d2effad087a",
+          "elapsed_ms": 7.103,
+          "status": 200,
+          "valid": true,
+          "error": null,
+          "stages": {
+            "orchestrator": 0.008,
+            "memory": 0.007,
+            "experience": 4.039,
+            "energy": 0.008,
+            "space_execution": 0.037,
+            "harness": 0.007
+          }
+        },
+        {
+          "request_id": "a43bc5fd68884c5a8fac9dba34a3517e",
+          "elapsed_ms": 7.099,
+          "status": 200,
+          "valid": true,
+          "error": null,
+          "stages": {
+            "orchestrator": 0.007,
+            "memory": 0.006,
+            "experience": 3.144,
+            "energy": 0.008,
+            "space_execution": 0.033,
+            "harness": 0.007
+          }
+        },
+        {
+          "request_id": "66da78e289034dc2a057b76abe02accd",
+          "elapsed_ms": 8.924,
+          "status": 200,
+          "valid": true,
+          "error": null,
+          "stages": {
+            "orchestrator": 0.006,
+            "memory": 0.005,
+            "experience": 4.886,
+            "energy": 0.009,
+            "space_execution": 0.035,
+            "harness": 0.008
+          }
+        },
+        {
+          "request_id": "efac90a7dc2f417f8ac8f8acbd0188e0",
+          "elapsed_ms": 6.159,
+          "status": 200,
+          "valid": true,
+          "error": null,
+          "stages": {
+            "orchestrator": 0.007,
+            "memory": 0.005,
+            "experience": 3.254,
+            "energy": 0.008,
+            "space_execution": 0.033,
+            "harness": 0.007
+          }
+        },
+        {
+          "request_id": "aca96a25f7754cb982d5aa3f32135391",
+          "elapsed_ms": 7.546,
+          "status": 200,
+          "valid": true,
+          "error": null,
+          "stages": {
+            "orchestrator": 0.007,
+            "memory": 0.005,
+            "experience": 3.794,
+            "energy": 0.008,
+            "space_execution": 0.033,
+            "harness": 0.007
+          }
+        },
+        {
+          "request_id": "2a37ff2394c649449c8b0470a2353cfd",
+          "elapsed_ms": 6.437,
+          "status": 200,
+          "valid": true,
+          "error": null,
+          "stages": {
+            "orchestrator": 0.007,
+            "memory": 0.005,
+            "experience": 3.548,
+            "energy": 0.007,
+            "space_execution": 0.032,
+            "harness": 0.007
+          }
+        },
+        {
+          "request_id": "ba265722081d4489a72cca3b44390882",
+          "elapsed_ms": 7.21,
+          "status": 200,
+          "valid": true,
+          "error": null,
+          "stages": {
+            "orchestrator": 0.007,
+            "memory": 0.005,
+            "experience": 4.139,
+            "energy": 0.007,
+            "space_execution": 0.032,
+            "harness": 0.007
+          }
+        },
+        {
+          "request_id": "6312d0cc021c474e9197606627217f0f",
+          "elapsed_ms": 6.671,
+          "status": 200,
+          "valid": true,
+          "error": null,
+          "stages": {
+            "orchestrator": 0.006,
+            "memory": 0.004,
+            "experience": 3.476,
+            "energy": 0.008,
+            "space_execution": 0.033,
+            "harness": 0.007
+          }
+        },
+        {
+          "request_id": "3b1c9aa10c5b4c379503b4f1a5550d72",
+          "elapsed_ms": 6.37,
+          "status": 200,
+          "valid": true,
+          "error": null,
+          "stages": {
+            "orchestrator": 0.006,
+            "memory": 0.004,
+            "experience": 3.538,
+            "energy": 0.007,
+            "space_execution": 0.034,
+            "harness": 0.007
+          }
+        },
+        {
+          "request_id": "98db3b7ad1d348cb9163ff4aa8c07df2",
+          "elapsed_ms": 7.97,
+          "status": 200,
+          "valid": true,
+          "error": null,
+          "stages": {
+            "orchestrator": 0.007,
+            "memory": 0.005,
+            "experience": 4.904,
+            "energy": 0.007,
+            "space_execution": 0.031,
+            "harness": 0.007
+          }
+        },
+        {
+          "request_id": "0585bd810d00425481dc9584329a4216",
+          "elapsed_ms": 7.789,
+          "status": 200,
+          "valid": true,
+          "error": null,
+          "stages": {
+            "orchestrator": 0.008,
+            "memory": 0.005,
+            "experience": 5.102,
+            "energy": 0.007,
+            "space_execution": 0.031,
+            "harness": 0.006
+          }
+        },
+        {
+          "request_id": "e7d875bf4f8d43af95233e2f4c8d99e7",
+          "elapsed_ms": 6.031,
+          "status": 200,
+          "valid": true,
+          "error": null,
+          "stages": {
+            "orchestrator": 0.007,
+            "memory": 0.005,
+            "experience": 3.296,
+            "energy": 0.008,
+            "space_execution": 0.031,
+            "harness": 0.006
+          }
+        },
+        {
+          "request_id": "26c534e1f25743ccb4774999807bae0a",
+          "elapsed_ms": 6.33,
+          "status": 200,
+          "valid": true,
+          "error": null,
+          "stages": {
+            "orchestrator": 0.007,
+            "memory": 0.004,
+            "experience": 3.826,
+            "energy": 0.007,
+            "space_execution": 0.029,
+            "harness": 0.006
+          }
+        },
+        {
+          "request_id": "44e2a8a2b9d24014acfef63aad0ede97",
+          "elapsed_ms": 5.846,
+          "status": 200,
+          "valid": true,
+          "error": null,
+          "stages": {
+            "orchestrator": 0.008,
+            "memory": 0.005,
+            "experience": 3.529,
+            "energy": 0.006,
+            "space_execution": 0.03,
+            "harness": 0.006
+          }
+        },
+        {
+          "request_id": "4b0ead7c734d41ab84f35eac3988778b",
+          "elapsed_ms": 3.952,
+          "status": 200,
+          "valid": true,
+          "error": null,
+          "stages": {
+            "orchestrator": 0.006,
+            "memory": 0.004,
+            "experience": 1.861,
+            "energy": 0.007,
+            "space_execution": 0.032,
+            "harness": 0.007
+          }
+        }
+      ],
+      "repeat": 0
+    },
+    {
+      "variant": "pooled",
+      "concurrency": 5,
+      "warmup_requests": 2,
+      "new_model_connections": 3,
+      "wall_seconds": 0.032,
+      "summary": {
+        "requests": 20,
+        "valid_plans": 20,
+        "errors": 0,
+        "p50_ms": 7.433,
+        "p95_ms": 9.443
+      },
+      "rows": [
+        {
+          "request_id": "2badb9c9bcbf4fb09bc5e0738b6ba42e",
+          "elapsed_ms": 7.487,
+          "status": 200,
+          "valid": true,
+          "error": null,
+          "stages": {
+            "orchestrator": 0.01,
+            "memory": 0.007,
+            "experience": 0.85,
+            "energy": 0.011,
+            "space_execution": 0.041,
+            "harness": 0.009
+          }
+        },
+        {
+          "request_id": "902c9f6eaac14efda50dfd6a763d06b2",
+          "elapsed_ms": 9.329,
+          "status": 200,
+          "valid": true,
+          "error": null,
+          "stages": {
+            "orchestrator": 0.008,
+            "memory": 0.006,
+            "experience": 3.728,
+            "energy": 0.009,
+            "space_execution": 0.037,
+            "harness": 0.008
+          }
+        },
+        {
+          "request_id": "5a4b7c18abe64539888483479e52e471",
+          "elapsed_ms": 8.246,
+          "status": 200,
+          "valid": true,
+          "error": null,
+          "stages": {
+            "orchestrator": 0.007,
+            "memory": 0.006,
+            "experience": 2.197,
+            "energy": 0.012,
+            "space_execution": 0.045,
+            "harness": 0.01
+          }
+        },
+        {
+          "request_id": "fa8c5800f9e84fb0b60a2bde45dfa1f5",
+          "elapsed_ms": 11.576,
+          "status": 200,
+          "valid": true,
+          "error": null,
+          "stages": {
+            "orchestrator": 0.008,
+            "memory": 0.006,
+            "experience": 4.129,
+            "energy": 0.01,
+            "space_execution": 0.04,
+            "harness": 0.008
+          }
+        },
+        {
+          "request_id": "24fa9c8e90a749d79b6ea46d851153e0",
+          "elapsed_ms": 9.443,
+          "status": 200,
+          "valid": true,
+          "error": null,
+          "stages": {
+            "orchestrator": 0.007,
+            "memory": 0.005,
+            "experience": 3.699,
+            "energy": 0.011,
+            "space_execution": 0.04,
+            "harness": 0.009
+          }
+        },
+        {
+          "request_id": "b6c19abe4f674cea88da6102a3219b64",
+          "elapsed_ms": 6.733,
+          "status": 200,
+          "valid": true,
+          "error": null,
+          "stages": {
+            "orchestrator": 0.007,
+            "memory": 0.005,
+            "experience": 2.344,
+            "energy": 0.009,
+            "space_execution": 0.035,
+            "harness": 0.008
+          }
+        },
+        {
+          "request_id": "dc6acc2431ba49d29903a03817c1431c",
+          "elapsed_ms": 6.863,
+          "status": 200,
+          "valid": true,
+          "error": null,
+          "stages": {
+            "orchestrator": 0.006,
+            "memory": 0.005,
+            "experience": 2.207,
+            "energy": 0.009,
+            "space_execution": 0.036,
+            "harness": 0.007
+          }
+        },
+        {
+          "request_id": "8582bd5604124678986e95369c240f1c",
+          "elapsed_ms": 6.833,
+          "status": 200,
+          "valid": true,
+          "error": null,
+          "stages": {
+            "orchestrator": 0.007,
+            "memory": 0.005,
+            "experience": 2.589,
+            "energy": 0.008,
+            "space_execution": 0.034,
+            "harness": 0.007
+          }
+        },
+        {
+          "request_id": "9eed76a658b34009b02ce665f04ad44e",
+          "elapsed_ms": 8.174,
+          "status": 200,
+          "valid": true,
+          "error": null,
+          "stages": {
+            "orchestrator": 0.007,
+            "memory": 0.005,
+            "experience": 3.99,
+            "energy": 0.008,
+            "space_execution": 0.036,
+            "harness": 0.008
+          }
+        },
+        {
+          "request_id": "13a3603a2ec24258a90c2c3b005895f4",
+          "elapsed_ms": 8.045,
+          "status": 200,
+          "valid": true,
+          "error": null,
+          "stages": {
+            "orchestrator": 0.007,
+            "memory": 0.005,
+            "experience": 3.775,
+            "energy": 0.009,
+            "space_execution": 0.036,
+            "harness": 0.007
+          }
+        },
+        {
+          "request_id": "6448632de9d240bbad03c5f467702daf",
+          "elapsed_ms": 7.556,
+          "status": 200,
+          "valid": true,
+          "error": null,
+          "stages": {
+            "orchestrator": 0.007,
+            "memory": 0.006,
+            "experience": 3.3,
+            "energy": 0.008,
+            "space_execution": 0.036,
+            "harness": 0.008
+          }
+        },
+        {
+          "request_id": "242576c440804e36b41d439133b6af08",
+          "elapsed_ms": 7.794,
+          "status": 200,
+          "valid": true,
+          "error": null,
+          "stages": {
+            "orchestrator": 0.007,
+            "memory": 0.006,
+            "experience": 3.969,
+            "energy": 0.008,
+            "space_execution": 0.034,
+            "harness": 0.007
+          }
+        },
+        {
+          "request_id": "cb9f0dcecabe4b42ad445b265077fa7c",
+          "elapsed_ms": 7.48,
+          "status": 200,
+          "valid": true,
+          "error": null,
+          "stages": {
+            "orchestrator": 0.007,
+            "memory": 0.005,
+            "experience": 4.052,
+            "energy": 0.007,
+            "space_execution": 0.031,
+            "harness": 0.007
+          }
+        },
+        {
+          "request_id": "b039f04966234c4097fd18d810f52eb4",
+          "elapsed_ms": 7.433,
+          "status": 200,
+          "valid": true,
+          "error": null,
+          "stages": {
+            "orchestrator": 0.007,
+            "memory": 0.005,
+            "experience": 3.211,
+            "energy": 0.008,
+            "space_execution": 0.034,
+            "harness": 0.007
+          }
+        },
+        {
+          "request_id": "124a996effc044f2a1d5a9d37eea0365",
+          "elapsed_ms": 7.109,
+          "status": 200,
+          "valid": true,
+          "error": null,
+          "stages": {
+            "orchestrator": 0.006,
+            "memory": 0.005,
+            "experience": 3.132,
+            "energy": 0.008,
+            "space_execution": 0.035,
+            "harness": 0.007
+          }
+        },
+        {
+          "request_id": "44af8a4303d14345b294d12f6f208d9b",
+          "elapsed_ms": 5.548,
+          "status": 200,
+          "valid": true,
+          "error": null,
+          "stages": {
+            "orchestrator": 0.009,
+            "memory": 0.005,
+            "experience": 2.696,
+            "energy": 0.007,
+            "space_execution": 0.031,
+            "harness": 0.007
+          }
+        },
+        {
+          "request_id": "c522f9ac37634d4dbb0029dda2c06b2b",
+          "elapsed_ms": 6.845,
+          "status": 200,
+          "valid": true,
+          "error": null,
+          "stages": {
+            "orchestrator": 0.007,
+            "memory": 0.004,
+            "experience": 3.2,
+            "energy": 0.007,
+            "space_execution": 0.031,
+            "harness": 0.007
+          }
+        },
+        {
+          "request_id": "6e8d96ea344848d1be71e3c67edb93b9",
+          "elapsed_ms": 6.972,
+          "status": 200,
+          "valid": true,
+          "error": null,
+          "stages": {
+            "orchestrator": 0.006,
+            "memory": 0.004,
+            "experience": 3.485,
+            "energy": 0.007,
+            "space_execution": 0.031,
+            "harness": 0.006
+          }
+        },
+        {
+          "request_id": "51c6042227dc4e2784379d7303e299bd",
+          "elapsed_ms": 4.753,
+          "status": 200,
+          "valid": true,
+          "error": null,
+          "stages": {
+            "orchestrator": 0.007,
+            "memory": 0.004,
+            "experience": 1.788,
+            "energy": 0.007,
+            "space_execution": 0.031,
+            "harness": 0.007
+          }
+        },
+        {
+          "request_id": "28d87b5b83f94c919ca281c8e3cd6e5e",
+          "elapsed_ms": 4.281,
+          "status": 200,
+          "valid": true,
+          "error": null,
+          "stages": {
+            "orchestrator": 0.005,
+            "memory": 0.004,
+            "experience": 2.16,
+            "energy": 0.007,
+            "space_execution": 0.032,
+            "harness": 0.007
+          }
+        }
+      ],
+      "repeat": 1
+    },
+    {
+      "variant": "fresh",
+      "concurrency": 5,
+      "warmup_requests": 2,
+      "new_model_connections": 20,
+      "wall_seconds": 0.046,
+      "summary": {
+        "requests": 20,
+        "valid_plans": 20,
+        "errors": 0,
+        "p50_ms": 11.015,
+        "p95_ms": 14.253
+      },
+      "rows": [
+        {
+          "request_id": "754e8afcb7fd4df58e3219a7f64a5f76",
+          "elapsed_ms": 14.253,
+          "status": 200,
+          "valid": true,
+          "error": null,
+          "stages": {
+            "orchestrator": 0.008,
+            "memory": 0.006,
+            "experience": 6.832,
+            "energy": 0.008,
+            "space_execution": 0.033,
+            "harness": 0.008
+          }
+        },
+        {
+          "request_id": "4d9a141103424c9aaae1e5cda8d19cb2",
+          "elapsed_ms": 13.445,
+          "status": 200,
+          "valid": true,
+          "error": null,
+          "stages": {
+            "orchestrator": 0.009,
+            "memory": 0.006,
+            "experience": 6.044,
+            "energy": 0.009,
+            "space_execution": 0.037,
+            "harness": 0.007
+          }
+        },
+        {
+          "request_id": "85418fe59abe4c4db41830d1ce20f750",
+          "elapsed_ms": 12.472,
+          "status": 200,
+          "valid": true,
+          "error": null,
+          "stages": {
+            "orchestrator": 0.009,
+            "memory": 0.008,
+            "experience": 5.216,
+            "energy": 0.012,
+            "space_execution": 0.04,
+            "harness": 0.009
+          }
+        },
+        {
+          "request_id": "6c54ed4359fa464daf9eb390b424ad8b",
+          "elapsed_ms": 13.936,
+          "status": 200,
+          "valid": true,
+          "error": null,
+          "stages": {
+            "orchestrator": 0.006,
+            "memory": 0.005,
+            "experience": 6.249,
+            "energy": 0.007,
+            "space_execution": 0.033,
+            "harness": 0.007
+          }
+        },
+        {
+          "request_id": "f58b8160e50e47f6b626cf668e88984b",
+          "elapsed_ms": 15.039,
+          "status": 200,
+          "valid": true,
+          "error": null,
+          "stages": {
+            "orchestrator": 0.007,
+            "memory": 0.006,
+            "experience": 6.97,
+            "energy": 0.009,
+            "space_execution": 0.036,
+            "harness": 0.008
+          }
+        },
+        {
+          "request_id": "6bacae5fb4d242fe885efc9a5b8e8b36",
+          "elapsed_ms": 8.376,
+          "status": 200,
+          "valid": true,
+          "error": null,
+          "stages": {
+            "orchestrator": 0.009,
+            "memory": 0.007,
+            "experience": 4.709,
+            "energy": 0.023,
+            "space_execution": 0.085,
+            "harness": 0.019
+          }
+        },
+        {
+          "request_id": "8d7fef876cc940368f364a24731abfc3",
+          "elapsed_ms": 12.458,
+          "status": 200,
+          "valid": true,
+          "error": null,
+          "stages": {
+            "orchestrator": 0.021,
+            "memory": 0.01,
+            "experience": 6.019,
+            "energy": 0.007,
+            "space_execution": 0.035,
+            "harness": 0.007
+          }
+        },
+        {
+          "request_id": "33f3ba666de749d4957ee62bac6e6a33",
+          "elapsed_ms": 11.171,
+          "status": 200,
+          "valid": true,
+          "error": null,
+          "stages": {
+            "orchestrator": 0.009,
+            "memory": 0.005,
+            "experience": 4.771,
+            "energy": 0.012,
+            "space_execution": 0.041,
+            "harness": 0.009
+          }
+        },
+        {
+          "request_id": "3131cac58c2641148e7a0a48637e938f",
+          "elapsed_ms": 12.316,
+          "status": 200,
+          "valid": true,
+          "error": null,
+          "stages": {
+            "orchestrator": 0.009,
+            "memory": 0.006,
+            "experience": 6.074,
+            "energy": 0.009,
+            "space_execution": 0.034,
+            "harness": 0.008
+          }
+        },
+        {
+          "request_id": "707f1258ed714caf8daf6cb0a5c1ccef",
+          "elapsed_ms": 11.927,
+          "status": 200,
+          "valid": true,
+          "error": null,
+          "stages": {
+            "orchestrator": 0.006,
+            "memory": 0.005,
+            "experience": 6.873,
+            "energy": 0.014,
+            "space_execution": 0.034,
+            "harness": 0.007
+          }
+        },
+        {
+          "request_id": "9a06002458894ba6a5ebd719eee088dd",
+          "elapsed_ms": 10.935,
+          "status": 200,
+          "valid": true,
+          "error": null,
+          "stages": {
+            "orchestrator": 0.007,
+            "memory": 0.005,
+            "experience": 4.219,
+            "energy": 0.021,
+            "space_execution": 0.082,
+            "harness": 0.023
+          }
+        },
+        {
+          "request_id": "46cddcf86d684cac86e359e7b135d946",
+          "elapsed_ms": 8.676,
+          "status": 200,
+          "valid": true,
+          "error": null,
+          "stages": {
+            "orchestrator": 0.006,
+            "memory": 0.004,
+            "experience": 4.3,
+            "energy": 0.01,
+            "space_execution": 0.036,
+            "harness": 0.007
+          }
+        },
+        {
+          "request_id": "ba4125ac6ab240419549bed42738cea7",
+          "elapsed_ms": 11.015,
+          "status": 200,
+          "valid": true,
+          "error": null,
+          "stages": {
+            "orchestrator": 0.008,
+            "memory": 0.006,
+            "experience": 6.537,
+            "energy": 0.009,
+            "space_execution": 0.033,
+            "harness": 0.007
+          }
+        },
+        {
+          "request_id": "67718da7548d47e1b9e64fc76247775e",
+          "elapsed_ms": 9.82,
+          "status": 200,
+          "valid": true,
+          "error": null,
+          "stages": {
+            "orchestrator": 0.007,
+            "memory": 0.005,
+            "experience": 4.415,
+            "energy": 0.008,
+            "space_execution": 0.031,
+            "harness": 0.007
+          }
+        },
+        {
+          "request_id": "abc9f01a68864d34a5536ccc19cd548b",
+          "elapsed_ms": 10.301,
+          "status": 200,
+          "valid": true,
+          "error": null,
+          "stages": {
+            "orchestrator": 0.005,
+            "memory": 0.005,
+            "experience": 6.76,
+            "energy": 0.01,
+            "space_execution": 0.036,
+            "harness": 0.007
+          }
+        },
+        {
+          "request_id": "09e187fe0b574aeda70b8d3754a7374f",
+          "elapsed_ms": 11.787,
+          "status": 200,
+          "valid": true,
+          "error": null,
+          "stages": {
+            "orchestrator": 0.01,
+            "memory": 0.006,
+            "experience": 5.704,
+            "energy": 0.011,
+            "space_execution": 0.039,
+            "harness": 0.009
+          }
+        },
+        {
+          "request_id": "c9670e8839fa4935a4d3c92a92ad0391",
+          "elapsed_ms": 9.885,
+          "status": 200,
+          "valid": true,
+          "error": null,
+          "stages": {
+            "orchestrator": 0.006,
+            "memory": 0.005,
+            "experience": 5.636,
+            "energy": 0.008,
+            "space_execution": 0.032,
+            "harness": 0.007
+          }
+        },
+        {
+          "request_id": "ce3559dafed047b097fc111a4f387843",
+          "elapsed_ms": 7.552,
+          "status": 200,
+          "valid": true,
+          "error": null,
+          "stages": {
+            "orchestrator": 0.006,
+            "memory": 0.005,
+            "experience": 5.203,
+            "energy": 0.007,
+            "space_execution": 0.031,
+            "harness": 0.006
+          }
+        },
+        {
+          "request_id": "ade387c6588e40309a3a1bd8aab69d3b",
+          "elapsed_ms": 8.727,
+          "status": 200,
+          "valid": true,
+          "error": null,
+          "stages": {
+            "orchestrator": 0.009,
+            "memory": 0.007,
+            "experience": 4.04,
+            "energy": 0.007,
+            "space_execution": 0.028,
+            "harness": 0.006
+          }
+        },
+        {
+          "request_id": "7bed2a207f2048ce892505b2043d37b5",
+          "elapsed_ms": 8.453,
+          "status": 200,
+          "valid": true,
+          "error": null,
+          "stages": {
+            "orchestrator": 0.006,
+            "memory": 0.005,
+            "experience": 4.181,
+            "energy": 0.007,
+            "space_execution": 0.031,
+            "harness": 0.006
+          }
+        }
+      ],
+      "repeat": 1
+    }
+  ]
+}

@@ -4,6 +4,26 @@
  */
 
 export interface paths {
+    "/api/actions/{action_id}/reconcile": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Reconcile Action
+         * @description Recheck an uncertain action's receipt without issuing another device command.
+         */
+        post: operations["reconcileAction"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/assistant/messages": {
         parameters: {
             query?: never;
@@ -392,6 +412,60 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        /**
+         * ActionExecution
+         * @description Durable command ledger entry, separate from the user-facing action result.
+         */
+        ActionExecution: {
+            /** Acceptedat */
+            acceptedAt?: string | null;
+            /** Actionid */
+            actionId: string;
+            /** Attemptcount */
+            attemptCount: number;
+            /**
+             * Command
+             * @enum {string}
+             */
+            command: "set_brightness" | "set_target_temperature" | "set_open_percent";
+            /** Completedat */
+            completedAt?: string | null;
+            /**
+             * Device
+             * @enum {string}
+             */
+            device: "light" | "ac" | "curtain";
+            /** Errordetail */
+            errorDetail?: string | null;
+            /** Errorkind */
+            errorKind?: string | null;
+            /** Grantid */
+            grantId: string;
+            /** Observedat */
+            observedAt?: string | null;
+            /** Observedvalue */
+            observedValue?: number | null;
+            /** Planid */
+            planId: string;
+            /**
+             * Requestedat
+             * Format: date-time
+             */
+            requestedAt: string;
+            /** Requestedvalue */
+            requestedValue: number;
+            /** Serviceepoch */
+            serviceEpoch: number;
+            /** Serviceid */
+            serviceId: string | null;
+            /** Spaceid */
+            spaceId: string;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "pending" | "dispatching" | "accepted" | "completed" | "rejected" | "failed" | "unknown" | "cancelled";
+        };
         /** ActionResult */
         ActionResult: {
             /** Actionid */
@@ -756,7 +830,7 @@ export interface components {
              * Code
              * @enum {string}
              */
-            code: "NOT_EDITABLE" | "VALIDATION_ERROR" | "NOT_FOUND" | "FORBIDDEN_CONTEXT" | "PLAN_EXPIRED" | "PLAN_INVALIDATED" | "PLAN_VERSION_MISMATCH" | "SERVICE_ALREADY_ACTIVE" | "SERVICE_NOT_ACTIVE" | "SPACE_BUSY" | "PIN_INVALID" | "UNDO_EXPIRED" | "UNDO_INVALIDATED" | "INTERNAL_ERROR";
+            code: "CLARIFICATION_REQUIRED" | "NOT_EDITABLE" | "VALIDATION_ERROR" | "NOT_FOUND" | "FORBIDDEN_CONTEXT" | "PLAN_EXPIRED" | "PLAN_INVALIDATED" | "PLAN_VERSION_MISMATCH" | "SERVICE_ALREADY_ACTIVE" | "SERVICE_NOT_ACTIVE" | "SPACE_BUSY" | "PIN_INVALID" | "UNDO_EXPIRED" | "UNDO_INVALIDATED" | "INTERNAL_ERROR";
             /** Details */
             details: {
                 [key: string]: unknown;
@@ -1180,6 +1254,10 @@ export interface components {
             /** Rule */
             rule: string;
         };
+        /** ReconcileActionRequest */
+        ReconcileActionRequest: {
+            context: components["schemas"]["RequestContext"];
+        };
         /**
          * RecoveryStatus
          * @description Result of the startup reconciliation; observable evidence, not a claim of exact device recovery.
@@ -1505,6 +1583,77 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
+    reconcileAction: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                action_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ReconcileActionRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ActionExecution"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
     sendMessage: {
         parameters: {
             query?: never;

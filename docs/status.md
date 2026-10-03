@@ -1,5 +1,7 @@
 # 实现状态
 
+> **2026-10-03 第二轮增量（未提交/未推送）**：语义保护、Mock 同步、HTTP 配对测量、未知动作只读核对已完成。默认后端 **199/33**；SQL+Redis+LangGraph **231/1**；前端 **94/94** 与类型检查通过；本机 Docker API+LangGraph 浏览器 **28/28**。证据在 `implementation-*.xml`、`docker-browser-2026-10-03.json`。真实 DeepSeek 新增 40 次：连接复用 P50 较低而 P95 较高，默认关闭，不宣传总体提速。v3 人工审核、独立持久化网关、两个真实 API 副本、核对 UI 尚未完成。详见 [设计与验证](design-and-validation-2026-10-03.md)。下段以及后续旧测试数字均为前一轮历史，旧 CI 不能覆盖新修改。
+
 > **2026-10-03 当前回归**：默认后端 **170 通过 / 33 跳过**；SQL+legacy **195/8**；SQL+Redis+LangGraph **202/1**；全栈唯一跳过项为内存专属断言。前端类型检查与 **92/92**、契约一致、本地内存浏览器 **28/28** 已通过。GitHub 提交 `7867d9c` 的 [CI 37038661216](https://github.com/Hector-sau/Livingmind/actions/runs/37038661216) **6/6 Job 全绿**，三套后端数字一致，Docker 浏览器 **28/28**。原始证据为 `docs/evidence/engineering-regression-2026-10-03.xml` 和 `docs/evidence/github-ci-37038661216.json`；真机仍未验。
 
 > 指标口径：本文件早期“只有一次真实 DeepSeek 调用”的描述属于历史记录。可核对证据包含 `docs/evidence/model-latency-*.json` 的历史 96 次，以及 `holdout-v2-model-paired-2026-10-02.json` 的新增 24 次交错调用；详见 `docs/interview-evidence-2026-10-02.md`。F+G 的旧测试数只作历史基线。

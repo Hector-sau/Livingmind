@@ -4,6 +4,8 @@ from fastapi import APIRouter, Depends, Query
 
 from app.api.errors import ERROR_RESPONSES
 from app.contracts import (
+    ActionExecution,
+    ReconcileActionRequest,
     ActivityResponse,
     AdvanceClockRequest,
     AdvanceClockResponse,
@@ -39,6 +41,13 @@ from app.services.rest_service import RestService, get_rest_service
 
 router = APIRouter(prefix="/api", responses=ERROR_RESPONSES)
 Svc = Depends(get_rest_service)
+
+
+@router.post("/actions/{action_id}/reconcile", response_model=ActionExecution,
+             operation_id="reconcileAction", tags=["devices"])
+def reconcile_action(action_id: str, body: ReconcileActionRequest, svc: RestService = Svc) -> ActionExecution:
+    """Recheck an uncertain action's receipt without issuing another device command."""
+    return svc.reconcile_action(action_id, body.context)
 
 
 @router.get("/bootstrap", response_model=BootstrapResponse, operation_id="getBootstrap", tags=["demo"])

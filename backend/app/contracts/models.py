@@ -28,6 +28,7 @@ __all__ = [
     "SimulateSleepRequest",
     "ActionResult",
     "ActionExecution",
+    "ReconcileActionRequest",
     "ActionExecutionStatus",
     "PolicyDecision",
     "PolicyDecisionType",
@@ -164,6 +165,7 @@ PowerTier = Literal["low", "medium", "high"]
 EnergyAssetRole = Literal["supply", "demand", "storage", "trading", "backup"]
 EventOutcome = Literal["adjusted", "ignored"]
 ErrorCode = Literal[
+    "CLARIFICATION_REQUIRED",
     "NOT_EDITABLE",
     "VALIDATION_ERROR",
     "NOT_FOUND",
@@ -551,6 +553,10 @@ class ActionExecution(Contract):
     observed_at: Optional[datetime] = None
     error_kind: Optional[str] = None
     error_detail: Optional[str] = None
+
+
+class ReconcileActionRequest(Contract):
+    context: RequestContext
 
 
 class ActivityRecord(Contract):

@@ -70,6 +70,7 @@ import {
   parseCommand,
   precheck,
   restActions,
+  requestClarification,
   routeIntent,
   TIER_LABEL,
   type Intent,
@@ -244,7 +245,7 @@ export function createMockApi(options: MockOptions = {}): LivingMindApi {
   const handle = (req: AssistantMessageRequest, force?: Intent): AssistantReply => {
     const person = checkContext(req.context);
     const mode: PlannerMode = req.mode ?? 'rule';
-    const intent = force ?? routeIntent(req.text);
+    const intent = requestClarification(req.text) ? 'clarification' : force ?? routeIntent(req.text);
     const trace: AgentStep[] = [step('orchestrator', `识别意图：${INTENT_LABEL[intent]}`, '前端模拟的规则路由')];
 
     if (intent === 'clarification') {
@@ -389,8 +390,11 @@ export function createMockApi(options: MockOptions = {}): LivingMindApi {
       let force: Intent | undefined;
       if (pending) {
         clarifications.delete(conversationId);
-        next = { ...req, text: `${pending.originalText}；用户补充：${req.text}` };
-        force = pending.targetIntent;
+        const newIntent = routeIntent(req.text);
+        if (pending.targetIntent !== 'device_command' && !['device_command', 'status'].includes(newIntent)) {
+          next = { ...req, text: `${pending.originalText}；用户补充：${req.text}` };
+          force = pending.targetIntent;
+        }
         note('clarification_resolved', '收到补充信息，继续原请求', { personId: req.context.personId });
       }
       const reply = handle(next, force);
@@ -417,7 +421,9 @@ export function createMockApi(options: MockOptions = {}): LivingMindApi {
     },
 
     async createRestPlan(req: CreateRestPlanRequest) {
-      return delay(handle({ context: req.context, text: req.utterance, mode: req.mode, wakeTime: req.wakeTime }, 'rest').plan!);
+      const reply = handle({ context: req.context, text: req.utterance, mode: req.mode, wakeTime: req.wakeTime }, 'rest');
+      if (!reply.plan) throw new ApiError('CLARIFICATION_REQUIRED', reply.text, 409);
+      return delay(reply.plan);
     },
 
     async getMemory(ctx: RequestContext) {

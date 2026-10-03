@@ -69,6 +69,7 @@ from app.energy import EnergyIntelligence
 from app.events.envelope import event as domain_event
 from app.energy.simulation import offline_energy_simulation
 from app.harness.executor import Executor
+from app.harness.reconciliation import resolve_receipt
 from app.harness.grants import create_execution_grant, semantic_plan_hash
 from app.harness.policy import evaluate_plan
 from app.db.session import database_configured
@@ -280,6 +281,23 @@ class RestService:
         self._check_account(account_id)
         return self._recovery.model_copy()
 
+    def reconcile_action(self, action_id: str, ctx: RequestContext):
+        """Query an existing receipt, never resend the device command or revive a service."""
+        self._check_context(ctx)
+        with self._lock:
+            execution = self._store.get_action_execution(action_id)
+            if execution is None:
+                raise ApiError("NOT_FOUND", "动作不存在")
+            plan = self._store.get_plan(execution.plan_id)
+            if plan is None or plan.plan.person_id != ctx.person_id or execution.space_id != ctx.space_id:
+                raise ApiError("FORBIDDEN_CONTEXT", "动作不属于当前人物或空间")
+        resolved = resolve_receipt(execution, self._gateway(ctx.space_id), self._clock)
+        with self._lock:
+            current = self._store.resolve_unknown_action(*resolved) if resolved else self._store.get_action_execution(action_id)
+            if current is None:
+                raise ApiError("NOT_FOUND", "动作记录已被重置")
+            return current
+
     def handle_message(
         self,
         ctx: RequestContext,
@@ -317,8 +335,14 @@ class RestService:
                 )
             if pending:
                 self._store.delete_clarification(conversation_key)
-                text = f"{pending.original_text}；用户补充：{text.strip()}"
-                forced_intent = pending.target_intent
+                # A complete new command replaces the ambiguous one. Concatenating
+                # 'do not turn off the light' with 'set it to 20%' could parse as off.
+                new_intent = route_intent(text)
+                if pending.target_intent == "device_command" or new_intent in ("device_command", "status"):
+                    forced_intent = None
+                else:
+                    text = f"{pending.original_text}；用户补充：{text.strip()}"
+                    forced_intent = pending.target_intent
                 self._log(
                     ctx.space_id,
                     "clarification_resolved",
@@ -376,7 +400,9 @@ class RestService:
         self, ctx: RequestContext, utterance: str, mode: Optional[PlannerMode] = None, wake_time: WakeTime = "07:00"
     ) -> Plan:
         reply = self.handle_message(ctx, utterance, mode, force_rest=True, wake_time=wake_time)
-        assert reply.plan is not None
+        if reply.plan is None:
+            raise ApiError("CLARIFICATION_REQUIRED", reply.text,
+                           {"conversationId": reply.conversation_id, "next": "/api/assistant/messages"})
         return reply.plan
 
     def _record_new_plan(self, plan: Plan, request_epoch: int) -> None:
@@ -1400,10 +1426,20 @@ class RestService:
 
 
 _service: Optional[RestService] = None
+_service_lock = threading.Lock()
 
 
 def get_rest_service() -> RestService:
     global _service
-    if _service is None:
-        _service = RestService()
+    with _service_lock:
+        if _service is None:
+            _service = RestService()
     return _service
+
+
+def close_rest_service() -> None:
+    global _service
+    with _service_lock:
+        if _service is not None:
+            _service._planner.close()
+            _service = None

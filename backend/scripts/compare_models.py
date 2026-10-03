@@ -40,6 +40,7 @@ def summarize(rows: list[dict], model: str) -> dict:
         "semantic_pass": sum(row["verdict"] == "pass" for row in chosen),
         "semantic_fail": sum(row["verdict"] == "fail" for row in chosen),
         "fallback": sum(row["verdict"] == "fallback" for row in chosen),
+        "clarification": sum(row["verdict"] == "clarification" for row in chosen),
         "p50_ms": percentile(lat, 0.5), "p95_ms": percentile(lat, 0.95),
         "total_tokens_reported": sum((row["usage"] or {}).get("total_tokens") or 0 for row in chosen),
         "usage_reported_count": sum(row["usage"] is not None for row in chosen),
@@ -68,16 +69,19 @@ def main() -> int:
             )
             context = RequestContext(account_id="demo-account", person_id=case["person"], space_id="space-home-bedroom")
             start = time.monotonic()
-            plan = service.create_rest_plan(context, case["utterance"], "model")
+            reply = service.handle_message(context, case["utterance"], "model", force_rest=True,
+                                           conversation_id=f"comparison-{case['id']}")
             elapsed = int((time.monotonic() - start) * 1000)
-            score = score_case(case, PERSONS[case["person"]].rest_preference, plan)
+            plan = reply.plan
+            score = score_case(case, PERSONS[case["person"]].rest_preference, plan) if plan else None
             rows.append({
-                "case_id": case["id"], "model": model, "source": plan.source,
-                "verdict": score.verdict, "wall_ms": elapsed,
-                "fallback_reason": plan.generation.fallback_reason,
+                "case_id": case["id"], "model": model, "source": plan.source if plan else None,
+                "verdict": score.verdict if score else "clarification", "wall_ms": elapsed,
+                "fallback_reason": plan.generation.fallback_reason if plan else None,
                 "usage": usage[-1] if usage else None,
             })
-            print(f"{case['id']} {model} {score.verdict} {elapsed}ms", flush=True)
+            provider.close()
+            print(f"{case['id']} {model} {rows[-1]['verdict']} {elapsed}ms", flush=True)
     result = {
         "dataset": DATASET.name, "synthetic": True, "recorded_at_utc": datetime.now(timezone.utc).isoformat(),
         "order": "alternated per case", "timeout_s": config.MODEL_TIMEOUT_S,

@@ -1,0 +1,921 @@
+{
+  "recorded_at_utc": "2026-10-03T03:37:53.162396+00:00",
+  "model": "deepseek-flash",
+  "scope": "loopback HTTP API + real DeepSeek; memory store; no device execution",
+  "synthetic": true,
+  "human_reviewed": false,
+  "dataset": "exploratory-v3-ten-cases",
+  "timeout_s": 6,
+  "temperature": 0.3,
+  "max_tokens": 2000,
+  "call_budget": 40,
+  "order": "alternated by case and repetition; no warm-up calls",
+  "rows": [
+    {
+      "id": "a01",
+      "repeat": 0,
+      "variant": "fresh",
+      "request_id": "0eeae84622fd4e9ba89e564dbc43cb1b",
+      "person": "person-lin",
+      "utterance": "今晚打算休息，沿用我的偏好",
+      "expected": {
+        "light": "same",
+        "ac": "same",
+        "curtain": "same"
+      },
+      "verdict": "pass",
+      "source": "model",
+      "wall_ms": 1528.218,
+      "details": [],
+      "usage": {
+        "prompt_tokens": 428,
+        "completion_tokens": 138,
+        "total_tokens": 566
+      }
+    },
+    {
+      "id": "a01",
+      "repeat": 0,
+      "variant": "pooled",
+      "request_id": "35a0cb78d7144b26bee95176898cd124",
+      "person": "person-lin",
+      "utterance": "今晚打算休息，沿用我的偏好",
+      "expected": {
+        "light": "same",
+        "ac": "same",
+        "curtain": "same"
+      },
+      "verdict": "pass",
+      "source": "model",
+      "wall_ms": 1393.337,
+      "details": [],
+      "usage": {
+        "prompt_tokens": 428,
+        "completion_tokens": 165,
+        "total_tokens": 593
+      }
+    },
+    {
+      "id": "a02",
+      "repeat": 0,
+      "variant": "pooled",
+      "request_id": "29dbe22778bc4726808f55fdd093830d",
+      "person": "person-chen",
+      "utterance": "我要休息，按我平常的设置",
+      "expected": {
+        "light": "same",
+        "ac": "same",
+        "curtain": "same"
+      },
+      "verdict": "pass",
+      "source": "model",
+      "wall_ms": 1599.044,
+      "details": [],
+      "usage": {
+        "prompt_tokens": 424,
+        "completion_tokens": 164,
+        "total_tokens": 588
+      }
+    },
+    {
+      "id": "a02",
+      "repeat": 0,
+      "variant": "fresh",
+      "request_id": "c5a8f48676454f89afa751d5a02cfed4",
+      "person": "person-chen",
+      "utterance": "我要休息，按我平常的设置",
+      "expected": {
+        "light": "same",
+        "ac": "same",
+        "curtain": "same"
+      },
+      "verdict": "pass",
+      "source": "model",
+      "wall_ms": 1347.058,
+      "details": [],
+      "usage": {
+        "prompt_tokens": 424,
+        "completion_tokens": 165,
+        "total_tokens": 589
+      }
+    },
+    {
+      "id": "a03",
+      "repeat": 0,
+      "variant": "fresh",
+      "request_id": "b8f2400da07740debb6ea4fa6dce2bc0",
+      "person": "person-zhou",
+      "utterance": "准备睡了，按我的习惯设置",
+      "expected": {
+        "light": "same",
+        "ac": "same",
+        "curtain": "same"
+      },
+      "verdict": "pass",
+      "source": "model",
+      "wall_ms": 1202.612,
+      "details": [],
+      "usage": {
+        "prompt_tokens": 428,
+        "completion_tokens": 143,
+        "total_tokens": 571
+      }
+    },
+    {
+      "id": "a03",
+      "repeat": 0,
+      "variant": "pooled",
+      "request_id": "0932ce68a6134755bae49da99b655527",
+      "person": "person-zhou",
+      "utterance": "准备睡了，按我的习惯设置",
+      "expected": {
+        "light": "same",
+        "ac": "same",
+        "curtain": "same"
+      },
+      "verdict": "pass",
+      "source": "model",
+      "wall_ms": 1119.974,
+      "details": [],
+      "usage": {
+        "prompt_tokens": 428,
+        "completion_tokens": 168,
+        "total_tokens": 596
+      }
+    },
+    {
+      "id": "a04",
+      "repeat": 0,
+      "variant": "pooled",
+      "request_id": "9d68710847a34a04ac2ca7b12f28bf6d",
+      "person": "person-guest",
+      "utterance": "想休息了，使用默认设置",
+      "expected": {
+        "light": "same",
+        "ac": "same",
+        "curtain": "same"
+      },
+      "verdict": "pass",
+      "source": "model",
+      "wall_ms": 1189.722,
+      "details": [],
+      "usage": {
+        "prompt_tokens": 421,
+        "completion_tokens": 174,
+        "total_tokens": 595
+      }
+    },
+    {
+      "id": "a04",
+      "repeat": 0,
+      "variant": "fresh",
+      "request_id": "51570e1d8d9f453296c9926f82adf902",
+      "person": "person-guest",
+      "utterance": "想休息了，使用默认设置",
+      "expected": {
+        "light": "same",
+        "ac": "same",
+        "curtain": "same"
+      },
+      "verdict": "pass",
+      "source": "model",
+      "wall_ms": 1529.759,
+      "details": [],
+      "usage": {
+        "prompt_tokens": 421,
+        "completion_tokens": 168,
+        "total_tokens": 589
+      }
+    },
+    {
+      "id": "a05",
+      "repeat": 0,
+      "variant": "fresh",
+      "request_id": "63db4fd8c1a24c04ba83e16288639be7",
+      "person": "person-lin",
+      "utterance": "想休息，空调比平常调凉一些",
+      "expected": {
+        "light": "same",
+        "ac": "lower",
+        "curtain": "same"
+      },
+      "verdict": "pass",
+      "source": "model",
+      "wall_ms": 2642.971,
+      "details": [],
+      "usage": {
+        "prompt_tokens": 430,
+        "completion_tokens": 454,
+        "total_tokens": 884
+      }
+    },
+    {
+      "id": "a05",
+      "repeat": 0,
+      "variant": "pooled",
+      "request_id": "48e47a0d757a4ef095656a0b4fd76a6b",
+      "person": "person-lin",
+      "utterance": "想休息，空调比平常调凉一些",
+      "expected": {
+        "light": "same",
+        "ac": "lower",
+        "curtain": "same"
+      },
+      "verdict": "pass",
+      "source": "model",
+      "wall_ms": 2085.417,
+      "details": [],
+      "usage": {
+        "prompt_tokens": 430,
+        "completion_tokens": 337,
+        "total_tokens": 767
+      }
+    },
+    {
+      "id": "a06",
+      "repeat": 0,
+      "variant": "pooled",
+      "request_id": "a54408b6ccf7477ead670f3ab5e0e3c6",
+      "person": "person-chen",
+      "utterance": "想休息，空调比平常调暖一些",
+      "expected": {
+        "light": "same",
+        "ac": "higher",
+        "curtain": "same"
+      },
+      "verdict": "pass",
+      "source": "model",
+      "wall_ms": 1466.747,
+      "details": [],
+      "usage": {
+        "prompt_tokens": 426,
+        "completion_tokens": 218,
+        "total_tokens": 644
+      }
+    },
+    {
+      "id": "a06",
+      "repeat": 0,
+      "variant": "fresh",
+      "request_id": "2d10bf8a2a65472290c293b4216e8afe",
+      "person": "person-chen",
+      "utterance": "想休息，空调比平常调暖一些",
+      "expected": {
+        "light": "same",
+        "ac": "higher",
+        "curtain": "same"
+      },
+      "verdict": "pass",
+      "source": "model",
+      "wall_ms": 2163.842,
+      "details": [],
+      "usage": {
+        "prompt_tokens": 426,
+        "completion_tokens": 294,
+        "total_tokens": 720
+      }
+    },
+    {
+      "id": "a07",
+      "repeat": 0,
+      "variant": "fresh",
+      "request_id": "68a34676d7c44c11b5d7a56b9cfac456",
+      "person": "person-zhou",
+      "utterance": "想休息，灯光比平常暗一点",
+      "expected": {
+        "light": "lower",
+        "ac": "same",
+        "curtain": "same"
+      },
+      "verdict": "pass",
+      "source": "model",
+      "wall_ms": 2505.049,
+      "details": [],
+      "usage": {
+        "prompt_tokens": 429,
+        "completion_tokens": 364,
+        "total_tokens": 793
+      }
+    },
+    {
+      "id": "a07",
+      "repeat": 0,
+      "variant": "pooled",
+      "request_id": "1d257530f39249c1a6b776456ee02dd9",
+      "person": "person-zhou",
+      "utterance": "想休息，灯光比平常暗一点",
+      "expected": {
+        "light": "lower",
+        "ac": "same",
+        "curtain": "same"
+      },
+      "verdict": "pass",
+      "source": "model",
+      "wall_ms": 1391.416,
+      "details": [],
+      "usage": {
+        "prompt_tokens": 429,
+        "completion_tokens": 189,
+        "total_tokens": 618
+      }
+    },
+    {
+      "id": "a08",
+      "repeat": 0,
+      "variant": "pooled",
+      "request_id": "df472fbcb14d4fe6aadda9fdf1c35a49",
+      "person": "person-lin",
+      "utterance": "想休息，灯光比平常亮一些",
+      "expected": {
+        "light": "higher",
+        "ac": "same",
+        "curtain": "same"
+      },
+      "verdict": "pass",
+      "source": "model",
+      "wall_ms": 3235.815,
+      "details": [],
+      "usage": {
+        "prompt_tokens": 429,
+        "completion_tokens": 581,
+        "total_tokens": 1010
+      }
+    },
+    {
+      "id": "a08",
+      "repeat": 0,
+      "variant": "fresh",
+      "request_id": "a86093d85d3142749e0b17de84080bb5",
+      "person": "person-lin",
+      "utterance": "想休息，灯光比平常亮一些",
+      "expected": {
+        "light": "higher",
+        "ac": "same",
+        "curtain": "same"
+      },
+      "verdict": "pass",
+      "source": "model",
+      "wall_ms": 1560.285,
+      "details": [],
+      "usage": {
+        "prompt_tokens": 429,
+        "completion_tokens": 210,
+        "total_tokens": 639
+      }
+    },
+    {
+      "id": "a09",
+      "repeat": 0,
+      "variant": "fresh",
+      "request_id": "f43887b5c6b84f67932dce89a14b8a0b",
+      "person": "person-chen",
+      "utterance": "想休息，窗帘比平常打开一些",
+      "expected": {
+        "light": "same",
+        "ac": "same",
+        "curtain": "higher"
+      },
+      "verdict": "pass",
+      "source": "model",
+      "wall_ms": 2147.357,
+      "details": [],
+      "usage": {
+        "prompt_tokens": 425,
+        "completion_tokens": 368,
+        "total_tokens": 793
+      }
+    },
+    {
+      "id": "a09",
+      "repeat": 0,
+      "variant": "pooled",
+      "request_id": "a424393be8b34ae6b9fc6b05a445c382",
+      "person": "person-chen",
+      "utterance": "想休息，窗帘比平常打开一些",
+      "expected": {
+        "light": "same",
+        "ac": "same",
+        "curtain": "higher"
+      },
+      "verdict": "pass",
+      "source": "model",
+      "wall_ms": 2138.149,
+      "details": [],
+      "usage": {
+        "prompt_tokens": 425,
+        "completion_tokens": 390,
+        "total_tokens": 815
+      }
+    },
+    {
+      "id": "a10",
+      "repeat": 0,
+      "variant": "pooled",
+      "request_id": "c6c906982ba5444188251820c3c8fab3",
+      "person": "person-chen",
+      "utterance": "想休息，窗帘完全关上",
+      "expected": {
+        "light": "same",
+        "ac": "same",
+        "curtain": "lower"
+      },
+      "verdict": "pass",
+      "source": "model",
+      "wall_ms": 1120.312,
+      "details": [],
+      "usage": {
+        "prompt_tokens": 423,
+        "completion_tokens": 170,
+        "total_tokens": 593
+      }
+    },
+    {
+      "id": "a10",
+      "repeat": 0,
+      "variant": "fresh",
+      "request_id": "acc554be6e6248bbbd9995732a99ca78",
+      "person": "person-chen",
+      "utterance": "想休息，窗帘完全关上",
+      "expected": {
+        "light": "same",
+        "ac": "same",
+        "curtain": "lower"
+      },
+      "verdict": "pass",
+      "source": "model",
+      "wall_ms": 1344.508,
+      "details": [],
+      "usage": {
+        "prompt_tokens": 423,
+        "completion_tokens": 192,
+        "total_tokens": 615
+      }
+    },
+    {
+      "id": "a01",
+      "repeat": 1,
+      "variant": "pooled",
+      "request_id": "e9f5ef155a7640c0b885ff4d94d6ec3b",
+      "person": "person-lin",
+      "utterance": "今晚打算休息，沿用我的偏好",
+      "expected": {
+        "light": "same",
+        "ac": "same",
+        "curtain": "same"
+      },
+      "verdict": "pass",
+      "source": "model",
+      "wall_ms": 1243.587,
+      "details": [],
+      "usage": {
+        "prompt_tokens": 428,
+        "completion_tokens": 159,
+        "total_tokens": 587
+      }
+    },
+    {
+      "id": "a01",
+      "repeat": 1,
+      "variant": "fresh",
+      "request_id": "d36b16e76e1c4b6ea12c65d336585735",
+      "person": "person-lin",
+      "utterance": "今晚打算休息，沿用我的偏好",
+      "expected": {
+        "light": "same",
+        "ac": "same",
+        "curtain": "same"
+      },
+      "verdict": "pass",
+      "source": "model",
+      "wall_ms": 1137.131,
+      "details": [],
+      "usage": {
+        "prompt_tokens": 428,
+        "completion_tokens": 135,
+        "total_tokens": 563
+      }
+    },
+    {
+      "id": "a02",
+      "repeat": 1,
+      "variant": "fresh",
+      "request_id": "2c640669953d4b7591aacc1a27e4c56b",
+      "person": "person-chen",
+      "utterance": "我要休息，按我平常的设置",
+      "expected": {
+        "light": "same",
+        "ac": "same",
+        "curtain": "same"
+      },
+      "verdict": "pass",
+      "source": "model",
+      "wall_ms": 1110.023,
+      "details": [],
+      "usage": {
+        "prompt_tokens": 424,
+        "completion_tokens": 179,
+        "total_tokens": 603
+      }
+    },
+    {
+      "id": "a02",
+      "repeat": 1,
+      "variant": "pooled",
+      "request_id": "71b656b62c3645ecb1aa513f5d5bb9ef",
+      "person": "person-chen",
+      "utterance": "我要休息，按我平常的设置",
+      "expected": {
+        "light": "same",
+        "ac": "same",
+        "curtain": "same"
+      },
+      "verdict": "pass",
+      "source": "model",
+      "wall_ms": 1325.395,
+      "details": [],
+      "usage": {
+        "prompt_tokens": 424,
+        "completion_tokens": 159,
+        "total_tokens": 583
+      }
+    },
+    {
+      "id": "a03",
+      "repeat": 1,
+      "variant": "pooled",
+      "request_id": "c453c9da01b84095b8a8cd8c2d6772d5",
+      "person": "person-zhou",
+      "utterance": "准备睡了，按我的习惯设置",
+      "expected": {
+        "light": "same",
+        "ac": "same",
+        "curtain": "same"
+      },
+      "verdict": "pass",
+      "source": "model",
+      "wall_ms": 1315.906,
+      "details": [],
+      "usage": {
+        "prompt_tokens": 428,
+        "completion_tokens": 156,
+        "total_tokens": 584
+      }
+    },
+    {
+      "id": "a03",
+      "repeat": 1,
+      "variant": "fresh",
+      "request_id": "c2a20e2e0d9a48d79806a7f5dacb68ca",
+      "person": "person-zhou",
+      "utterance": "准备睡了，按我的习惯设置",
+      "expected": {
+        "light": "same",
+        "ac": "same",
+        "curtain": "same"
+      },
+      "verdict": "pass",
+      "source": "model",
+      "wall_ms": 1250.597,
+      "details": [],
+      "usage": {
+        "prompt_tokens": 428,
+        "completion_tokens": 161,
+        "total_tokens": 589
+      }
+    },
+    {
+      "id": "a04",
+      "repeat": 1,
+      "variant": "fresh",
+      "request_id": "87f7e62f30dd4eccb2505c496419ecef",
+      "person": "person-guest",
+      "utterance": "想休息了，使用默认设置",
+      "expected": {
+        "light": "same",
+        "ac": "same",
+        "curtain": "same"
+      },
+      "verdict": "pass",
+      "source": "model",
+      "wall_ms": 1150.19,
+      "details": [],
+      "usage": {
+        "prompt_tokens": 421,
+        "completion_tokens": 185,
+        "total_tokens": 606
+      }
+    },
+    {
+      "id": "a04",
+      "repeat": 1,
+      "variant": "pooled",
+      "request_id": "b6304a09ad9a47d3a96244fbcb312969",
+      "person": "person-guest",
+      "utterance": "想休息了，使用默认设置",
+      "expected": {
+        "light": "same",
+        "ac": "same",
+        "curtain": "same"
+      },
+      "verdict": "pass",
+      "source": "model",
+      "wall_ms": 1387.67,
+      "details": [],
+      "usage": {
+        "prompt_tokens": 421,
+        "completion_tokens": 209,
+        "total_tokens": 630
+      }
+    },
+    {
+      "id": "a05",
+      "repeat": 1,
+      "variant": "pooled",
+      "request_id": "99934b88b26c4a55af654793e2906a82",
+      "person": "person-lin",
+      "utterance": "想休息，空调比平常调凉一些",
+      "expected": {
+        "light": "same",
+        "ac": "lower",
+        "curtain": "same"
+      },
+      "verdict": "pass",
+      "source": "model",
+      "wall_ms": 1361.626,
+      "details": [],
+      "usage": {
+        "prompt_tokens": 430,
+        "completion_tokens": 226,
+        "total_tokens": 656
+      }
+    },
+    {
+      "id": "a05",
+      "repeat": 1,
+      "variant": "fresh",
+      "request_id": "8c54f90ab5f34835b51975a9fa465762",
+      "person": "person-lin",
+      "utterance": "想休息，空调比平常调凉一些",
+      "expected": {
+        "light": "same",
+        "ac": "lower",
+        "curtain": "same"
+      },
+      "verdict": "pass",
+      "source": "model",
+      "wall_ms": 1768.955,
+      "details": [],
+      "usage": {
+        "prompt_tokens": 430,
+        "completion_tokens": 292,
+        "total_tokens": 722
+      }
+    },
+    {
+      "id": "a06",
+      "repeat": 1,
+      "variant": "fresh",
+      "request_id": "b77abf7401b0419c84b74174fe42768b",
+      "person": "person-chen",
+      "utterance": "想休息，空调比平常调暖一些",
+      "expected": {
+        "light": "same",
+        "ac": "higher",
+        "curtain": "same"
+      },
+      "verdict": "pass",
+      "source": "model",
+      "wall_ms": 2124.209,
+      "details": [],
+      "usage": {
+        "prompt_tokens": 426,
+        "completion_tokens": 317,
+        "total_tokens": 743
+      }
+    },
+    {
+      "id": "a06",
+      "repeat": 1,
+      "variant": "pooled",
+      "request_id": "1e3850c5c6954833959b3f04585f617d",
+      "person": "person-chen",
+      "utterance": "想休息，空调比平常调暖一些",
+      "expected": {
+        "light": "same",
+        "ac": "higher",
+        "curtain": "same"
+      },
+      "verdict": "pass",
+      "source": "model",
+      "wall_ms": 1904.89,
+      "details": [],
+      "usage": {
+        "prompt_tokens": 426,
+        "completion_tokens": 226,
+        "total_tokens": 652
+      }
+    },
+    {
+      "id": "a07",
+      "repeat": 1,
+      "variant": "pooled",
+      "request_id": "445ce17b44e947ca994c6b073a7d8fd5",
+      "person": "person-zhou",
+      "utterance": "想休息，灯光比平常暗一点",
+      "expected": {
+        "light": "lower",
+        "ac": "same",
+        "curtain": "same"
+      },
+      "verdict": "pass",
+      "source": "model",
+      "wall_ms": 2972.948,
+      "details": [],
+      "usage": {
+        "prompt_tokens": 429,
+        "completion_tokens": 481,
+        "total_tokens": 910
+      }
+    },
+    {
+      "id": "a07",
+      "repeat": 1,
+      "variant": "fresh",
+      "request_id": "f991009228d5409c89c9d701f31b16c6",
+      "person": "person-zhou",
+      "utterance": "想休息，灯光比平常暗一点",
+      "expected": {
+        "light": "lower",
+        "ac": "same",
+        "curtain": "same"
+      },
+      "verdict": "pass",
+      "source": "model",
+      "wall_ms": 1581.059,
+      "details": [],
+      "usage": {
+        "prompt_tokens": 429,
+        "completion_tokens": 194,
+        "total_tokens": 623
+      }
+    },
+    {
+      "id": "a08",
+      "repeat": 1,
+      "variant": "fresh",
+      "request_id": "9a947a35cc2f4dddba43600d11412df0",
+      "person": "person-lin",
+      "utterance": "想休息，灯光比平常亮一些",
+      "expected": {
+        "light": "higher",
+        "ac": "same",
+        "curtain": "same"
+      },
+      "verdict": "pass",
+      "source": "model",
+      "wall_ms": 1421.834,
+      "details": [],
+      "usage": {
+        "prompt_tokens": 429,
+        "completion_tokens": 165,
+        "total_tokens": 594
+      }
+    },
+    {
+      "id": "a08",
+      "repeat": 1,
+      "variant": "pooled",
+      "request_id": "e3b587e37a6b4804a06547cf8bed38a6",
+      "person": "person-lin",
+      "utterance": "想休息，灯光比平常亮一些",
+      "expected": {
+        "light": "higher",
+        "ac": "same",
+        "curtain": "same"
+      },
+      "verdict": "pass",
+      "source": "model",
+      "wall_ms": 1692.524,
+      "details": [],
+      "usage": {
+        "prompt_tokens": 429,
+        "completion_tokens": 210,
+        "total_tokens": 639
+      }
+    },
+    {
+      "id": "a09",
+      "repeat": 1,
+      "variant": "pooled",
+      "request_id": "9e03d3e7af584f388f15b3f17dbc0220",
+      "person": "person-chen",
+      "utterance": "想休息，窗帘比平常打开一些",
+      "expected": {
+        "light": "same",
+        "ac": "same",
+        "curtain": "higher"
+      },
+      "verdict": "pass",
+      "source": "model",
+      "wall_ms": 2517.538,
+      "details": [],
+      "usage": {
+        "prompt_tokens": 425,
+        "completion_tokens": 355,
+        "total_tokens": 780
+      }
+    },
+    {
+      "id": "a09",
+      "repeat": 1,
+      "variant": "fresh",
+      "request_id": "64427474c7dc490495d3cbd78ddb61bc",
+      "person": "person-chen",
+      "utterance": "想休息，窗帘比平常打开一些",
+      "expected": {
+        "light": "same",
+        "ac": "same",
+        "curtain": "higher"
+      },
+      "verdict": "pass",
+      "source": "model",
+      "wall_ms": 3105.017,
+      "details": [],
+      "usage": {
+        "prompt_tokens": 425,
+        "completion_tokens": 541,
+        "total_tokens": 966
+      }
+    },
+    {
+      "id": "a10",
+      "repeat": 1,
+      "variant": "fresh",
+      "request_id": "544d7239ae8b4cb1a86201b563c02302",
+      "person": "person-chen",
+      "utterance": "想休息，窗帘完全关上",
+      "expected": {
+        "light": "same",
+        "ac": "same",
+        "curtain": "lower"
+      },
+      "verdict": "pass",
+      "source": "model",
+      "wall_ms": 1652.23,
+      "details": [],
+      "usage": {
+        "prompt_tokens": 423,
+        "completion_tokens": 203,
+        "total_tokens": 626
+      }
+    },
+    {
+      "id": "a10",
+      "repeat": 1,
+      "variant": "pooled",
+      "request_id": "108d85fe2c0e4e7f96b22434e68f29e1",
+      "person": "person-chen",
+      "utterance": "想休息，窗帘完全关上",
+      "expected": {
+        "light": "same",
+        "ac": "same",
+        "curtain": "lower"
+      },
+      "verdict": "pass",
+      "source": "model",
+      "wall_ms": 2156.59,
+      "details": [],
+      "usage": {
+        "prompt_tokens": 423,
+        "completion_tokens": 399,
+        "total_tokens": 822
+      }
+    }
+  ],
+  "summary": [
+    {
+      "variant": "fresh",
+      "requests": 20,
+      "pass": 20,
+      "fail": 0,
+      "fallback": 0,
+      "clarification": 0,
+      "errors": 0,
+      "p50_ms": 1529.759,
+      "p95_ms": 2642.971,
+      "usage_reported_count": 20
+    },
+    {
+      "variant": "pooled",
+      "requests": 20,
+      "pass": 20,
+      "fail": 0,
+      "fallback": 0,
+      "clarification": 0,
+      "errors": 0,
+      "p50_ms": 1393.337,
+      "p95_ms": 2972.948,
+      "usage_reported_count": 20
+    }
+  ]
+}

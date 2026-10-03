@@ -1,4 +1,7 @@
-"""Development regression set. The untouched holdout_v2 is scored separately, not used for tuning."""
+"""Development regression tests. v2 is a historical dataset now that its h26 failure
+has informed a fix; its old labels and scores remain unchanged, not rebranded as a
+fresh independent acceptance score. v3 is only an unreviewed candidate.
+"""
 
 import json
 from pathlib import Path
@@ -14,13 +17,18 @@ def _cases(name: str) -> list[dict]:
     return json.loads((EVALS / name).read_text(encoding="utf-8"))["cases"]
 
 
-def test_development_challenge_regresses_all_forty_routes():
+def test_development_challenge_regresses_routes_with_explicit_safety_policy_changes():
     cases = _cases("router_challenge_v1.json")
     assert len(cases) == 40
-    assert [(case["id"], route_intent(case["utterance"])) for case in cases if route_intent(case["utterance"]) != case["intent"]] == []
+    # Preserve the historical labels/results. These three requests say not to change
+    # one device, which a full overnight schedule cannot honour. The new policy asks
+    # for a bounded command instead. This is a safety tradeoff, not an accuracy gain.
+    clarified = {"r14", "r15", "r16"}
+    for case in cases:
+        assert route_intent(case["utterance"]) == ("clarification" if case["id"] in clarified else case["intent"])
 
 
-def test_sealed_acceptance_set_is_distinct_and_valid_without_tuning_against_its_labels():
+def test_historical_acceptance_set_retains_its_schema_and_distinct_inputs():
     train = {case["utterance"] for case in load_cases()}
     challenge = {case["utterance"] for case in _cases("router_challenge_v1.json")}
     sealed = _cases("holdout_v2.json")

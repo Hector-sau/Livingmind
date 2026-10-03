@@ -369,6 +369,23 @@ class SqlStore:
             ).all()
             return [ActionExecution.model_validate(row.payload) for row in rows]
 
+    def resolve_unknown_action(self, execution: ActionExecution, result: ActionResult) -> Optional[ActionExecution]:
+        # Compare under a row lock. A duplicate reconciler cannot overwrite a terminal
+        # result, and the action ledger + displayed plan result commit together.
+        with session_scope() as session:
+            row = session.get(ActionExecutionRow, execution.action_id, with_for_update=True)
+            if row is None:
+                return None
+            if row.status != "unknown":
+                return ActionExecution.model_validate(row.payload)
+            row.status = execution.status
+            row.payload = execution.model_dump(mode="json")
+            plan = session.get(PlanRow, execution.plan_id, with_for_update=True)
+            if plan:
+                plan.results = [result.model_dump(mode="json") if item.get("action_id") == execution.action_id
+                                and item.get("outcome") == "unknown" else item for item in plan.results]
+            return execution.model_copy(deep=True)
+
     # ---- activity ----
 
     def append_activity(self, record: ActivityRecord) -> None:

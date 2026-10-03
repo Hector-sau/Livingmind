@@ -7,6 +7,7 @@ from typing import Callable, Literal, Optional
 
 from app.adapters.protocol import DeviceAdapter
 from app.agents.space_execution import SpaceExecutionAgent
+from app.agents.experience.semantics import request_clarification
 from app.contracts import (
     AgentName,
     AgentStep,
@@ -40,6 +41,8 @@ _VAGUE_ACTION = re.compile(r"(?:那个|这个|它).{0,5}(?:调|开|关|弄)|(?:�
 def clarification_question(text: str) -> str:
     """A deterministic question for requests that must not become device actions yet."""
     t = text.replace(" ", "")
+    if question := request_clarification(t):
+        return question
     if "灯" in t and re.search(r"开灯.*关灯|关灯.*开灯", t):
         return "你希望灯最终打开还是关闭？"
     return "请说明要调整灯、空调还是窗帘，并告诉我目标值，例如“灯调到 20%”。"
@@ -48,6 +51,8 @@ def clarification_question(text: str) -> str:
 def route_intent(text: str) -> Intent:
     """Rule router (deterministic, labelled 'rule' in the trace)."""
     t = text.replace(" ", "")
+    if request_clarification(t):
+        return "clarification"
     explicit_device_action = bool(_DEVICE.search(t) and _ACTION.search(t))
     if "灯" in t and re.search(r"开灯.*关灯|关灯.*开灯", t):
         return "clarification"
@@ -128,7 +133,7 @@ class Orchestrator:
     ) -> AssistantReply:
         trace = _Trace()
         t0 = time.monotonic()
-        intent: Intent = force_intent or route_intent(text)
+        intent: Intent = "clarification" if request_clarification(text) else (force_intent or route_intent(text))
         trace.add(
             "orchestrator",
             f"识别意图：{INTENT_LABEL[intent]}",
@@ -199,13 +204,17 @@ class Orchestrator:
         exp_detail = f"体验目标：灯光 {s.light_brightness}% · 空调 {s.ac_target_temp_c:g}°C · 窗帘 {s.curtain_open_percent}%"
         if exp.fallback_reason:
             exp_detail += f"；模型未采用：{exp.fallback_reason}"
-        trace.add("experience", "生成体验目标", exp_detail, exp.source, t, ok=exp.fallback_reason is None)
+        if exp.clarification_question:
+            exp_detail += "；需澄清，未创建计划或设备动作"
+        trace.add("experience", "生成体验目标", exp_detail, exp.source, t,
+                  ok=exp.fallback_reason is None and exp.clarification_question is None)
         return exp
 
     def stage_energy(self, trace, exp: ExperienceOutcome, energy_mode):
         s = exp.settings
         t = time.monotonic()
-        advice = self.energy.advise(s, energy_mode, self._clock())
+        effective_mode = energy_mode if exp.allow_energy_adjustment else "comfort_first"
+        advice = self.energy.advise(s, effective_mode, self._clock())
         target = s.model_copy(update={"ac_target_temp_c": advice.recommended_ac_c}) if advice.applied else s
         energy_detail = (
             f"{'节能模式' if energy_mode == 'eco' else '舒适优先'} · "

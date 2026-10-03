@@ -1,0 +1,17 @@
+{
+  "date": "2026-10-03",
+  "baseline_commit": "dd09d40",
+  "new_changes": "uncommitted",
+  "scope": "Local Mac browser against Docker API + PostgreSQL + Redis + LangGraph + two workers; frontend mock included",
+  "model": "local stub, no paid calls",
+  "native_device": false,
+  "passed": 28,
+  "total": 28,
+  "exit_code": 0,
+  "output": "\n  ok       mock-flow-tablet\n  ok       http-flow-tablet\n  ok       mock-flow-phone\n  ok       http-flow-phone\n  ok       mock-model-fallback\n  ok       mock-event\n  ok       http-event\n  ok       http-pin-evidence\n  ok       mock-pin-evidence\n  ok       http-guest-scenes\n  ok       mock-agents\n  ok       http-agents\n  ok       http-clarification\n  ok       mock-clarification\n  ok       http-voice\n  ok       mock-voice\n  ok       http-device-control\n  ok       mock-device-control\n  ok       http-control-expiry\n  ok       http-energy-memory\n  ok       http-night\n  ok       mock-night\n  ok       http-night-stop-phone\n  ok       http-stop-during-event\n  ok       http-prepare-demo\n  ok       http-model-paths\n  ok       http-unknown-receipt\n  ok       http-offline\n\n28/28 scenarios passed; screenshots in /Users/macbookair/Desktop/Business/项目材料整理/Livingmind/livingmind-app/apps/mobile/e2e/.out/screens\n",
+  "extended_scenarios": [
+    "http-clarification",
+    "mock-clarification"
+  ],
+  "note": "Existing scenarios now also assert negation does not create a plan and the follow-up sets the light to 25% without a rest service. This is not a new GitHub CI run."
+}
