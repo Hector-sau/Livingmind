@@ -1,329 +1,227 @@
-# LivingMind App
+# LivingMind
 
 [![CI](https://github.com/Hector-sau/Livingmind/actions/workflows/ci.yml/badge.svg)](https://github.com/Hector-sau/Livingmind/actions/workflows/ci.yml)
 
-平板优先、手机兼容的 LivingMind 原型：一个 Expo 原生 App + 一个模块化 FastAPI 后端。
+**An AI home assistant that turns everyday needs into coordinated, controllable services.**
 
-当前范围：**平板优先、手机兼容的 Home Living 演示闭环**。场景只有“我想休息”：计划 → 确认 → 虚拟设备回读 → 模拟入睡 / 室温事件 → 整晚模拟时钟 → 渐进唤醒或停止。
-接手或协作前先读 [AGENT-HANDOFF.md](AGENT-HANDOFF.md)（统一交接文档，在仓库根目录持续维护）。实际完成情况以 [docs/status.md](docs/status.md) 为准；验收标准见 [docs/acceptance.md](docs/acceptance.md)。
+**面向居住空间的主动体验 Agent，让生活需求转化为可执行、可调整、可停止的空间服务。**
 
-准备面试或核对技术成果，从 [当前工程与评测证据](docs/interview-evidence-2026-10-02.md) 开始：包含模型选型原始结果、跨进程故障、网关未知回执、Outbox 顺序与恢复、分段日志及本轮测试报告。每条结论都标明模拟范围与未验证部分。
+LivingMind 以“我想休息”为核心场景，将自然语言理解、人物偏好、灯光与温度方案、设备执行和持续反馈连接起来。客户端采用 React Native / Expo，面向 iPad 和 Android 平板设计，兼容手机布局；服务端采用 FastAPI，支持规则规划与大模型规划。
 
-想理解为什么这样设计，读 [设计过程与验证记录](docs/design-and-validation-2026-10-03.md)：请求理解的安全边界、40 次真实调用为什么没有支持默认开启连接复用，以及回执丢失后怎样核对。新增的 [独立网关与双 API 说明](docs/durable-gateway.md) 包含持久化、真实 HTTP 进程故障实验、核对按钮和运行方式；[依赖风险记录](docs/dependency-risk.md) 列明已修复与仍未解决的依赖问题。
+当前版本为可运行的工程原型：设备通过虚拟网关执行，夜间服务由模拟时钟推进。SpaceMind 与真实厂商设备为预留接入方向，尚未完成实际联调。
 
-## 系统架构
+## Product 产品能力
 
-2026-10-03 后续增量：[统一动作记录与后台核对](docs/action-recovery.md) 已补上手动控制、撤销和常驻只读恢复路径；[评测集审核](docs/evaluation-review.md) 说明人工审核后如何继续测模型。本批次测试与发布状态见交接文档。
+- **自然语言规划**：理解休息需求，生成灯光、空调和窗帘方案；含糊或冲突的表达先澄清。
+- **人物偏好**：分别保存家庭成员的环境偏好，按账户、人物、空间与会话管理上下文；访客使用默认设置。
+- **持续服务**：同一服务贯穿休息、模拟入睡、环境调整与渐进唤醒，支持中途停止。
+- **设备控制**：查看目标值与回读值，直接调节设备，并在短时窗口内撤销操作。
+- **结果核对**：计划、手动控制与撤销共用动作记录；回复丢失时查询原回执，不盲目重发指令。
+- **能源建议**：在线使用舒适约束内的可解释规则，另提供独立的家庭能源离线仿真结果展示。
+- **语音交互**：提供语音回合、播报与打断，以及设备端识别适配代码；设备端识别尚未完成真机验证。
 
-一个 Expo App、一个 FastAPI 后端、一层由后端契约生成的共享类型。App 不认识设备，只认识接口；后端不让 Agent 碰设备，只让它产出计划。
+A plan does not change devices. Multi-device plans require confirmation; execution results are checked rather than assumed.
 
-### 组成部分
+**生成计划不会改变设备。多设备方案经用户确认后执行，完成状态以回执和回读结果为依据。** 设备面板的低风险单动作由用户直接触发，仍经过服务端校验与统一执行器。
 
-| 组件 | 职责 | 位置 |
-|---|---|---|
-| 页面层 | 12 个功能模块（对话、设备、语音、整晚、场景、证据、能源…），只调接口层 | `apps/mobile/features/` |
-| 接口层 | 同一套方法两种实现：前端模拟与真实 HTTP，切换不改页面 | `apps/mobile/services/{mock,http}/` |
-| 共享类型 | 由后端 OpenAPI 生成，禁止手改 | `packages/api-client/` |
-| 路由与错误 | 统一错误结构与错误码；未知动作支持只读回执核对 | `backend/app/api/` |
-| 服务编排 | 单空间串行锁、计划生命周期、整晚服务、撤销窗口 | `backend/app/services/rest_service.py` |
-| 主 Agent | 意图路由与三个阶段的编排，产出协作轨迹 | `backend/app/agents/orchestrator/` |
-| 体验 Agent | **唯一会调用大模型的环节**，失败降级为规则并记录原因 | `backend/app/agents/experience/` |
-| 空间执行 Agent | 按空间规则生成整晚安排 | `backend/app/agents/space_execution/` |
-| 图编排（可选） | 同样的阶段跑成 LangGraph 图，多出节点轨迹与 checkpoint | `backend/app/graph/` |
-| Harness | 预检、发放有界授权、执行动作 | `backend/app/harness/{policy,grants,executor}.py` |
-| 设备网关 | 幂等 `actionId`、空间代次（`service_epoch`）fencing、受理/完成/失败/拒绝/未知回执 | `backend/app/adapters/gateway.py` |
-| 可选独立网关 | HTTP + SQLite 持久化虚拟设备与回执；支持两个 API 共享同一设备状态 | `backend/app/adapters/{gateway_app,persistent_gateway,http_gateway}.py`、`compose.gateway.yaml` |
-| 跨进程执行所有权 | SQL 会话锁串行设备写入，按 ownerId 恢复死亡实例，不清理活跃实例 | `backend/app/db/ownership.py` |
-| 后台结果核对 | 短事务认领、事务外查询、退避与上限；不重发动作 | `backend/app/services/recovery_worker.py` |
-| 虚拟设备 | 有状态的灯 / 空调 / 窗帘，写入后回读 | `backend/app/adapters/virtual/` |
-| 存储 | 同一批用例两种实现：进程内存与 PostgreSQL | `backend/app/repositories/`、`backend/app/db/` |
-| 记忆 / 能源 / 事件 / 缓存 | 人物偏好、可解释能源规则、事件出箱、跨实例短锁 | `backend/app/{memory,energy,events,cache}/` |
+## Architecture 系统架构
 
-### 一次“我想休息”走过哪些环节
-
-1. App 发 `POST /api/plans/rest`，带账户、人物、空间与这句话。
-2. 主 Agent 判定意图，调体验 Agent 产出体验目标——这一步要么走 DeepSeek，要么走规则，结果带 `source` 标注。
-3. 空间执行 Agent 按空间规则把体验目标落成具体设备动作，并生成整晚安排。
-4. Harness 预检：白名单、参数范围、与人物偏好的偏离上限。越界的动作在这里就被拿掉，并写明原因。
-5. 计划返回给 App。**此时设备一动没动。**
-6. 用户确认 → `POST /api/plans/{id}/confirm`。Harness 这时才生成 `ExecutionGrant`：有界、会过期、数值被收窄到已批准的那些。
-7. 执行器凭授权逐个动作写设备，每次写前重查空间代次，写后回读实际值。
-8. 结果、回读值与失败原因一起落进活动记录，返回 App。
-
-### 一次设备直接控制走过哪些环节
-
-1. 用户拖滑块，松手才提交 `POST /api/spaces/{id}/devices/control`。
-2. 后端记下**执行前的原值**，执行，回读，开一个 5 秒撤销窗口。
-3. 用户点撤销 → `POST /api/devices/undo/{undo_id}`，写回记下的原值。不是猜一条相反指令。
-4. 窗口过期、或同一空间来了新动作，旧窗口立即失效（`UNDO_EXPIRED` / `UNDO_INVALIDATED`）。
-
-单个低风险动作（灯、空调、窗帘）走这条路，不弹确认框；多动作的休息计划仍然先确认后执行。
-
-### 四个可切换的轴
-
-| 轴 | 默认 | 可选 | 开关 |
-|---|---|---|---|
-| 存储 | 进程内存，重启即重置 | PostgreSQL，计划 / 服务 / 授权 / 动作账本 / 整晚步骤 / 活动 / 待澄清都可恢复 | `LIVINGMIND_DATABASE_URL` |
-| 编排 | 顺序编排 | LangGraph 图，带节点轨迹与 checkpoint | `LIVINGMIND_ORCHESTRATOR=langgraph` |
-| 跨实例协调 | 关 | Redis 短锁与事件冷却快速判断（**不是事实来源**，挂了功能照常） | `LIVINGMIND_REDIS_URL` |
-| 计划来源 | 规则 | DeepSeek 一次调用，失败降级为规则并标注原因 | `DEEPSEEK_API_KEY` |
-
-前三个轴互不依赖，CI 按内存 / PostgreSQL / PostgreSQL + Redis + LangGraph 三种组合各跑一遍完整测试。第四个轴需要密钥，不进 CI。
-
-## 三条架构边界
-
-1. **页面不直接控制设备**：页面只调用 `apps/mobile/services/` 的接口；从模拟切到真实 API 不改页面。
-2. **Agent 不拥有设备凭据**：规则和模型都只能生成计划；确认后由 Harness 生成有界的 `ExecutionGrant`，再经 Executor、DeviceGateway、回执与回读执行。
-3. **模拟逻辑集中存放**：前端模拟在 `apps/mobile/services/mock/`，后端虚拟设备在 `backend/app/adapters/virtual/`，种子数据在 `backend/app/demo/`。
-
-口径按三档区分，不要混用：**已实现并验证**（有代码、有测试、有实跑结果）/ **接口预留**（只有协议与契约替身测试，没有对端）/ **仍待执行**（需用户授权或外部条件）。对照表见 [AGENT-HANDOFF.md](AGENT-HANDOFF.md) 第 9 节。
-
-## 已实现的功能
-
-### 对话与计划
-
-- 对话主页、四个入口、场景库、证据面板。
-- “我想休息”生成计划：**计划产出时设备不动**，确认后才执行并回读实际值。
-- 计划来源在界面上分四档标注：规则计划、模型计划、规则降级（请求了模型但改用规则，附原因）、前端模拟计划。
-- 歧义请求先澄清再执行，覆盖三类：否定、设备冲突、指代不清。待澄清状态按账户 / 人物 / 空间 / 会话隔离，10 分钟过期，可取消。
-
-### Agent 编排
-
-- 1+2 结构：主 Agent 负责路由与编排，体验 Agent 产出体验目标，空间执行 Agent 落成设备动作与整晚安排。
-- 三者共享人物记忆与能源规则，计划经 Harness 预检；每个计划附真实的协作轨迹，“场景”页可展开查看。
-- 体验 Agent 一次模型调用（DeepSeek）。规则与模型可切换；模型不可用时降级为规则并写明原因，链路不中断。
-- 同一套阶段可改由 LangGraph 图执行，多出节点轨迹与 checkpoint；`scripts/compare_orchestrators.py` 验证两条路径产出的计划等价。
-
-### 设备控制与执行
-
-- 受控执行链：`PolicyDecision → ExecutionGrant → ActionExecution`。授权有界、会过期、被收窄到已批准的数值，迁移 `0005_execution_authority` 持久化全过程。
-- `DeviceGateway` V2 已进入虚拟设备执行路径：幂等 `actionId`、空间代次（`service_epoch`）fencing、受理 / 完成 / 失败 / 拒绝 / 未知五种回执、持久化动作账本。
-- 设备面板直接控制：双轨滑块（拖动时本地值优先、松手才提交）、目标值与回读值双指示、直接执行 + 5 秒真撤销。
-- 有状态虚拟设备（灯 / 空调 / 窗帘），每次写入后回读；写设备成功但回读失败时返回明确的动作失败。
-
-### 语音
-
-- 完整语音回合：按住说话 → 状态机（`idle → armed → listening → resolving → sending → speaking`）→ 真实 TTS 播报与打断。
-- **任何超时的默认结果都是不执行**，没有一条超时路径能走到发送。
-- 设备端识别适配层（`expo-speech-recognition`，系统引擎、无密钥、可端侧）代码完整；未接入真实识别器时转写文本带来源标签，界面不出现“识别”字样。
-
-### 整晚服务与事件
-
-- 确认后同一个服务贯穿整晚，跑在**模拟时钟**上（22:30 起），只由接口推进，后端不读真实时间、不开后台定时器。
-- 渐进唤醒三步（起床前 30 / 15 / 0 分钟），深夜空调调高 1°C 且不超出本人偏好 +3°C。
-- 模拟室温事件触发一次自动调整，带冷却与次数上限；停止服务后事件被忽略，剩余步骤记为取消。
-- 启动恢复可查询（`GET /api/system/recovery`）：清理崩溃遗留标记，**结果未知的步骤取消而非重放**。
-
-### 身份、记忆与持久化
-
-- 演示身份（demo account）、人物切换（演示 PIN）、访客模式（不读取任何人的个人偏好）。
-- 内存或 PostgreSQL 两种存储可切换；配库后计划、服务、执行授权、动作账本、整晚步骤、活动与待澄清状态均可恢复，重启后运行中的服务还能继续停止。
-- 可选 Redis 跨实例短锁与事件冷却加速；**Redis 不是事实来源**，正确性由数据库约束和执行器守卫保证。
-
-### 能源展示
-
-- 在线能源建议是 `backend/app/energy/rules.py` 的可解释规则。
-- 24 小时家庭能源离线仿真：给定的固定日结果，规则策略 vs 单智能体 MATD3，只读展示，不参与控制，也不新增可控制设备。
-
-### 演示与证据
-
-- 一键“准备演示”重置；三段网页版录屏，每帧带“网页版录屏 · 后端虚拟设备 · 规则模式”字幕。
-- 主张证据表逐条对照汇报 PDF，写明原型实际情况、证据位置与来源类型。
-- `backend/scripts/model_latency_bench.py` 可复现真实模型的延迟分布与失败分类。
-
-## 暂不做（后续批次）
-
-真实设备 / SpaceMind / 厂商云 / 音箱 / 传感器接入 · 真实后台定时器 · 真实睡眠感知 · 真实硬件状态回读恢复 · 唤醒词、声纹、免手操作 · 高风险设备（门锁等）· 通用多轮对话记忆 · 正式登录、WebSocket、向量库 · 在线 MATD3 控制或重新训练评估
-
-**所有设备都是后端虚拟设备**，执行链路是完整的，对端是模拟的。**设备端语音识别代码完整但未在真机验证**——它需要 development build，端到端测试与 CI 都覆盖不到这一项。
-
-## 目录
+### Agent workflow
 
 ```text
-apps/mobile/          Expo 原生 App（iPad / Android 平板优先）
-backend/app/          FastAPI 后端（契约、规则、执行器、虚拟设备、服务状态）
-backend/tests/        后端测试
-packages/api-client/  由后端契约生成的 TypeScript 类型（不要手改生成文件）
-scripts/              跨端脚本（类型生成）
-docs/                 架构、验收、状态
-.github/              PR 模板与 CI
-simulation/home-energy/  给定的离线家庭能源研究快照、数据、权重与溯源（不在 App 运行路径）
+用户需求
+  → 主 Agent：意图路由与任务编排
+  → Memory：当前人物偏好与空间上下文
+  → Experience Agent：结构化体验目标
+  → Energy：舒适约束内的能源建议
+  → Space Execution Agent：设备动作方案
+  → Harness：白名单、参数范围与策略检查
+  → 用户确认
+  → Executor → Device Gateway → 执行回执与状态回读
+  → 服务状态更新 → 环境事件触发后续调整
 ```
 
-## 演示流程
+这是混合式 1+2 Agent 架构。Experience Agent 使用 DeepSeek 处理语言理解；主 Agent、空间动作映射与执行检查采用确定性逻辑。明确的设备指令和状态查询走简化路径，无需经过完整模型链路。
 
-上台前：“我的”页点 **准备演示**（重置数据，切回林悦、舒适优先、清空对话、关闭证据面板、回到对话页）。完整讲解顺序见 [`docs/demo-script.md`](docs/demo-script.md)。
+LangGraph 用于规划阶段的节点、分支、轨迹与 checkpoint；设备写入位于图外，由独立执行器完成，避免规划恢复时重放设备动作。模型超时、输出非法或超出约束时，系统降级为规则方案并标明原因。
 
-选人物 → 选模拟起床时间 → 输入“我想休息” → 选“规则”或“模型” → 生成计划（设备不变）→ 确认执行（设备改变并回读）→ 点“模拟已入睡”（明确的演示信号，不是传感器）→ 点“注入模拟事件”（室温升高 3°C，服务自动调整一次空调）→ 查看服务动态 → 停止服务（设备保持当前状态，之后的事件不再触发动作）。确认后同一个服务贯穿整晚：点“快进到 …”或“自动播放整晚”推进**模拟时钟**（23:00 关灯 → 01:00 空调调高 1°C → 起床前 30 / 15 / 0 分钟渐进唤醒），到所选时间后服务自动结束；中途停止会取消剩余步骤。“场景”页顶部的“1+2 Agent 如何协作”卡片可展示最近一次计划的真实协作过程。
+### Technology stack
 
-计划来源在界面上分四种标注：规则计划、模型计划、规则降级（请求了模型但改用规则，附原因）、前端模拟计划。
-
-## 快速启动
-
-环境：Node.js 20+，Python 3.10+。
-
-### 1. 后端
-
-```bash
-cd backend
-python3 -m venv .venv
-source .venv/bin/activate
-pip install -r requirements-dev.txt
-uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
-```
-
-演示时建议固定为晚上 8 点（高峰电价时段），能源建议每次一致：
-
-```bash
-LIVINGMIND_DEMO_LOCAL_HOUR=20 uvicorn app.main:app --host 0.0.0.0 --port 8000
-```
-
-也可以写进 `.env`（`LIVINGMIND_DEMO_LOCAL_HOUR=20`，等号两边不要有空格）。让能源建议固定在高峰电价时段。`--host 0.0.0.0` 让同一局域网的平板能访问；只在可信网络这样做。需要改 CORS（仅浏览器预览用）时：`cp .env.example .env` 后加 `--env-file .env`。
-
-打开 http://localhost:8000/health 应返回 `{"status":"ok"}`；接口文档在 http://localhost:8000/docs 。
-
-**启用模型模式（DeepSeek）**：`cp .env.example .env`，填写 `DEEPSEEK_API_KEY`，然后启动时加 `--env-file .env`。密钥只放在后端 `.env`（已被 Git 忽略），绝不写进 App。不填密钥时模型模式会降级为规则计划并标注原因。
-
-默认模型是 `deepseek-chat`，这是实测选出来的。两个模型各跑 48 次真实调用（`docs/evidence/model-latency-*.json`）：
-
-| | deepseek-chat | deepseek-flash |
+| 层次 | 技术 | 作用 |
 |---|---|---|
-| 计划被采纳 | 48 / 48 | 46 / 48（2 次超时，且是间歇的） |
-| p50 / p95 | 1161 / 1450 ms | 1684 / 3539 ms |
-| 最长一次 | 1737 ms | 5537 ms |
-| 超过 2.5 秒 | 0 | 6 次（13%） |
+| 客户端 | React Native、Expo、TypeScript | 平板与手机界面、对话、设备面板、服务状态 |
+| API 与契约 | FastAPI、Pydantic、OpenAPI | 请求校验、统一错误、生成前端接口类型 |
+| 规划与编排 | LangGraph、DeepSeek | 结构化规划、流程分支与规则降级 |
+| 业务存储 | PostgreSQL、SQLAlchemy、Alembic | 人物偏好、计划、服务、授权、动作与数据库迁移 |
+| 并发协调 | PostgreSQL 会话锁、Redis | 共享网关模式下的执行串行化、短锁与事件冷却 |
+| 事件处理 | Transactional Outbox | 业务与事件同事务提交、重试、消费去重与按空间保序 |
+| 虚拟设备网关 | HTTP、SQLite | 独立保存设备状态、动作回执与空间代次 |
+| 交付与验证 | Docker Compose、GitHub Actions、pytest、Playwright | 环境复现、后端回归与浏览器端到端测试 |
 
-`deepseek-flash` 会在答案之前写推理内容，与答案共用同一个 token 预算——实测推理写了 1280–1387 个字符，早期 400 的预算在答案开始之前就用光了，`content` 返回空。把这个任务（一句话变成三个受约束的数值）交给推理模型，是在为不需要的推理付时间。两个模型的澄清判别都是 48/48 无误判（合计 96 次），所以换模型没有拿稳定性换速度。
+Redis 用于协调，不是业务事实来源，也不是已验证的数据缓存提速方案。事件总线使用 PostgreSQL 队列，未引入 Kafka。
 
-`LIVINGMIND_MODEL_MAX_TOKENS` 默认 2000，是按推理模型的用量留的余量；换回推理模型时别往下调。预算耗尽是独立的失败类型（`truncated`），和“模型真的没返回”分开统计。
+### Execution and recovery
 
-验证真实模型（需要 `.env` 里的密钥，只能在你自己的电脑上跑）：
+- **有界授权**：已确认计划绑定人物、空间、动作范围与有效期；执行器在每次设备动作前重新检查。
+- **停止语义**：停止使旧计划和后续动作失效，不自动恢复设备原值；已经在途的动作可能完成，结果仍需核对。
+- **动作身份**：网关按 `actionId` 识别重复提交，以空间代次拒绝过期指令。客户端重新提交手动控制请求仍属于新操作。
+- **后台核对**：独立 Recovery Worker 通过短事务租约认领未知动作，在事务外查询回执，按退避与上限继续检查；不重发控制、不恢复已停止服务。
+- **多实例边界**：两个 API 共享设备状态时使用独立持久化网关；原进程内虚拟设备模式不用于多副本部署。
 
-```bash
-cd backend && set -a && source .env && set +a
-.venv/bin/python scripts/try_model.py "我想休息，有点热"   # 只测 Agent 一次调用
-.venv/bin/python scripts/e2e_real_model.py                 # 可选：后端端到端，5 句话，含延迟统计
-.venv/bin/python scripts/e2e_real_model.py --eval          # 可选：用设计的评测集给真实模型打分
-.venv/bin/python scripts/model_latency_bench.py --samples 24   # 延迟分布与失败分类
-```
+## Quick start 快速运行
 
-`model_latency_bench.py` 重复调用与产品同一条路径（`ExperienceAgent.plan()`，含 JSON 解析与结构校验），输出 p50 / p90 / p95、模型贡献率、按 kind 的失败分类和按话术的分组，写入 `docs/evidence/model-latency.json`。该历史脚本的分位数只统计成功调用，必须与失败/超时次数一起阅读，不能当成所有请求的用户等待时间。新增 `backend/scripts/compare_models.py` 按相同用例交错比较模型，记录服务层创建计划耗时并包含超时降级；两种计时口径应分开。密钥从环境变量读取，不会打印、也不会写进结果文件。
+以下命令适用于 macOS / Linux 终端。仓库 CI 使用 Node.js 22 与 Python 3.12；本地 Python 3.11 也已验证。容器方式需要 Docker 与 Docker Compose。
 
-浏览器端到端也可以用真实模型：`cd apps/mobile && python e2e/run_e2e.py --real-model`。
-
-### 1b. 后端（Docker，可选）
-
-装了 Docker Desktop 时可以不建虚拟环境：
+### 1. 获取项目
 
 ```bash
-./scripts/verify-t1.sh                  # 推荐：构建、测试、健康检查、完整闭环并自动关闭
-docker compose up -d                    # 全栈：PostgreSQL / Redis / migration / API / 两个 Worker
-docker compose down
+git clone https://github.com/Hector-sau/Livingmind.git LivingMind
+cd LivingMind
 ```
 
-- 端口默认只绑本机。平板要连时用 `HOST_BIND=0.0.0.0 docker compose up -d api`，且只在可信网络这样做。
-- 演示时段固定在 `compose.yaml` 里（晚 8 点）。模型模式的密钥在运行时传入：`DEEPSEEK_API_KEY=... docker compose up api`，不会进镜像。
-- 依赖版本锁在 `backend/constraints.txt`；镜像用 Python 3.12，以非 root 用户运行。
-- API 只读挂载能源模块的两个结果 JSON；研究代码、环境和模型权重不会进入运行容器。
-- PostgreSQL / Redis 的宿主端口可用 `POSTGRES_HOST_PORT` / `REDIS_HOST_PORT` 覆盖；验证脚本默认用 `55432` / `56379`，避免与本机服务冲突。
-- Compose 默认使用 PostgreSQL：启动 `api` 时会先起数据库并执行迁移。只想跑内存模式时，请用本地 Python 启动后端，或参考 `scripts/verify-t1.sh` 中的 `docker compose run --no-deps` 测试命令；不要仅靠留空 Compose 环境变量切换。
-- 一键验证已于 2026-09-18 在 Docker Desktop 29.6.2 / Compose 5.3.1 上通过；日志写到本机 `dist/t1-verify.log`。
+### 2. 启动容器后端
 
-### 2. App
+在当前终端生成内部网关 token，启用 LangGraph，并启动 PostgreSQL、Redis、迁移、两个 API、持久化虚拟网关及后台进程：
+
+```bash
+export LIVINGMIND_GATEWAY_TOKEN="$(openssl rand -hex 32)"
+export LIVINGMIND_ORCHESTRATOR=langgraph
+docker compose -f compose.yaml -f compose.gateway.yaml --profile replicas up -d --build
+```
+
+- 主 API：<http://127.0.0.1:8000>
+- 健康检查：<http://127.0.0.1:8000/health>
+- OpenAPI 文档：<http://127.0.0.1:8000/docs>
+- 第二 API：<http://127.0.0.1:8001>
+- 默认使用规则规划，不需要模型密钥。
+
+API 默认只绑定本机。PostgreSQL / Redis 默认占用本机 5432 / 6379 端口，可通过 `POSTGRES_HOST_PORT` / `REDIS_HOST_PORT` 调整。仅需单实例体验时可使用 `docker compose up -d --build`，该模式不启用独立网关和后台回执核对。
+
+关闭上述完整环境、保留数据卷：
+
+```bash
+docker compose -f compose.yaml -f compose.gateway.yaml --profile replicas down
+```
+
+网关 token 必须在执行对应 Compose 命令的终端中可用；也可保存在仓库根目录未跟踪的 `.env`，不要提交到 Git。
+
+### 3. 启动客户端
+
+打开另一个终端，在仓库根目录执行：
 
 ```bash
 cd apps/mobile
-npm install
-cp .env.example .env        # 按需修改
-npx expo start
+npm ci
+cp .env.example .env
 ```
 
-- **模拟模式**：`.env` 里不设置 `EXPO_PUBLIC_API_BASE_URL`，App 使用前端模拟接口，界面顶部显示“前端模拟模式”。
-- **后端模式**：设置 `EXPO_PUBLIC_API_BASE_URL=http://<Mac 的局域网 IP>:8000`。平板上不能用 `localhost`（那是平板自己）。查 Mac IP：`ipconfig getifaddr en0`。
-- 改了 `.env` 后要用 `npx expo start --clear` 重启，否则旧配置会被缓存。
-- 在 iPad 上用 Expo Go 扫码预览；在 Mac 上按 `Shift + i` 选 iPad 模拟器（需要 Xcode）；按 `w` 用浏览器粗看布局。
-- 装到平板（Expo Go 登录要求、开发版 EAS 构建、真机验收清单）见 [`docs/device-build.md`](docs/device-build.md)。**尚未在真机上跑过。**
+首次配置时，将 `.env` 中的地址设为：
 
-### 2b. 持久化（T2，可选）
+```dotenv
+EXPO_PUBLIC_API_BASE_URL=http://127.0.0.1:8000
+```
 
-不配 `LIVINGMIND_DATABASE_URL` 时，后端和以前一样全部在内存里，重启即重置。配上 PostgreSQL 后，人物偏好、计划、服务、整晚步骤、动作结果和活动记录都会持久化，重启后运行中的服务还能继续停止。执行授权链也在库里：`0005_execution_authority` 建了 `policy_decisions` / `execution_grants` / `action_executions` 三张表，一次确认发放了什么授权、执行器凭它写了什么、回读到什么，事后都查得到：
+启动浏览器预览：
+
+```bash
+npm run web -- --clear
+```
+
+浏览器用于本机预览和自动化验证，产品客户端仍以原生平板 App 为目标。留空后端地址会进入明确标注的前端模拟模式；已配置后端但连接失败时，不会改用模拟数据冒充成功。
+
+### 4. 平板连接
+
+使用同一可信局域网中的电脑 IP 作为 `EXPO_PUBLIC_API_BASE_URL`，不能使用平板自身的 `localhost`。容器 API 需通过 `HOST_BIND=0.0.0.0` 重新启动以允许局域网访问，勿暴露到公网。
+
+原生客户端使用 Expo development build；仓库已包含 iOS / Android 配置与 `eas.json`。安装与当前 SDK 匹配的开发构建后，在 `apps/mobile` 下连接开发服务器：
+
+```bash
+npx expo start --dev-client --clear
+```
+
+设备端语音识别依赖原生模块，不能用浏览器预览代替验收。当前已验证双平台 JavaScript / Hermes 导出，尚未完成安装包与真机验证。
+
+### 本地 Python 后端
+
+不使用 Docker 时，可运行单进程、内存存储的后端。不要与容器 API 同时占用 8000 端口。
 
 ```bash
 cd backend
-export LIVINGMIND_DATABASE_URL=postgresql+psycopg://livingmind:livingmind@127.0.0.1:5432/livingmind
-.venv/bin/alembic upgrade head     # 建表 / 升级
-.venv/bin/uvicorn app.main:app --port 8000
+python3.12 -m venv .venv
+source .venv/bin/activate
+pip install -r requirements-dev.txt -c constraints.txt
+cp .env.example .env
+uvicorn app.main:app --env-file .env --host 127.0.0.1 --port 8000
 ```
 
-跑数据库相关测试（没配就自动跳过）：
+未配置 PostgreSQL 时，服务状态与虚拟设备数据随进程退出而重置；后台回执核对要求 PostgreSQL 与独立 HTTP 网关。
 
-```bash
-cd backend
-# 只加跑数据库专项测试
-LIVINGMIND_TEST_DATABASE_URL=postgresql+psycopg://...@127.0.0.1:5432/livingmind .venv/bin/pytest
-# 让整套测试都跑在 PostgreSQL 上（同一批用例，换一个存储实现）
-LIVINGMIND_TEST_STORE=sql LIVINGMIND_TEST_DATABASE_URL=postgresql+psycopg://...@127.0.0.1:5432/livingmind .venv/bin/pytest
+## Configuration 运行配置
+
+| 变量 | 用途 |
+|---|---|
+| `EXPO_PUBLIC_API_BASE_URL` | 客户端连接的后端地址；空值为前端模拟模式 |
+| `LIVINGMIND_DATABASE_URL` | PostgreSQL 连接；本地 Python 模式未设置时使用内存 |
+| `LIVINGMIND_REDIS_URL` | 可选 Redis 协调连接 |
+| `LIVINGMIND_ORCHESTRATOR` | `legacy` 或 `langgraph`；默认 `legacy` |
+| `LIVINGMIND_PLANNER_MODE` | 默认计划来源：`rule` 或 `model` |
+| `DEEPSEEK_API_KEY` | 后端模型密钥；客户端不保存此项 |
+| `DEEPSEEK_MODEL` | 模型名称，默认 `deepseek-chat` |
+| `LIVINGMIND_GATEWAY_TOKEN` | 独立网关内部访问 token |
+| `LIVINGMIND_DEMO_LOCAL_HOUR` | 固定能源规则的模拟时段；不等同于夜间服务时钟 |
+
+启用真实模型时，配置 `DEEPSEEK_API_KEY`，在 App 中选择模型计划，或把默认 `LIVINGMIND_PLANNER_MODE` 设为 `model`。真实调用会产生 API 费用；缺少密钥或调用失败时，系统明确显示规则降级。
+
+Docker 从当前终端或仓库根目录 `.env` 读取 Compose 变量；本地 Python 使用启动命令指定的 `backend/.env`。修改配置后需要重新启动对应服务；客户端环境变量变更后用 `--clear` 重启。
+
+## Example 场景体验
+
+1. 选择人物和起床时间，输入“我想休息”。
+2. 查看灯光、温度、窗帘方案及来源；此时设备状态不变。
+3. 确认执行，查看动作结果、设备回读与服务状态。
+4. 触发“模拟已入睡”或模拟室温变化，观察同一服务内的调整。
+5. 推进模拟时钟至渐进唤醒，或随时停止；停止后取消剩余安排。
+6. 在空间页查看操作记录；遇到未知结果时核对原动作，不重新执行。
+
+## Energy 离线能源研究
+
+项目包含独立的 24 小时家庭能源仿真，涵盖光伏、风电、基础负荷、空调、电池、电网与备用发电机。学习策略基于 MATD3 框架，当前实验配置为单智能体 `N=1`。
+
+固定预设日的给定对比结果为：购电量 **13.61 → 0.76 kWh/day**，峰值购电 **1.95 → 0.37 kW**，日成本 **$1.87 → −$0.02**。这些是同一预设日、采用美元和华氏度参数的仿真结果，不代表真实家庭节能收益或跨日期泛化能力。
+
+App 展示该离线结果，但在线控制仍使用可解释能源规则，不运行强化学习模型。
+
+## Quality 验证与质量
+
+截至 2026-10-03 的[完整 CI 验证](https://github.com/Hector-sau/Livingmind/actions/runs/37119652911)：
+
+| 检查 | 结果 |
+|---|---|
+| PostgreSQL + Redis + LangGraph 后端 | 278 通过，1 跳过（内存模式专属用例） |
+| 前端逻辑与类型检查 | 106 项测试通过，类型检查通过 |
+| Docker API 浏览器端到端 | 29 / 29 场景通过 |
+| API 契约与数据库迁移 | 类型一致性、测试空库升级与回退检查通过 |
+
+故障测试覆盖双 API 并发确认、跨实例停止、回执丢失、进程崩溃，以及恢复 Worker 的实际数据库连接断开与重连。CI 使用虚拟设备和模型替身，不代表真机、真实设备或线上可用性认证。
+
+## Source 核心目录
+
+```text
+apps/mobile/              原生客户端与浏览器预览
+backend/app/              API、Agent、记忆、能源、执行器与存储
+backend/workers/          事件发布与消费
+backend/alembic/          数据库迁移
+backend/tests/            后端与故障测试
+packages/api-client/      OpenAPI 生成的 TypeScript 契约
+simulation/home-energy/   独立离线能源研究
+scripts/                  接口生成与运行验证工具
+.github/workflows/        自动化持续集成
 ```
 
-### 2c. 编排方式（T3，可选）
+## Scope 使用边界
 
-默认走原来的顺序编排。设 `LIVINGMIND_ORCHESTRATOR=langgraph` 后，同样的阶段以 LangGraph 图运行，多了节点轨迹和 checkpoint（配了数据库就存 PostgreSQL，否则存内存）：
-
-```bash
-cd backend
-LIVINGMIND_ORCHESTRATOR=langgraph .venv/bin/uvicorn app.main:app --port 8000
-.venv/bin/python scripts/compare_orchestrators.py       # 两条路径生成的计划是否等价
-LIVINGMIND_ORCHESTRATOR=langgraph .venv/bin/pytest      # 整套测试走图路径再跑一遍
-```
-
-设备执行不在图里：图只产出计划，确认后仍由 Harness 与执行器写设备。
-
-checkpoint 连接每进程只建一个，按数据库 URL 缓存共享（`PostgresSaver` 自带线程锁）。它由 psycopg 自行持有，不受 SQLAlchemy 连接池设置管辖——每个编排器各开一条的话，一次完整测试运行就能耗尽 PostgreSQL 的 `max_connections`。
-
-### 2d. 跨实例协调（T4，可选）
-
-设 `LIVINGMIND_REDIS_URL` 后，同一空间在被驱动时会加一把短锁（带 TTL 和 token），事件冷却多一个快速判断。**Redis 不是事实来源**：没配、连不上或键被删掉，功能都照常，只是少了这层加速；正确性仍由数据库约束和执行器守卫保证。
-
-```bash
-cd backend
-LIVINGMIND_REDIS_URL=redis://127.0.0.1:6379/0 .venv/bin/uvicorn app.main:app --port 8000
-LIVINGMIND_TEST_REDIS_URL=redis://127.0.0.1:6379/15 .venv/bin/pytest   # 加跑 Redis 专项测试
-```
-
-### 3. 重新生成接口类型
-
-后端契约改动后运行：
-
-```bash
-./scripts/gen-api.sh
-```
-
-脚本优先使用 `backend/.venv`；如果本地 Python 环境过旧但已构建 `livingmind-api:dev`，会自动改用 Docker 镜像生成契约。
-
-## 检查命令
-
-```bash
-cd backend && pytest                      # 后端测试
-cd apps/mobile && npm run typecheck && npm test   # 前端类型检查 + 逻辑测试
-./scripts/gen-api.sh && git diff --exit-code packages/api-client   # 契约一致性
-python apps/mobile/e2e/run_e2e.py         # 本地 Python 后端端到端
-python apps/mobile/e2e/run_e2e.py --external-backend http://127.0.0.1:8000  # Docker API 27 场景
-```
-
-## 演示打包（D）
-
-```bash
-cd apps/mobile && python e2e/record_demo.py      # 三段网页版录屏 → e2e/.out/videos/*.mp4
-python scripts/build_evidence.py --pdf           # 主张证据表 → docs/evidence.md + output/pdf/*.pdf
-```
-
-录屏每一帧都带“网页版录屏 · 后端虚拟设备 · 规则模式”字幕；证据表逐条对照汇报 PDF，写明原型实际情况、证据位置和来源类型（见 [`docs/evidence.md`](docs/evidence.md)）。
-
-## 离线能源仿真（P07）
-
-“空间”页的 **24 小时能源仿真** 卡读取的是给定研究快照的固定日结果：规则策略日成本 `$1.87`、MATD3 `$-0.02`，舒适违规均为 `0 F·h`。它有 7 类模拟资产（光伏、风电、基础负荷、空调、电池、电网、柴油备用），但都是离线展示，不新增可控制设备。完整来源、限制和可选研究依赖见 [`simulation/home-energy/README.md`](simulation/home-energy/README.md)。在线能源建议仍是 `backend/app/energy/rules.py` 的可解释规则。
-
-## 安全说明
-
-- 演示后端**没有正式认证**，只在本机或可信局域网运行，不要部署到公网。
-- 密钥只放后端环境变量；App 与 Git 中不得出现密钥。本批次不需要任何密钥。
+- 当前账户与人物 PIN 用于原型体验，不提供生产级身份认证。后端只应运行于本机或可信局域网；Compose 默认凭据不能用于公网部署。
+- 密钥只保存在后端环境变量或未跟踪的本地配置中，不写入 App、日志或 Git。
+- 夜间服务使用模拟事件与模拟时钟，没有真实睡眠传感器或生产定时调度器。
+- SpaceMind、厂商设备和智能音箱尚未接入；当前故障验证不等于物理设备 exactly-once 或生产高可用保证。
+- 长期记忆目前为结构化人物偏好与会话状态，不包含向量检索或自动学习人格。
