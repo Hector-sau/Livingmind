@@ -1,0 +1,23 @@
+{
+  "implementation_commit": "22193f6c93a8890cb059fd4779ffa8c60f676d69",
+  "environment": "macOS; temporary Python 3.11 runtime; disposable livingmind-eval PostgreSQL and Redis",
+  "default_backend": {"passed": 223, "skipped": 52, "report": "action-recovery-memory-final-2026-10-03.xml"},
+  "targeted_sql_intermediate": {"passed": 15, "skipped": 2, "report": "action-recovery-http-2026-10-03.xml", "note": "Before adding the final two reset/stop recovery tests; Redis unavailable in this targeted run"},
+  "frontend": {"passed": 106, "typecheck": "passed"},
+  "browser": {"passed": 29, "total": 29, "backend": "memory", "model": "local stub", "note": "Includes UI-injected manual/undo uncertainty followed by real saved receipt queries. Final cosmetic unit labels were added afterward; final source validated by CI."},
+  "native_export": {"ios": "passed", "android": "passed", "format": "JavaScript/Hermes", "device_installation_tested": false},
+  "contract_regeneration": "identical to committed OpenAPI and TypeScript",
+  "local_fullstack": {
+    "status": "interrupted_not_passed",
+    "exit_code": 2,
+    "completed_tests_before_interrupt": 58,
+    "elapsed_seconds": 667.76,
+    "observed_wait": "PostgreSQL DataFileImmediateSync while truncating the disposable test tables",
+    "action": "SIGINT to the identified pytest process only; no database durability settings changed",
+    "report": "action-recovery-fullstack-2026-10-03.xml",
+    "final_fullstack_authority": "GitHub CI for the exact implementation commit, not this partial run"
+  },
+  "evaluation_candidate": {"count": 30, "human_reviewed": false, "cases_sha256": "04a48852e74fa823a3a7f2ae99a65c53f0a5751227b7c4e7818d423861f5b9ff", "new_model_calls": 0},
+  "ci_evidence": "github-ci-37116952951.json",
+  "cleanup": {"project": "livingmind-eval", "containers_remaining": 0, "volumes_preserved": ["livingmind-eval_gateway-data", "livingmind-eval_postgres-data"], "other_projects_modified": false}
+}
