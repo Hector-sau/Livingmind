@@ -242,6 +242,45 @@ def test_stop_survives_gateway_outage_without_claiming_device_state(replicas, sq
     assert state(a)["version"] == 3  # the stop never restores or repeats commands
 
 
+def test_running_worker_recovers_crashed_api_without_restarting_surviving_api(replicas, sql_store):
+    import subprocess
+    import sys
+    (a, b), proxy, _ = replicas
+    b.start(BOOT)
+    surviving_pid = b.process.pid
+    worker = subprocess.Popen([sys.executable, "-m", "app.services.recovery_worker"], env=b.env,
+                              cwd=__import__("pathlib").Path(__file__).resolve().parents[1],
+                              stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    item = plan(a)
+    proxy.block_next = True
+    try:
+        with ThreadPoolExecutor() as pool:
+            pending = pool.submit(confirm, a, item)
+            assert proxy.entered.wait(10)
+            # Worker must not steal a live owner's dispatching action.
+            time.sleep(.2)
+            action_id = item["actions"][0]["actionId"]
+            assert sql_store.get_action_execution(action_id).status == "dispatching"
+            a.stop(kill=True)
+            proxy.release.set()
+            with pytest.raises(httpx.HTTPError):
+                pending.result(10)
+        deadline = time.monotonic() + 15
+        while time.monotonic() < deadline:
+            if sql_store.get_action_execution(action_id).status == "completed":
+                break
+            assert worker.poll() is None
+            time.sleep(.1)
+        assert sql_store.get_action_execution(action_id).status == "completed"
+        assert b.process.pid == surviving_pid and b.process.poll() is None
+        assert state(b)["version"] == 1
+        assert confirm(b, item).json()["repeated"]
+    finally:
+        proxy.release.set()
+        worker.terminate()
+        worker.wait(10)
+
+
 @needs_redis
 @pytest.mark.parametrize("replicas,fault", [("redis", "ttl"), ("redis", "disconnect")], indirect=["replicas"])
 def test_http_replicas_keep_exclusive_execution_after_redis_coordination_loss(replicas, fault):

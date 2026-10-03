@@ -51,6 +51,7 @@ export interface LivingMindApi {
   confirmPlan(planId: string, req: ConfirmPlanRequest): Promise<ConfirmPlanResponse>;
   /** Query a saved receipt only. Never confirms a plan or resends a device command. */
   reconcileAction(actionId: string, ctx: RequestContext): Promise<ActionExecution>;
+  getActions(ctx: RequestContext): Promise<ActionExecution[]>;
   stopService(serviceId: string, req: StopServiceRequest): Promise<StopServiceResponse>;
   /** Simulated night clock (demo only). minutes=null jumps to the next pending step. */
   advanceClock(serviceId: string, req: AdvanceClockRequest): Promise<AdvanceClockResponse>;

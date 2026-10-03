@@ -6,6 +6,8 @@
 
 ## 请求链路（⑧ 起）
 
+后续统一核对增量见 [动作恢复设计](action-recovery.md)：手动控制与撤销也进入动作账本；`0008` 允许无计划动作，并提供核对租期。共享网关 overlay 增加 recovery Worker，在短 SQL 事务之外只读查询回执。它不恢复服务执行，也不是新的夜间定时调度器。
+
 ```text
 App 对话 → POST /api/assistant/messages（人物 + 空间稳定 conversationId）
   → 主 Agent（agents/orchestrator）规则路由：休息请求 / 设备指令 / 状态查询 / 澄清 / 其他

@@ -4,6 +4,26 @@
  */
 
 export interface paths {
+    "/api/actions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Actions
+         * @description Recent actions for the checked person/space, including manual control and undo.
+         */
+        get: operations["getActions"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/actions/{action_id}/reconcile": {
         parameters: {
             query?: never;
@@ -419,6 +439,8 @@ export interface components {
         ActionExecution: {
             /** Acceptedat */
             acceptedAt?: string | null;
+            /** Accountid */
+            accountId?: string | null;
             /** Actionid */
             actionId: string;
             /** Attemptcount */
@@ -440,13 +462,29 @@ export interface components {
             /** Errorkind */
             errorKind?: string | null;
             /** Grantid */
-            grantId: string;
+            grantId: string | null;
+            /** Lastcheckedat */
+            lastCheckedAt?: string | null;
+            /** Nextcheckat */
+            nextCheckAt?: string | null;
             /** Observedat */
             observedAt?: string | null;
             /** Observedvalue */
             observedValue?: number | null;
+            /** Personid */
+            personId?: string | null;
             /** Planid */
-            planId: string;
+            planId: string | null;
+            /**
+             * Recoveryattempts
+             * @default 0
+             */
+            recoveryAttempts: number;
+            /**
+             * Recoveryexhausted
+             * @default false
+             */
+            recoveryExhausted: boolean;
             /**
              * Requestedat
              * Format: date-time
@@ -458,6 +496,12 @@ export interface components {
             serviceEpoch: number;
             /** Serviceid */
             serviceId: string | null;
+            /**
+             * Source
+             * @default plan
+             * @enum {string}
+             */
+            source: "plan" | "manual" | "undo";
             /** Spaceid */
             spaceId: string;
             /**
@@ -741,10 +785,12 @@ export interface components {
         };
         /** DeviceControlResponse */
         DeviceControlResponse: {
-            deviceState: components["schemas"]["DeviceState"];
+            deviceState: components["schemas"]["DeviceState"] | null;
             result: components["schemas"]["ActionResult"];
             /** @description Null when the write did not succeed */
             undo: components["schemas"]["UndoWindow"] | null;
+            /** Warning */
+            warning?: string | null;
         };
         /** DeviceState */
         DeviceState: {
@@ -1513,10 +1559,12 @@ export interface components {
         };
         /** UndoResponse */
         UndoResponse: {
-            deviceState: components["schemas"]["DeviceState"];
+            deviceState: components["schemas"]["DeviceState"] | null;
             /** Restoredvalue */
             restoredValue: number;
             result: components["schemas"]["ActionResult"];
+            /** Warning */
+            warning?: string | null;
         };
         /**
          * UndoWindow
@@ -1585,6 +1633,75 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
+    getActions: {
+        parameters: {
+            query: {
+                accountId: string;
+                personId: string;
+                spaceId: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ActionExecution"][];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
     reconcileAction: {
         parameters: {
             query?: never;

@@ -27,6 +27,7 @@ from app.repositories.store import MemoryStore  # noqa: E402
 from app.services.planner import Planner  # noqa: E402
 from app.services.rest_service import RestService  # noqa: E402
 from scripts.evaluate_holdout import percentile  # noqa: E402
+from scripts.dataset_review import cases_hash, require_review  # noqa: E402
 
 DATASET = Path(__file__).resolve().parents[1] / "evals" / "holdout_v2.json"
 PERSONS = {person.person_id: person for person in seed.PERSONS}
@@ -51,10 +52,16 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--models", nargs=2, default=["deepseek-chat", "deepseek-flash"])
     parser.add_argument("--output", type=Path)
+    parser.add_argument("--dataset", type=Path, default=DATASET)
     args = parser.parse_args()
+    dataset = json.loads(args.dataset.read_text(encoding="utf-8"))
+    try:
+        require_review(dataset)
+    except ValueError as exc:
+        parser.error(str(exc))
     if not config.DEEPSEEK_API_KEY:
         parser.error("DEEPSEEK_API_KEY is required")
-    cases = [case for case in json.loads(DATASET.read_text(encoding="utf-8"))["cases"] if case["intent"] == "rest"]
+    cases = [case for case in dataset["cases"] if case["intent"] == "rest"]
     rows: list[dict] = []
     for index, case in enumerate(cases):
         for model in (args.models if index % 2 == 0 else args.models[::-1]):
@@ -83,7 +90,9 @@ def main() -> int:
             provider.close()
             print(f"{case['id']} {model} {rows[-1]['verdict']} {elapsed}ms", flush=True)
     result = {
-        "dataset": DATASET.name, "synthetic": True, "recorded_at_utc": datetime.now(timezone.utc).isoformat(),
+        "dataset": args.dataset.name, "synthetic": True, "recorded_at_utc": datetime.now(timezone.utc).isoformat(),
+        "cases_sha256": cases_hash(dataset), "human_reviewed": dataset.get("human_reviewed", False),
+        "reviewer": dataset.get("reviewer"), "reviewed_at": dataset.get("reviewed_at"),
         "order": "alternated per case", "timeout_s": config.MODEL_TIMEOUT_S,
         "max_tokens": config.MODEL_MAX_TOKENS, "temperature": 0.3,
         "summary": [summarize(rows, model) for model in args.models], "rows": rows,

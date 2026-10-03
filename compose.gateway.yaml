@@ -2,6 +2,18 @@
 # LIVINGMIND_GATEWAY_TOKEN=<local secret> docker compose -f compose.yaml -f compose.gateway.yaml up -d --build
 # Add --profile replicas to start the second API at 127.0.0.1:8001.
 services:
+  recovery:
+    image: livingmind-api:dev
+    command: ["python", "-m", "app.services.recovery_worker"]
+    environment:
+      LIVINGMIND_DATABASE_URL: "${LIVINGMIND_DATABASE_URL:-postgresql+psycopg://livingmind:livingmind@postgres:5432/livingmind}"
+      LIVINGMIND_GATEWAY_URL: http://gateway:8010
+      LIVINGMIND_GATEWAY_TOKEN: "${LIVINGMIND_GATEWAY_TOKEN:?Set a local gateway token}"
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      gateway:
+        condition: service_healthy
   gateway:
     build:
       context: ./backend

@@ -106,6 +106,8 @@ export function createHttpApi(options: HttpOptions): LivingMindApi {
       request<ConfirmPlanResponse>('POST', `/api/plans/${encodeURIComponent(planId)}/confirm`, req),
     reconcileAction: (actionId, context) =>
       request<ActionExecution>('POST', `/api/actions/${encodeURIComponent(actionId)}/reconcile`, { context }),
+    getActions: (ctx) => request<ActionExecution[]>('GET',
+      `/api/actions?accountId=${encodeURIComponent(ctx.accountId)}&personId=${encodeURIComponent(ctx.personId)}&spaceId=${encodeURIComponent(ctx.spaceId)}`),
     stopService: (serviceId, req) =>
       request<StopServiceResponse>('POST', `/api/services/${encodeURIComponent(serviceId)}/stop`, req),
     advanceClock: (serviceId, req) =>

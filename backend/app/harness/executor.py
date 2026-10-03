@@ -14,7 +14,7 @@ from typing import Callable, Optional
 from app.adapters.gateway import AdapterDeviceGateway
 from app.adapters.protocol import DeviceAdapter, DeviceCommandReceipt, DeviceCommandRequest, DeviceGateway
 from app.clock import Clock, utc_now
-from app.contracts import ActionExecution, ActionResult, DeviceAction, ExecutionGrant
+from app.contracts import ActionExecution, ActionResult, DeviceAction, ExecutionGrant, RequestContext
 from app.harness.grants import grant_denial_reason
 from app.harness.policy import validate_action
 from app.observability.events import record
@@ -45,7 +45,9 @@ class Executor:
         on_result: OnResult,
         *,
         grant: Optional[ExecutionGrant] = None,
-        plan_id: str = "legacy",
+        plan_id: Optional[str] = None,
+        context: Optional[RequestContext] = None,
+        source: str = "plan",
         service_id: Optional[str] = None,
         service_epoch: int = 0,
         on_execution: Optional[OnExecution] = None,
@@ -58,6 +60,8 @@ class Executor:
                 guard,
                 grant=grant,
                 plan_id=plan_id,
+                context=context,
+                source=source,
                 service_id=service_id,
                 service_epoch=service_epoch,
                 on_execution=on_execution,
@@ -77,20 +81,27 @@ class Executor:
         guard: Guard,
         *,
         grant: Optional[ExecutionGrant],
-        plan_id: str,
+        plan_id: Optional[str],
+        context: Optional[RequestContext],
+        source: str,
         service_id: Optional[str],
         service_epoch: int,
         on_execution: Optional[OnExecution],
     ) -> ActionResult:
         base = dict(action_id=action.action_id, device=action.device, command=action.command, value=action.value)
         execution = None
-        if grant is not None:
+        if grant is not None or on_execution is not None:
+            if grant is None and context is None:
+                raise ValueError("A tracked manual action requires its checked request context")
             execution = ActionExecution(
                 action_id=action.action_id,
-                grant_id=grant.grant_id,
+                grant_id=grant.grant_id if grant else None,
                 plan_id=plan_id,
+                account_id=grant.account_id if grant else context.account_id,
+                person_id=grant.person_id if grant else context.person_id,
+                source=source,
                 service_id=service_id,
-                space_id=grant.space_id,
+                space_id=grant.space_id if grant else context.space_id,
                 device=action.device,
                 command=action.command,
                 requested_value=action.value,

@@ -473,9 +473,10 @@ class DeviceControlRequest(Contract):
 
 
 class DeviceControlResponse(Contract):
-    device_state: "DeviceState"
+    device_state: Optional["DeviceState"]
     result: "ActionResult"
     undo: Optional[UndoWindow] = Field(description="Null when the write did not succeed")
+    warning: Optional[str] = None
 
 
 class UndoRequest(Contract):
@@ -483,9 +484,10 @@ class UndoRequest(Contract):
 
 
 class UndoResponse(Contract):
-    device_state: "DeviceState"
+    device_state: Optional["DeviceState"]
     result: "ActionResult"
     restored_value: float
+    warning: Optional[str] = None
 
 
 class PolicyRuleResult(Contract):
@@ -536,8 +538,11 @@ class ActionExecution(Contract):
     """Durable command ledger entry, separate from the user-facing action result."""
 
     action_id: str
-    grant_id: str
-    plan_id: str
+    grant_id: Optional[str]
+    plan_id: Optional[str]
+    account_id: Optional[str] = None
+    person_id: Optional[str] = None
+    source: Literal["plan", "manual", "undo"] = "plan"
     service_id: Optional[str]
     space_id: str
     device: DeviceType
@@ -553,6 +558,10 @@ class ActionExecution(Contract):
     observed_at: Optional[datetime] = None
     error_kind: Optional[str] = None
     error_detail: Optional[str] = None
+    recovery_attempts: int = Field(default=0, ge=0)
+    last_checked_at: Optional[datetime] = None
+    next_check_at: Optional[datetime] = None
+    recovery_exhausted: bool = False
 
 
 class ReconcileActionRequest(Contract):

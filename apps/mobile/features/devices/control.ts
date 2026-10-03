@@ -5,7 +5,13 @@
 // read-back value is the truth again. Without this, every device refresh yanks the
 // handle out from under the person dragging it.
 
-import type { DeviceType } from '../../services/types';
+import type { ActionResult, DeviceType } from '../../services/types';
+
+export function controlResultMessage(result: ActionResult): string | undefined {
+  if (result.outcome === 'succeeded') return undefined;
+  if (result.outcome === 'unknown') return '结果待核对，请到空间页查看操作记录；不要重复操作';
+  return result.reason ?? '操作未完成，请查看操作记录';
+}
 
 export interface DeviceRange {
   readonly min: number;

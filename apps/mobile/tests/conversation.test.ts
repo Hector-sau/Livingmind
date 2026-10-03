@@ -59,6 +59,7 @@ const result = (outcome: ActionResult['outcome']): ActionResult => ({
 });
 
 const receipt: ActionExecution = {
+  source: 'plan', recoveryAttempts: 0, recoveryExhausted: false,
   actionId: 'a', planId: 'p1', spaceId: 's', serviceId: 'service', grantId: 'grant',
   serviceEpoch: 0, attemptCount: 1, device: 'ac', command: 'set_target_temperature',
   requestedAt: '', requestedValue: 24, status: 'completed', observedValue: 24,

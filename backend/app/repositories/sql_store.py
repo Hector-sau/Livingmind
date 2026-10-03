@@ -45,6 +45,7 @@ from app.db.models import (
 from app.events.envelope import Envelope
 from app.db.session import session_scope
 from app.repositories.store import PlanRecord
+from app.repositories.action_recovery import ActionRecoveryStore
 
 
 def _service_from_row(row: ServiceRow, steps: list[ScheduledStepRow]) -> Service:
@@ -53,7 +54,7 @@ def _service_from_row(row: ServiceRow, steps: list[ScheduledStepRow]) -> Service
     return Service.model_validate(payload)
 
 
-class SqlStore:
+class SqlStore(ActionRecoveryStore):
     owner_id = None  # set by remote-gateway RestService after acquiring its owner lock
 
     def get_setting(self, key):
@@ -369,7 +370,9 @@ class SqlStore:
 
     def save_action_execution(self, execution: ActionExecution) -> None:
         with session_scope() as session:
-            row = session.get(ActionExecutionRow, execution.action_id)
+            row = session.get(ActionExecutionRow, execution.action_id, with_for_update=True)
+            if row is not None and row.status in ("completed", "failed", "rejected", "cancelled"):
+                return
             if row is None:
                 row = ActionExecutionRow(action_id=execution.action_id)
                 session.add(row)
@@ -387,6 +390,13 @@ class SqlStore:
             row = session.get(ActionExecutionRow, action_id)
             return ActionExecution.model_validate(row.payload) if row else None
 
+    def recent_action_executions(self, space_id: str) -> list[ActionExecution]:
+        with session_scope() as session:
+            rows = session.scalars(select(ActionExecutionRow).where(ActionExecutionRow.space_id == space_id)
+                                   .order_by(ActionExecutionRow.updated_at.desc(), ActionExecutionRow.action_id.desc())
+                                   .limit(200)).all()
+            return [ActionExecution.model_validate(row.payload) for row in rows]
+
     def unresolved_action_executions(self) -> list[ActionExecution]:
         with session_scope() as session:
             rows = session.scalars(
@@ -396,7 +406,8 @@ class SqlStore:
             ).all()
             return [ActionExecution.model_validate(row.payload) for row in rows]
 
-    def resolve_unknown_action(self, execution: ActionExecution, result: ActionResult) -> Optional[ActionExecution]:
+    def resolve_unknown_action(self, execution: ActionExecution, result: ActionResult,
+                               recovery_token: Optional[str] = None) -> Optional[ActionExecution]:
         # Compare under a row lock. A duplicate reconciler cannot overwrite a terminal
         # result, and the action ledger + displayed plan result commit together.
         with session_scope() as session:
@@ -405,19 +416,26 @@ class SqlStore:
                 return None
             if row.status != "unknown":
                 return ActionExecution.model_validate(row.payload)
+            if recovery_token is not None and row.recovery_token != recovery_token:
+                return ActionExecution.model_validate(row.payload)
+            current = ActionExecution.model_validate(row.payload)
+            execution = execution.model_copy(update={"recovery_attempts": current.recovery_attempts,
+                "last_checked_at": execution.completed_at, "next_check_at": None, "recovery_exhausted": False})
             row.status = execution.status
             row.payload = execution.model_dump(mode="json")
-            plan = session.get(PlanRow, execution.plan_id, with_for_update=True)
+            row.recovery_token = row.recovery_until = None
+            plan = session.get(PlanRow, execution.plan_id, with_for_update=True) if execution.plan_id else None
+            from app.harness.reconciliation import reconciliation_activity
             if plan:
-                from app.harness.reconciliation import reconciliation_activity
                 present = any(item.get("action_id") == execution.action_id for item in plan.results)
                 plan.results = [result.model_dump(mode="json") if item.get("action_id") == execution.action_id
                                 and item.get("outcome") == "unknown" else item for item in plan.results]
                 if not present:
                     plan.results = [*plan.results, result.model_dump(mode="json")]
-                activity = reconciliation_activity(execution, result, plan.person_id)
-                session.add(ActivityRow(activity_id=activity.activity_id, space_id=activity.space_id,
-                                        payload=activity.model_dump(mode="json")))
+            activity = reconciliation_activity(execution, result,
+                                                execution.person_id or (plan.person_id if plan else None))
+            session.add(ActivityRow(activity_id=activity.activity_id, space_id=activity.space_id,
+                                    payload=activity.model_dump(mode="json")))
             return execution.model_copy(deep=True)
 
     # ---- activity ----
@@ -482,7 +500,7 @@ class SqlStore:
                 "actions": session.scalar(select(func.count()).select_from(ActionExecutionRow)) or 0,
             }
 
-    def startup_reconcile(self) -> dict[str, int]:
+    def startup_reconcile(self, *, include_legacy: bool = True) -> dict[str, int]:
         """Resolve process-local work left behind by a crash without replaying an uncertain device action."""
         with session_scope() as session:
             active = session.scalar(select(func.count()).select_from(ServiceRow).where(ServiceRow.status == "active")) or 0
@@ -490,7 +508,7 @@ class SqlStore:
             owners = set()
             for table in (ServiceFlagRow, ScheduledStepRow, ActionExecutionRow):
                 owners.update(session.scalars(select(table.owner_id).distinct()).all())
-            gone = {owner for owner in owners if owner_is_gone(session, owner)}
+            gone = {owner for owner in owners if (include_legacy or owner is not None) and owner_is_gone(session, owner)}
             flags = session.scalars(select(ServiceFlagRow).with_for_update()).all()
             flags = [row for row in flags if row.owner_id in gone]
             running = session.scalars(
@@ -504,16 +522,17 @@ class SqlStore:
                 session.delete(row)
             unresolved = session.scalars(
                 select(ActionExecutionRow)
-                .where(ActionExecutionRow.status.in_(("dispatching", "accepted")))
+                .where(ActionExecutionRow.status.in_(("pending", "dispatching", "accepted")))
                 .with_for_update()
             ).all()
             unresolved = [row for row in unresolved if row.owner_id in gone]
             for row in unresolved:
                 payload = dict(row.payload)
-                payload["status"] = "unknown"
+                payload["status"] = "cancelled" if row.status == "pending" else "unknown"
                 payload["error_kind"] = "restart_reconciliation"
-                payload["error_detail"] = "进程重启时设备最终结果不可确定，需通过 actionId 向网关对账"
-                row.status = "unknown"
+                payload["error_detail"] = ("发送前执行进程已退出，动作已取消" if row.status == "pending"
+                                           else "执行进程退出时设备最终结果不可确定，需通过 actionId 向网关对账")
+                row.status = payload["status"]
                 row.payload = payload
             unknown_actions = session.scalar(
                 select(func.count()).select_from(ActionExecutionRow).where(ActionExecutionRow.status == "unknown")

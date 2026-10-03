@@ -358,6 +358,7 @@ export function createMockApi(options: MockOptions = {}): LivingMindApi {
 
   return {
     mode: 'mock',
+    async getActions() { return []; }, // Mock has no durable ledger; UI labels this explicitly.
     async reconcileAction() {
       throw new ApiError('NOT_FOUND', '前端模拟没有持久化设备回执，请使用后端模式');
     },

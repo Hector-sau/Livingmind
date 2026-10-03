@@ -792,6 +792,38 @@ def scenario_unknown_receipt(page: Page) -> None:
     shot(page, "http-reconciled-without-replay")
 
 
+def scenario_manual_reconciliation(page: Page) -> None:
+    """Inject UI uncertainty, then query the real saved manual/undo ledger (no re-send)."""
+    writes = []
+    page.on("request", lambda req: writes.append(req.url)
+            if req.method == "POST" and (req.url.endswith("/devices/control") or "/devices/undo/" in req.url) else None)
+    # The backend succeeded; only hide that fact from the initial browser history.
+    def history(route):
+        response = route.fetch()
+        rows = response.json()
+        for row in rows:
+            if row["source"] in ("manual", "undo"):
+                row.update(status="unknown", observedValue=None)
+        route.fulfill(response=response, json=rows)
+    page.route("**/api/actions?*", history)
+    open_app(page, f"http://localhost:{HTTP_PORT}/")
+    tab(page, "space")
+    page.get_by_test_id("device-toggle-light").click()
+    page.get_by_test_id("undo-bar").wait_for()
+    page.get_by_test_id("undo-button").click()
+    page.wait_for_selector('[data-testid="undo-bar"]', state="detached")
+    page.get_by_test_id("actions-refresh").click()
+    page.wait_for_function("document.querySelectorAll('[data-testid^=action-check-]').length === 2")
+    assert len(writes) == 2
+    for _ in range(2):
+        page.locator('[data-testid^="action-check-"]').first.click()
+        page.get_by_test_id("actions-note").get_by_text("已核对原动作回执", exact=False).wait_for()
+    assert len(writes) == 2, "receipt query must not write or undo again"
+    assert page.get_by_test_id("device-value-light").inner_text() == "80%"
+    assert page.locator('[data-testid^="action-check-"]').count() == 0
+    shot(page, "http-manual-undo-reconciled")
+
+
 def scenario_offline(page: Page, backend: subprocess.Popen) -> None:
     """Backend goes away: the app reports it and never fakes success."""
     open_app(page, f"http://localhost:{HTTP_PORT}/")
@@ -978,6 +1010,12 @@ def main() -> int:
                 scenario_unknown_receipt(page)
 
             run("http-unknown-receipt", unknown_receipt)
+
+            def manual_reconciliation(page):
+                reset_backend()
+                scenario_manual_reconciliation(page)
+
+            run("http-manual-reconciliation", manual_reconciliation)
 
             def offline(page):
                 reset_backend()

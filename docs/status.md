@@ -1,5 +1,7 @@
 # 实现状态
 
+> **统一动作与常驻恢复增量（2026-10-03）**：已补手动控制/撤销业务账本、只读 Recovery Worker、空间页核对、v3 人工审核与用例哈希检查。验收与当前发布状态以 [交接顶部](../AGENT-HANDOFF.md) 为准。旧 251/1、101、28/28 是上一批基线，不代表本批次。设计与限制见 [动作恢复](action-recovery.md)。
+
 > **2026-10-03 独立网关批次已发布**：最终业务代码 **a3594c1**，CI [37114091256](https://github.com/Hector-sau/Livingmind/actions/runs/37114091256) **六项通过**。已增加持久化 HTTP/SQLite 虚拟网关、双 API 故障测试、ownerId 恢复、SQL 执行锁、共享撤销/能源模式、页面核对，以及网关离线时仍保存停止事实。CI 默认后端 **210/42**、SQL+legacy **242/10**、全栈 **251/1**、前端 **101/101**、契约、迁移、Docker 浏览器 **28/28**；本机最终 Docker+LangGraph 浏览器也 **28/28**，iOS/Android JS 导出通过。uuid 已修补，仍有两个根依赖公告未解决。详见 [交接](../AGENT-HANDOFF.md)、[独立网关](durable-gateway.md)、[依赖风险](dependency-risk.md)。下文旧数字保留为历史；v3 人工审核、安装包/真机与真实设备仍未完成。
 
 > **2026-10-03 当前回归**：默认后端 **170 通过 / 33 跳过**；SQL+legacy **195/8**；SQL+Redis+LangGraph **202/1**；全栈唯一跳过项为内存专属断言。前端类型检查与 **92/92**、契约一致、本地内存浏览器 **28/28** 已通过。GitHub 提交 `7867d9c` 的 [CI 37038661216](https://github.com/Hector-sau/Livingmind/actions/runs/37038661216) **6/6 Job 全绿**，三套后端数字一致，Docker 浏览器 **28/28**。原始证据为 `docs/evidence/engineering-regression-2026-10-03.xml` 和 `docs/evidence/github-ci-37038661216.json`；真机仍未验。

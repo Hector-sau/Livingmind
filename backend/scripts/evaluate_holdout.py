@@ -29,6 +29,7 @@ from app.services.planner import Planner, provider_from_config  # noqa: E402
 from app.services.rest_service import RestService  # noqa: E402
 from app.repositories.store import MemoryStore  # noqa: E402
 from app.memory.repository import InMemoryPreferenceRepository  # noqa: E402
+from scripts.dataset_review import cases_hash, require_review  # noqa: E402
 
 CASES_PATH = Path(__file__).resolve().parents[1] / "evals" / "router_challenge_v1.json"
 PERSONS = {person.person_id: person for person in seed.PERSONS}
@@ -87,11 +88,18 @@ def main() -> int:
     parser.add_argument("--model", action="store_true", help="call the configured real model for each rest request")
     parser.add_argument("--dataset", type=Path, default=CASES_PATH, help="labelled JSON; default is the development regression set")
     parser.add_argument("--output", type=Path, help="write machine-readable results to this path")
+    parser.add_argument("--review-info", action="store_true", help="print metadata/hash without scoring or model calls")
     args = parser.parse_args()
     dataset = json.loads(args.dataset.read_text(encoding="utf-8"))
     cases = dataset["cases"]
-    if args.model and dataset.get("status") == "candidate_not_accepted":
-        parser.error("candidate dataset requires human review before paid acceptance evaluation")
+    if args.review_info:
+        print(json.dumps({"dataset": args.dataset.name, "cases": len(cases), "status": dataset.get("status"),
+                          "human_reviewed": dataset.get("human_reviewed", False), "cases_sha256": cases_hash(dataset)}, ensure_ascii=False))
+        return 0
+    try:
+        require_review(dataset)
+    except ValueError as exc:
+        parser.error(str(exc))
     service = None
     provider = None
     if args.model:
@@ -104,6 +112,9 @@ def main() -> int:
         )
     result = run(cases, service, args.dataset.stem)
     result["human_reviewed"] = dataset.get("human_reviewed", False)
+    result["cases_sha256"] = cases_hash(dataset)
+    result["reviewer"] = dataset.get("reviewer")
+    result["reviewed_at"] = dataset.get("reviewed_at")
     result["provider"] = provider.name if provider else None
     result["model"] = provider.model if provider else None
     if args.output:

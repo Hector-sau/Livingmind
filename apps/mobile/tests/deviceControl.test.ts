@@ -21,6 +21,7 @@ test('a control executes at once and offers an undo back to the previous value',
 
   const res = await api.controlDevice(space, { context: ctx, device: 'light', value: 20 });
   assert.equal(res.result.outcome, 'succeeded');
+  assert.ok(res.deviceState);
   assert.equal(res.deviceState.lightBrightness, 20);
   assert.ok(res.undo);
   assert.equal(res.undo?.previousValue, before);
@@ -35,6 +36,7 @@ test('undo restores the exact previous value, not a guessed opposite', async () 
 
   const undone = await api.undoDeviceControl(off.undo!.undoId, { context: ctx });
   assert.equal(undone.restoredValue, 30);
+  assert.ok(undone.deviceState);
   assert.equal(undone.deviceState.lightBrightness, 30, 'undoing "off" must not jump to full brightness');
 });
 
@@ -55,6 +57,7 @@ test('a newer control supersedes the older offer', async () => {
 
   await assert.rejects(() => api.undoDeviceControl(first.undo!.undoId, { context: ctx }));
   const undone = await api.undoDeviceControl(second.undo!.undoId, { context: ctx });
+  assert.ok(undone.deviceState);
   assert.equal(undone.deviceState.lightBrightness, 70);
 });
 

@@ -10,8 +10,10 @@ import { OfflineSimulationCard } from '../energy/OfflineSimulationCard';
 import { DevicePanel } from '../devices/DevicePanel';
 import { ServiceCard } from '../rest/ServiceCard';
 import type { RestFlow } from '../rest/useRestFlow';
+import type { LivingMindApi } from '../../services';
+import { ActionHistory } from '../activity/ActionHistory';
 
-export function SpaceScreen({ flow, showEvidence }: { flow: RestFlow; showEvidence: boolean }) {
+export function SpaceScreen({ api, flow, showEvidence }: { api: LivingMindApi; flow: RestFlow; showEvidence: boolean }) {
   const { state, actions } = flow;
   const { width } = useWindowDimensions();
   const wide = width >= SPLIT_BREAKPOINT;
@@ -91,6 +93,8 @@ export function SpaceScreen({ flow, showEvidence }: { flow: RestFlow; showEviden
           </Card>
         </View>
       </View>
+      {state.personId ? <ActionHistory key={`${state.personId}/${data.defaultSpaceId}`} api={api} refreshKey={state.busy}
+        context={{ accountId: data.account.accountId, personId: state.personId, spaceId: data.defaultSpaceId }} /> : null}
       <OfflineSimulationCard simulation={state.energySimulation} />
       {showEvidence ? (
         <View testID="evidence-panel-space">

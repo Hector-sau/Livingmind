@@ -16,6 +16,17 @@
             ],
             "title": "Acceptedat"
           },
+          "accountId": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Accountid"
+          },
           "actionId": {
             "title": "Actionid",
             "type": "string"
@@ -78,8 +89,39 @@
             "title": "Errorkind"
           },
           "grantId": {
-            "title": "Grantid",
-            "type": "string"
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Grantid"
+          },
+          "lastCheckedAt": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Lastcheckedat"
+          },
+          "nextCheckAt": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Nextcheckat"
           },
           "observedAt": {
             "anyOf": [
@@ -104,9 +146,38 @@
             ],
             "title": "Observedvalue"
           },
+          "personId": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Personid"
+          },
           "planId": {
-            "title": "Planid",
-            "type": "string"
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Planid"
+          },
+          "recoveryAttempts": {
+            "default": 0,
+            "minimum": 0.0,
+            "title": "Recoveryattempts",
+            "type": "integer"
+          },
+          "recoveryExhausted": {
+            "default": false,
+            "title": "Recoveryexhausted",
+            "type": "boolean"
           },
           "requestedAt": {
             "format": "date-time",
@@ -131,6 +202,16 @@
               }
             ],
             "title": "Serviceid"
+          },
+          "source": {
+            "default": "plan",
+            "enum": [
+              "plan",
+              "manual",
+              "undo"
+            ],
+            "title": "Source",
+            "type": "string"
           },
           "spaceId": {
             "title": "Spaceid",
@@ -978,7 +1059,14 @@
       "DeviceControlResponse": {
         "properties": {
           "deviceState": {
-            "$ref": "#/components/schemas/DeviceState"
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DeviceState"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "result": {
             "$ref": "#/components/schemas/ActionResult"
@@ -993,6 +1081,17 @@
               }
             ],
             "description": "Null when the write did not succeed"
+          },
+          "warning": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Warning"
           }
         },
         "required": [
@@ -2726,7 +2825,14 @@
       "UndoResponse": {
         "properties": {
           "deviceState": {
-            "$ref": "#/components/schemas/DeviceState"
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DeviceState"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "restoredValue": {
             "title": "Restoredvalue",
@@ -2734,6 +2840,17 @@
           },
           "result": {
             "$ref": "#/components/schemas/ActionResult"
+          },
+          "warning": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Warning"
           }
         },
         "required": [
@@ -2868,6 +2985,111 @@
   },
   "openapi": "3.1.0",
   "paths": {
+    "/api/actions": {
+      "get": {
+        "description": "Recent actions for the checked person/space, including manual control and undo.",
+        "operationId": "getActions",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "accountId",
+            "required": true,
+            "schema": {
+              "title": "Accountid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "personId",
+            "required": true,
+            "schema": {
+              "title": "Personid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "spaceId",
+            "required": true,
+            "schema": {
+              "title": "Spaceid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/ActionExecution"
+                  },
+                  "title": "Response Getactions",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          }
+        },
+        "summary": "Get Actions",
+        "tags": [
+          "devices"
+        ]
+      }
+    },
     "/api/actions/{action_id}/reconcile": {
       "post": {
         "description": "Recheck an uncertain action's receipt without issuing another device command.",

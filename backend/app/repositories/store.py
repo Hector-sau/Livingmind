@@ -112,6 +112,8 @@ class Store(Protocol):
 
     def unresolved_action_executions(self) -> list[ActionExecution]: ...
 
+    def recent_action_executions(self, space_id: str) -> list[ActionExecution]: ...
+
     # ---- activity ----
     def append_activity(self, record: ActivityRecord) -> None: ...
 
@@ -273,6 +275,9 @@ class MemoryStore:
         return count
 
     def save_action_execution(self, execution: ActionExecution) -> None:
+        current = self._action_executions.get(execution.action_id)
+        if current and current.status in ("completed", "failed", "rejected", "cancelled"):
+            return  # a late timeout callback cannot erase a reconciled terminal result
         self._action_executions[execution.action_id] = execution.model_copy(deep=True)
 
     def get_action_execution(self, action_id: str) -> Optional[ActionExecution]:
@@ -283,17 +288,24 @@ class MemoryStore:
         current = self.get_action_execution(execution.action_id)
         if current is None or current.status != "unknown":
             return current
+        execution = execution.model_copy(update={"last_checked_at": execution.completed_at,
+                                                  "next_check_at": None, "recovery_exhausted": False})
         self.save_action_execution(execution)
         record = self._plans.get(execution.plan_id)
+        from app.harness.reconciliation import reconciliation_activity
         if record:
-            from app.harness.reconciliation import reconciliation_activity
             present = any(item.action_id == execution.action_id for item in record.results)
             record.results = [result.model_copy(deep=True) if item.action_id == execution.action_id
                               and item.outcome == "unknown" else item for item in record.results]
             if not present:
                 record.results.append(result.model_copy(deep=True))
-            self.append_activity(reconciliation_activity(execution, result, record.plan.person_id))
+        self.append_activity(reconciliation_activity(execution, result,
+                             execution.person_id or (record.plan.person_id if record else None)))
         return execution.model_copy(deep=True)
+
+    def recent_action_executions(self, space_id: str) -> list[ActionExecution]:
+        return [item.model_copy(deep=True) for item in reversed(list(self._action_executions.values()))
+                if item.space_id == space_id][:200]
 
     def unresolved_action_executions(self) -> list[ActionExecution]:
         return [

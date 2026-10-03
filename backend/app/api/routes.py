@@ -43,6 +43,13 @@ router = APIRouter(prefix="/api", responses=ERROR_RESPONSES)
 Svc = Depends(get_rest_service)
 
 
+@router.get("/actions", response_model=list[ActionExecution], operation_id="getActions", tags=["devices"])
+def get_actions(account_id: str = Query(alias="accountId"), person_id: str = Query(alias="personId"),
+                space_id: str = Query(alias="spaceId"), svc: RestService = Svc) -> list[ActionExecution]:
+    """Recent actions for the checked person/space, including manual control and undo."""
+    return svc.action_history(RequestContext(account_id=account_id, person_id=person_id, space_id=space_id))
+
+
 @router.post("/actions/{action_id}/reconcile", response_model=ActionExecution,
              operation_id="reconcileAction", tags=["devices"])
 def reconcile_action(action_id: str, body: ReconcileActionRequest, svc: RestService = Svc) -> ActionExecution:

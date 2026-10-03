@@ -26,6 +26,7 @@ import type {
   UndoWindow,
 } from '../../services/types';
 import { planBlockReason } from './planGate';
+import { controlResultMessage } from '../devices/control';
 
 export type Busy =
   | null
@@ -380,14 +381,12 @@ export function useRestFlow(api: LivingMindApi) {
         setState((s) => ({
           ...s,
           busy: null,
-          deviceState: res.deviceState,
-          deviceStale: false,
+          deviceState: res.deviceState ?? s.deviceState,
+          deviceStale: res.deviceState === null,
           devicePending: { ...s.devicePending, [device]: undefined },
-          deviceFailure:
-            res.result.outcome === 'succeeded'
-              ? { ...s.deviceFailure, [device]: undefined }
-              : { ...s.deviceFailure, [device]: res.result.reason ?? '操作失败，点击重试' },
-          undoWindow: res.undo ?? s.undoWindow,
+          deviceFailure: { ...s.deviceFailure, [device]: controlResultMessage(res.result) },
+          info: res.warning ?? controlResultMessage(res.result) ?? null,
+          undoWindow: res.undo,
         }));
         await loadActivity(ctx.spaceId);
         return { ok: true, value: res };
@@ -418,9 +417,11 @@ export function useRestFlow(api: LivingMindApi) {
       setState((s) => ({
         ...s,
         busy: null,
-        deviceState: res.deviceState,
-        deviceStale: false,
+        deviceState: res.deviceState ?? s.deviceState,
+        deviceStale: res.deviceState === null,
         devicePending: { ...s.devicePending, [window.device]: undefined },
+        deviceFailure: { ...s.deviceFailure, [window.device]: controlResultMessage(res.result) },
+        info: res.warning ?? controlResultMessage(res.result) ?? null,
         undoWindow: null,
       }));
       await loadActivity(ctx.spaceId);

@@ -13,6 +13,8 @@
 
 ## 系统架构
 
+2026-10-03 后续增量：[统一动作记录与后台核对](docs/action-recovery.md) 已补上手动控制、撤销和常驻只读恢复路径；[评测集审核](docs/evaluation-review.md) 说明人工审核后如何继续测模型。本批次测试与发布状态见交接文档。
+
 一个 Expo App、一个 FastAPI 后端、一层由后端契约生成的共享类型。App 不认识设备，只认识接口；后端不让 Agent 碰设备，只让它产出计划。
 
 ### 组成部分
@@ -32,6 +34,7 @@
 | 设备网关 | 幂等 `actionId`、空间代次（`service_epoch`）fencing、受理/完成/失败/拒绝/未知回执 | `backend/app/adapters/gateway.py` |
 | 可选独立网关 | HTTP + SQLite 持久化虚拟设备与回执；支持两个 API 共享同一设备状态 | `backend/app/adapters/{gateway_app,persistent_gateway,http_gateway}.py`、`compose.gateway.yaml` |
 | 跨进程执行所有权 | SQL 会话锁串行设备写入，按 ownerId 恢复死亡实例，不清理活跃实例 | `backend/app/db/ownership.py` |
+| 后台结果核对 | 短事务认领、事务外查询、退避与上限；不重发动作 | `backend/app/services/recovery_worker.py` |
 | 虚拟设备 | 有状态的灯 / 空调 / 窗帘，写入后回读 | `backend/app/adapters/virtual/` |
 | 存储 | 同一批用例两种实现：进程内存与 PostgreSQL | `backend/app/repositories/`、`backend/app/db/` |
 | 记忆 / 能源 / 事件 / 缓存 | 人物偏好、可解释能源规则、事件出箱、跨实例短锁 | `backend/app/{memory,energy,events,cache}/` |

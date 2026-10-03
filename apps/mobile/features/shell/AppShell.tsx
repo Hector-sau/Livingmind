@@ -142,7 +142,7 @@ export function AppShell({ api, backendLabel }: { api: LivingMindApi; backendLab
     tab === 'chat' ? (
       <ChatScreen api={api} flow={flow} messages={conversations[state.personId ?? 'none'] ?? []} dispatch={dispatch} />
     ) : tab === 'space' ? (
-      <SpaceScreen flow={flow} showEvidence={showEvidence} />
+      <SpaceScreen api={api} flow={flow} showEvidence={showEvidence} />
     ) : tab === 'scenes' ? (
       <ScenesScreen flow={flow} onOpenChat={() => setTab('chat')} />
     ) : (

@@ -342,8 +342,7 @@ class RestService:
             execution = self._store.get_action_execution(action_id)
             if execution is None:
                 raise ApiError("NOT_FOUND", "动作不存在")
-            plan = self._store.get_plan(execution.plan_id)
-            if plan is None or plan.plan.person_id != ctx.person_id or execution.space_id != ctx.space_id:
+            if not self._action_visible(execution, ctx):
                 raise ApiError("FORBIDDEN_CONTEXT", "动作不属于当前人物或空间")
         resolved = resolve_receipt(execution, self._gateway(ctx.space_id), self._clock)
         with self._lock:
@@ -351,6 +350,25 @@ class RestService:
             if current is None:
                 raise ApiError("NOT_FOUND", "动作记录已被重置")
             return current
+
+    def _action_visible(self, execution, ctx: RequestContext) -> bool:
+        # Legacy records predate embedded context; derive their person from a real plan.
+        plan = self._store.get_plan(execution.plan_id) if execution.plan_id else None
+        person_id = execution.person_id or (plan.plan.person_id if plan else None)
+        return (execution.space_id == ctx.space_id and person_id == ctx.person_id
+                and execution.account_id in (None, ctx.account_id))
+
+    def action_history(self, ctx: RequestContext):
+        self._check_context(ctx)
+        return [item for item in self._store.recent_action_executions(ctx.space_id)
+                if self._action_visible(item, ctx)][:50]
+
+    @staticmethod
+    def _control_snapshot(adapter):
+        try:
+            return adapter.read_state(), None
+        except OSError:
+            return None, "设备状态暂时无法回读；请核对动作回执，不要因未收到回复重复操作"
 
     def handle_message(
         self,
@@ -945,8 +963,15 @@ class RestService:
                     action=result,
                 )
 
-            Executor(adapter, gateway=self._gateway(space_id), execution_guard=self._execution_guard).run(
-                [action], guard, on_result, service_epoch=epoch_at_start)
+            # Any new explicit control supersedes an old undo offer, even if its reply
+            # is lost. Keeping the old offer could overwrite an uncertain newer write.
+            self._undo = {key: entry for key, entry in self._undo.items() if entry[0].space_id != space_id}
+            if isinstance(self._store, SqlStore):
+                self._store.set_setting(f"undo:{space_id}", None)
+            Executor(adapter, gateway=self._gateway(space_id), clock=self._clock,
+                     execution_guard=self._execution_guard).run(
+                [action], guard, on_result, service_epoch=epoch_at_start, context=ctx,
+                source="manual", on_execution=self._store.save_action_execution)
             result = results[0]
 
             undo: Optional[UndoWindow] = None
@@ -970,9 +995,8 @@ class RestService:
                     self._store.set_setting(f"undo:{space_id}", {"window": undo.model_dump(mode="json"),
                                                                "epoch": epoch_at_start, "person": ctx.person_id})
 
-            return DeviceControlResponse(
-                device_state=adapter.read_state(), result=result, undo=undo
-            )
+            state, warning = self._control_snapshot(adapter)
+            return DeviceControlResponse(device_state=state, result=result, undo=undo, warning=warning)
 
     def undo_device_control(self, undo_id: str, ctx: RequestContext) -> UndoResponse:
         """Put the device back exactly where it was.
@@ -1032,15 +1056,20 @@ class RestService:
             # Consume before the uncertain write. A lost reply cannot permit a replay.
             if isinstance(self._store, SqlStore):
                 self._store.set_setting(f"undo:{ctx.space_id}", None)
-            Executor(adapter, gateway=self._gateway(ctx.space_id), execution_guard=self._execution_guard).run(
-                [action], guard, on_result, service_epoch=epoch_at_write)
+            self._undo.pop(undo_id, None)
+            Executor(adapter, gateway=self._gateway(ctx.space_id), clock=self._clock,
+                     execution_guard=self._execution_guard).run(
+                [action], guard, on_result, service_epoch=epoch_at_write, context=ctx,
+                source="undo", on_execution=self._store.save_action_execution)
             result = results[0]
             # The offer is consumed either way: a failed undo must not be retried silently.
             self._undo.pop(undo_id, None)
+            state, warning = self._control_snapshot(adapter)
             return UndoResponse(
-                device_state=adapter.read_state(),
+                device_state=state,
                 result=result,
                 restored_value=window.previous_value,
+                warning=warning,
             )
 
     # ---- environment events (step 6) ----
