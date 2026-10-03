@@ -2680,10 +2680,28 @@
       "StopServiceResponse": {
         "properties": {
           "deviceState": {
-            "$ref": "#/components/schemas/DeviceState"
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DeviceState"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "service": {
             "$ref": "#/components/schemas/Service"
+          },
+          "warning": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Warning"
           }
         },
         "required": [

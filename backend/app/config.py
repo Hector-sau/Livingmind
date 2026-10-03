@@ -17,6 +17,9 @@ CORS_ORIGINS = _csv(os.getenv("LIVINGMIND_CORS_ORIGINS", "http://localhost:8081,
 # Empty = the demo runs fully in memory (default). Set to a PostgreSQL URL to persist
 # business facts, e.g. postgresql+psycopg://livingmind:...@127.0.0.1:5432/livingmind
 DATABASE_URL = os.getenv("LIVINGMIND_DATABASE_URL", "").strip()
+GATEWAY_URL = os.getenv("LIVINGMIND_GATEWAY_URL", "").strip()
+GATEWAY_TOKEN = os.getenv("LIVINGMIND_GATEWAY_TOKEN", "")
+GATEWAY_TIMEOUT_S = float(os.getenv("LIVINGMIND_GATEWAY_TIMEOUT_S", "3"))
 
 
 # ---- cache / coordination (T4) ----

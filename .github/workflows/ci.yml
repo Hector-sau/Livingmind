@@ -109,6 +109,10 @@ jobs:
   container-e2e:
     name: Docker API + browser E2E
     runs-on: ubuntu-latest
+    env:
+      COMPOSE_FILE: compose.yaml:compose.gateway.yaml
+      COMPOSE_PROFILES: replicas
+      LIVINGMIND_GATEWAY_TOKEN: ci-only-virtual-gateway-token
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -131,7 +135,7 @@ jobs:
       - name: wait for API
         run: |
           for attempt in {1..40}; do
-            curl -fsS http://127.0.0.1:8000/health && exit 0
+            if curl -fsS 'http://127.0.0.1:8000/api/bootstrap?accountId=demo-account' >/dev/null && curl -fsS 'http://127.0.0.1:8001/api/bootstrap?accountId=demo-account' >/dev/null; then exit 0; fi
             sleep 2
           done
           docker compose logs

@@ -9,7 +9,7 @@
 
 准备面试或核对技术成果，从 [当前工程与评测证据](docs/interview-evidence-2026-10-02.md) 开始：包含模型选型原始结果、跨进程故障、网关未知回执、Outbox 顺序与恢复、分段日志及本轮测试报告。每条结论都标明模拟范围与未验证部分。
 
-想理解为什么这样设计，读 [设计过程与验证记录](docs/design-and-validation-2026-10-03.md)：请求理解的安全边界、40 次真实调用为什么没有支持默认开启连接复用、回执丢失后怎样核对，以及尚待完成的独立网关与双 API 验证。
+想理解为什么这样设计，读 [设计过程与验证记录](docs/design-and-validation-2026-10-03.md)：请求理解的安全边界、40 次真实调用为什么没有支持默认开启连接复用，以及回执丢失后怎样核对。新增的 [独立网关与双 API 说明](docs/durable-gateway.md) 包含持久化、真实 HTTP 进程故障实验、核对按钮和运行方式；[依赖风险记录](docs/dependency-risk.md) 列明已修复与仍未解决的依赖问题。
 
 ## 系统架构
 
@@ -30,6 +30,8 @@
 | 图编排（可选） | 同样的阶段跑成 LangGraph 图，多出节点轨迹与 checkpoint | `backend/app/graph/` |
 | Harness | 预检、发放有界授权、执行动作 | `backend/app/harness/{policy,grants,executor}.py` |
 | 设备网关 | 幂等 `actionId`、空间代次（`service_epoch`）fencing、受理/完成/失败/拒绝/未知回执 | `backend/app/adapters/gateway.py` |
+| 可选独立网关 | HTTP + SQLite 持久化虚拟设备与回执；支持两个 API 共享同一设备状态 | `backend/app/adapters/{gateway_app,persistent_gateway,http_gateway}.py`、`compose.gateway.yaml` |
+| 跨进程执行所有权 | SQL 会话锁串行设备写入，按 ownerId 恢复死亡实例，不清理活跃实例 | `backend/app/db/ownership.py` |
 | 虚拟设备 | 有状态的灯 / 空调 / 窗帘，写入后回读 | `backend/app/adapters/virtual/` |
 | 存储 | 同一批用例两种实现：进程内存与 PostgreSQL | `backend/app/repositories/`、`backend/app/db/` |
 | 记忆 / 能源 / 事件 / 缓存 | 人物偏好、可解释能源规则、事件出箱、跨实例短锁 | `backend/app/{memory,energy,events,cache}/` |

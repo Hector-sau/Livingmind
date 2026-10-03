@@ -2,7 +2,7 @@
 
 更新：2026-10-03（新增独立评测、跨进程故障验证、Outbox 保序与分段日志）
 
-本日后续增量见 [设计与验证记录](design-and-validation-2026-10-03.md)：明确限制先澄清、模型方向检查、HTTP 连接复用实验（默认不开启）和 `POST /api/actions/{action_id}/reconcile` 只查回执。回执核对已在两种 Store 验证，但独立持久化网关和两个实际 API 副本仍是目标，不因新增接口就改成“已完成”。
+本日增量见 [设计与验证记录](design-and-validation-2026-10-03.md)：明确限制先澄清、模型方向检查、HTTP 连接复用实验（默认不开启）和只查回执。后续已实现 [独立持久化虚拟网关与双 API](durable-gateway.md)：可选 Compose 组合中两个 API 共享 HTTP/SQLite 虚拟网关；按进程所有权恢复、跨进程执行锁和 App 核对入口均有代码。最终验证数字和发布状态以交接文档顶部为准，真实设备仍未接入。
 
 这份文档用于回答三类问题：项目实际用了什么技术、每项技术解决什么问题、后续怎样把演示原型升级成可持续维护的真实工程。
 
@@ -38,7 +38,9 @@ iPad / Android App                          未来语音入口
                                                  │
                           DeviceGateway (idempotency + fence)
                                                  │
-                            虚拟设备 / 未来 SpaceMind / 厂商底座
+                         进程内虚拟设备（原单实例模式）
+                          或 HTTP → SQLite 虚拟网关（可选双 API）
+                          未来：SpaceMind / 厂商底座
 
 PostgreSQL：业务事实、人物记忆、计划、服务、动作、Outbox、Graph checkpoint
 Redis：短期空间锁与冷却快速判断；不缓存人物偏好或设备状态，不可作为事实来源
@@ -50,7 +52,7 @@ Docker Compose：在开发机和 CI 中统一启动 API、数据库、缓存和 
 
 1. 模型只生成体验目标，不能直接控制设备。
 2. LangGraph 负责理解和规划；`RestService + Harness + Executor + DeviceGateway` 负责确认、有界授权、停止和执行安全。Agent 和 Graph 不持有设备凭据。
-3. PostgreSQL 是唯一事实来源（source of truth）。
+3. PostgreSQL 是业务事实来源；独立网关保存设备状态与动作回执，二者职责不同。Redis 不保存权威业务或设备事实。
 4. Redis 丢失后系统应能降级运行，不能丢失人物偏好或服务事实。
 5. 事件总线故障不能阻止“确认、停止、设备执行”；待发送事件保存在 PostgreSQL Outbox。
 6. 所有消费者按 `event_id` 幂等，不能假设消息绝不会重复。

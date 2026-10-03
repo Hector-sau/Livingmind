@@ -33,6 +33,28 @@ export function ChatScreen({ api, flow, messages, dispatch }: Props) {
   const scroller = useRef<ScrollView>(null);
   const busy = state.busy !== null;
   const personId = state.personId ?? 'none';
+  const checking = useRef(new Set<string>());
+  const [checkingIds, setCheckingIds] = useState<string[]>([]);
+
+  const reconcile = async (message: Message) => {
+    if (message.kind !== 'result' || message.plan.personId !== personId || !state.data || checking.current.has(message.id)) return;
+    checking.current.add(message.id);
+    setCheckingIds([...checking.current]);
+    const context = { accountId: state.data.account.accountId, personId, spaceId: message.plan.spaceId };
+    try {
+      for (const result of message.results.filter((r) => r.outcome === 'unknown')) {
+        const receipt = await api.reconcileAction(result.actionId, context);
+        if (receipt.actionId !== result.actionId) throw new Error('回执与请求的动作不一致，保留未知状态');
+        dispatch({ type: 'reconcileResult', personId, messageId: message.id, receipt });
+      }
+    } catch (error) {
+      dispatch({ type: 'reconcileNote', personId, messageId: message.id,
+        text: `暂时无法核对：${error instanceof Error ? error.message : '请求失败'}。没有重发设备动作。` });
+    } finally {
+      checking.current.delete(message.id);
+      setCheckingIds([...checking.current]);
+    }
+  };
 
   useEffect(() => {
     const t = setTimeout(() => scroller.current?.scrollToEnd({ animated: true }), 50);
@@ -131,7 +153,7 @@ export function ChatScreen({ api, flow, messages, dispatch }: Props) {
   const stop = async () => {
     setAutoPlay(false);
     const res = await actions.stop();
-    if (res.ok) system('休息服务已停止，设备保持当前状态；未执行的整晚步骤已取消，之后的事件不会再触发调整', 'info');
+    if (res.ok) system(res.value.warning ?? '休息服务已停止，设备保持当前状态；未执行的整晚步骤已取消，之后的事件不会再触发调整', res.value.warning ? 'warning' : 'info');
     else system(`停止失败：${res.error.message}`, 'error');
   };
 
@@ -180,6 +202,8 @@ export function ChatScreen({ api, flow, messages, dispatch }: Props) {
             busy={busy}
             confirmLoading={state.busy === 'confirm'}
             onConfirm={confirm}
+            onReconcile={api.mode === 'http' ? () => void reconcile(m) : undefined}
+            reconcileLoading={checkingIds.includes(m.id)}
           />
         ))}
         {state.busy === 'plan' ? (

@@ -31,10 +31,12 @@ class Executor:
         *,
         gateway: Optional[DeviceGateway] = None,
         clock: Clock = utc_now,
+        execution_guard: Optional[Guard] = None,
     ):
         self._adapter = adapter
         self._gateway = gateway or AdapterDeviceGateway(adapter)
         self._clock = clock
+        self._execution_guard = execution_guard
 
     def run(
         self,
@@ -98,7 +100,7 @@ class Executor:
                 requested_at=self._clock(),
             )
             self._transition(execution, on_execution)
-        stop_reason = guard()
+        stop_reason = (self._execution_guard() if self._execution_guard else None) or guard()
         if stop_reason:
             self._finish(execution, "cancelled", error_detail=stop_reason, on_execution=on_execution)
             return ActionResult(**base, outcome="skipped", reason=stop_reason, observed_value=None)

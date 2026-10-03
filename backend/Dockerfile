@@ -18,6 +18,7 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 
 # Non-root: the demo backend never needs to write outside the image.
 RUN useradd --create-home --uid 10001 livingmind
+RUN mkdir -p /home/livingmind/gateway && chown livingmind:livingmind /home/livingmind/gateway
 COPY --from=builder /opt/venv /opt/venv
 WORKDIR /app
 COPY --chown=livingmind:livingmind app ./app

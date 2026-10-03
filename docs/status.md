@@ -1,6 +1,6 @@
 # 实现状态
 
-> **2026-10-03 第二轮增量（未提交/未推送）**：语义保护、Mock 同步、HTTP 配对测量、未知动作只读核对已完成。默认后端 **199/33**；SQL+Redis+LangGraph **231/1**；前端 **94/94** 与类型检查通过；本机 Docker API+LangGraph 浏览器 **28/28**。证据在 `implementation-*.xml`、`docker-browser-2026-10-03.json`。真实 DeepSeek 新增 40 次：连接复用 P50 较低而 P95 较高，默认关闭，不宣传总体提速。v3 人工审核、独立持久化网关、两个真实 API 副本、核对 UI 尚未完成。详见 [设计与验证](design-and-validation-2026-10-03.md)。下段以及后续旧测试数字均为前一轮历史，旧 CI 不能覆盖新修改。
+> **2026-10-03 独立网关批次**：前一批 `d3d0d87` 已推送，CI 37110992787 六项通过。后续增加 HTTP/SQLite 持久化虚拟网关、真实双 API 测试、ownerId 启动恢复、SQL 执行锁、共享撤销/能源模式、页面“核对结果（不重发）”，以及网关离线时仍保存停止事实。最终默认后端 **210/41**、前端 **101/101**、类型/契约和 iOS/Android JS 导出通过；新批次完整 SQL/容器验收及 GitHub 状态以 [交接文档](../AGENT-HANDOFF.md) 顶部为准，不能用旧 CI 代替。uuid 已修补，仍有两个根依赖公告未解决。详见 [独立网关](durable-gateway.md)、[依赖风险](dependency-risk.md)。下文旧阶段数字保留为历史；v3 人工审核与真实设备仍未完成。
 
 > **2026-10-03 当前回归**：默认后端 **170 通过 / 33 跳过**；SQL+legacy **195/8**；SQL+Redis+LangGraph **202/1**；全栈唯一跳过项为内存专属断言。前端类型检查与 **92/92**、契约一致、本地内存浏览器 **28/28** 已通过。GitHub 提交 `7867d9c` 的 [CI 37038661216](https://github.com/Hector-sau/Livingmind/actions/runs/37038661216) **6/6 Job 全绿**，三套后端数字一致，Docker 浏览器 **28/28**。原始证据为 `docs/evidence/engineering-regression-2026-10-03.xml` 和 `docs/evidence/github-ci-37038661216.json`；真机仍未验。
 

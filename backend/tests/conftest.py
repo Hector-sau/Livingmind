@@ -88,7 +88,7 @@ def truncate_test_database() -> None:
     with engine().begin() as connection:
         connection.execute(
             text(
-                "TRUNCATE action_executions, execution_grants, policy_decisions, "
+                "TRUNCATE shared_settings, action_executions, execution_grants, policy_decisions, "
                 "plans, services, scheduled_steps, service_flags, activity_records, "
                 "pending_clarifications, space_state, person_preferences RESTART IDENTITY"
             )
@@ -184,7 +184,7 @@ def sql_store(sql_repo):
     with engine().begin() as connection:
         connection.execute(
             text(
-                "TRUNCATE action_executions, execution_grants, policy_decisions, "
+                "TRUNCATE shared_settings, action_executions, execution_grants, policy_decisions, "
                 "plans, services, scheduled_steps, service_flags, activity_records, "
                 "space_state RESTART IDENTITY"
             )

@@ -40,6 +40,7 @@ from app.db.models import (
     ServiceFlagRow,
     ServiceRow,
     SpaceStateRow,
+    SharedSettingRow,
 )
 from app.events.envelope import Envelope
 from app.db.session import session_scope
@@ -53,6 +54,22 @@ def _service_from_row(row: ServiceRow, steps: list[ScheduledStepRow]) -> Service
 
 
 class SqlStore:
+    owner_id = None  # set by remote-gateway RestService after acquiring its owner lock
+
+    def get_setting(self, key):
+        with session_scope() as session:
+            row = session.get(SharedSettingRow, key)
+            return dict(row.payload) if row else None
+
+    def set_setting(self, key, value):
+        from sqlalchemy.dialects.postgresql import insert
+        with session_scope() as session:
+            if value is None:
+                session.query(SharedSettingRow).filter_by(key=key).delete()
+            else:
+                session.execute(insert(SharedSettingRow).values(key=key, payload=value).on_conflict_do_update(
+                    index_elements=[SharedSettingRow.key], set_={"payload": value}))
+
     # ---- ids ----
 
     def new_id(self, prefix: str) -> str:
@@ -140,6 +157,10 @@ class SqlStore:
             row = session.get(PlanRow, plan_id, with_for_update=True)
             if row is None:
                 return
+            # Reconciliation may have filled this result while the original
+            # request was still returning an unknown outcome. Never append it twice.
+            if any(item.get("action_id") == result.action_id for item in row.results):
+                return
             row.results = [*row.results, result.model_dump(mode="json")]
 
     def invalidate_proposed_plans(self, space_id: str) -> None:
@@ -155,8 +176,12 @@ class SqlStore:
 
     def save_service(self, service: Service, events: Optional[list[Envelope]] = None) -> None:
         with session_scope() as session:
+            row = session.get(ServiceRow, service.service_id, with_for_update=True)
+            # A late adjustment snapshot must not resurrect a service stopped elsewhere.
+            if row is not None and ((row.status == "stopped" and service.status != "stopped") or
+                                    (row.status in ("completed", "failed") and service.status == "active")):
+                return
             self._write_events(session, events)
-            row = session.get(ServiceRow, service.service_id)
             if row is None:
                 row = ServiceRow(service_id=service.service_id)
                 session.add(row)
@@ -217,6 +242,7 @@ class SqlStore:
                 )
                 .values(
                     status="running",
+                    owner_id=self.owner_id,
                     payload=ScheduledStepRow.payload.op("||")(cast(text("'{\"status\": \"running\"}'"), JSONB)),
                 )
                 .returning(ScheduledStepRow.step_id)
@@ -237,7 +263,7 @@ class SqlStore:
         with session_scope() as session:
             if session.get(ServiceFlagRow, (service_id, flag)) is not None:
                 return False
-            session.add(ServiceFlagRow(service_id=service_id, flag=flag))
+            session.add(ServiceFlagRow(service_id=service_id, flag=flag, owner_id=self.owner_id))
             return True
 
     def release_flag(self, service_id: str, flag: str) -> None:
@@ -347,6 +373,7 @@ class SqlStore:
             if row is None:
                 row = ActionExecutionRow(action_id=execution.action_id)
                 session.add(row)
+            row.owner_id = self.owner_id
             row.grant_id = execution.grant_id
             row.plan_id = execution.plan_id
             row.service_id = execution.service_id
@@ -382,8 +409,15 @@ class SqlStore:
             row.payload = execution.model_dump(mode="json")
             plan = session.get(PlanRow, execution.plan_id, with_for_update=True)
             if plan:
+                from app.harness.reconciliation import reconciliation_activity
+                present = any(item.get("action_id") == execution.action_id for item in plan.results)
                 plan.results = [result.model_dump(mode="json") if item.get("action_id") == execution.action_id
                                 and item.get("outcome") == "unknown" else item for item in plan.results]
+                if not present:
+                    plan.results = [*plan.results, result.model_dump(mode="json")]
+                activity = reconciliation_activity(execution, result, plan.person_id)
+                session.add(ActivityRow(activity_id=activity.activity_id, space_id=activity.space_id,
+                                        payload=activity.model_dump(mode="json")))
             return execution.model_copy(deep=True)
 
     # ---- activity ----
@@ -425,6 +459,7 @@ class SqlStore:
             session.query(ExecutionGrantRow).delete()
             session.query(PolicyDecisionRow).delete()
             session.query(OutboxEventRow).delete()
+            session.query(SharedSettingRow).delete()
             # Epochs only ever move forward, so requests still in flight stay invalid.
             for space_id in space_ids:
                 row = session.get(SpaceStateRow, space_id)
@@ -451,19 +486,28 @@ class SqlStore:
         """Resolve process-local work left behind by a crash without replaying an uncertain device action."""
         with session_scope() as session:
             active = session.scalar(select(func.count()).select_from(ServiceRow).where(ServiceRow.status == "active")) or 0
-            flags = session.scalar(select(func.count()).select_from(ServiceFlagRow)) or 0
+            from app.db.ownership import owner_is_gone
+            owners = set()
+            for table in (ServiceFlagRow, ScheduledStepRow, ActionExecutionRow):
+                owners.update(session.scalars(select(table.owner_id).distinct()).all())
+            gone = {owner for owner in owners if owner_is_gone(session, owner)}
+            flags = session.scalars(select(ServiceFlagRow).with_for_update()).all()
+            flags = [row for row in flags if row.owner_id in gone]
             running = session.scalars(
                 select(ScheduledStepRow).where(ScheduledStepRow.status == "running").with_for_update()
             ).all()
+            running = [row for row in running if row.owner_id in gone]
             for row in running:
                 row.status = "cancelled"
                 row.payload = {**row.payload, "status": "cancelled"}
-            session.query(ServiceFlagRow).delete()
+            for row in flags:
+                session.delete(row)
             unresolved = session.scalars(
                 select(ActionExecutionRow)
                 .where(ActionExecutionRow.status.in_(("dispatching", "accepted")))
                 .with_for_update()
             ).all()
+            unresolved = [row for row in unresolved if row.owner_id in gone]
             for row in unresolved:
                 payload = dict(row.payload)
                 payload["status"] = "unknown"
@@ -477,6 +521,6 @@ class SqlStore:
             return {
                 "active_services": int(active),
                 "cancelled_unknown_steps": len(running),
-                "cleared_inflight_flags": int(flags),
+                "cleared_inflight_flags": len(flags),
                 "unknown_actions": int(unknown_actions),
             }

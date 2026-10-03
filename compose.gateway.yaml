@@ -1,0 +1,63 @@
+# Opt-in durable virtual gateway. Keep the original single-process demo available.
+# LIVINGMIND_GATEWAY_TOKEN=<local secret> docker compose -f compose.yaml -f compose.gateway.yaml up -d --build
+# Add --profile replicas to start the second API at 127.0.0.1:8001.
+services:
+  gateway:
+    build:
+      context: ./backend
+    image: livingmind-api:dev
+    command: ["uvicorn", "app.adapters.gateway_app:create_app", "--factory", "--host", "0.0.0.0", "--port", "8010"]
+    environment:
+      LIVINGMIND_GATEWAY_TOKEN: "${LIVINGMIND_GATEWAY_TOKEN:?Set a local gateway token}"
+      LIVINGMIND_GATEWAY_DATA: /home/livingmind/gateway/gateway.sqlite3
+    volumes:
+      - gateway-data:/home/livingmind/gateway
+    healthcheck:
+      test: ["CMD", "python", "-c", "import os,urllib.request;urllib.request.urlopen(urllib.request.Request('http://127.0.0.1:8010/health',headers={'Authorization':'Bearer '+os.environ['LIVINGMIND_GATEWAY_TOKEN']})).read()"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+  api:
+    environment:
+      LIVINGMIND_GATEWAY_URL: http://gateway:8010
+      LIVINGMIND_GATEWAY_TOKEN: "${LIVINGMIND_GATEWAY_TOKEN:?Set a local gateway token}"
+    depends_on:
+      gateway:
+        condition: service_healthy
+  api2:
+    profiles: [replicas]
+    image: livingmind-api:dev
+    ports:
+      - "127.0.0.1:8001:8000"
+    volumes:
+      - ./simulation/home-energy/data:/simulation/home-energy/data:ro
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    environment:
+      LIVINGMIND_DATABASE_URL: "${LIVINGMIND_DATABASE_URL:-postgresql+psycopg://livingmind:livingmind@postgres:5432/livingmind}"
+      LIVINGMIND_REDIS_URL: "${LIVINGMIND_REDIS_URL:-redis://redis:6379/0}"
+      LIVINGMIND_GATEWAY_URL: http://gateway:8010
+      LIVINGMIND_GATEWAY_TOKEN: "${LIVINGMIND_GATEWAY_TOKEN:?Set a local gateway token}"
+      LIVINGMIND_ORCHESTRATOR: "${LIVINGMIND_ORCHESTRATOR:-legacy}"
+      LIVINGMIND_DEMO_LOCAL_HOUR: "20"
+      LIVINGMIND_CORS_ORIGINS: "${LIVINGMIND_CORS_ORIGINS:-http://localhost:8081,http://127.0.0.1:8081}"
+      LIVINGMIND_PLANNER_MODE: "${LIVINGMIND_PLANNER_MODE:-rule}"
+      DEEPSEEK_API_KEY: "${DEEPSEEK_API_KEY:-}"
+      DEEPSEEK_BASE_URL: "${DEEPSEEK_BASE_URL:-https://api.deepseek.com}"
+      DEEPSEEK_MODEL: "${DEEPSEEK_MODEL:-deepseek-chat}"
+      LIVINGMIND_MODEL_TIMEOUT_S: "${LIVINGMIND_MODEL_TIMEOUT_S:-6}"
+      LIVINGMIND_MODEL_REUSE_CONNECTIONS: "${LIVINGMIND_MODEL_REUSE_CONNECTIONS:-0}"
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      gateway:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request;urllib.request.urlopen('http://127.0.0.1:8000/health').read()"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+volumes:
+  gateway-data:

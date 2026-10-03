@@ -4,6 +4,18 @@ import { test } from 'node:test';
 import { ApiError } from '../services/api';
 import { createHttpApi } from '../services/http/httpApi';
 
+test('receipt reconciliation calls only the query endpoint with the acting context', async () => {
+  const calls: { url: string; method?: string; body: unknown }[] = [];
+  const api = createHttpApi({ baseUrl: 'http://backend.invalid', timeoutMs: 1000,
+    fetchImpl: async (url, init) => {
+      calls.push({ url: String(url), method: init?.method, body: JSON.parse(String(init?.body)) });
+      return new Response(JSON.stringify({ actionId: 'a/1', status: 'unknown' }));
+    } });
+  const context = { accountId: 'demo-account', personId: 'person-lin', spaceId: 's' };
+  assert.equal((await api.reconcileAction('a/1', context)).status, 'unknown');
+  assert.deepEqual(calls, [{ url: 'http://backend.invalid/api/actions/a%2F1/reconcile', method: 'POST', body: { context } }]);
+});
+
 test('unreachable backend surfaces NETWORK_ERROR instead of fake success', async () => {
   const api = createHttpApi({
     baseUrl: 'http://backend.invalid',

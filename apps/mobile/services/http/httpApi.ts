@@ -1,6 +1,7 @@
 // Real backend client. Failures are surfaced as ApiError; there is NO fallback to mock data.
 import { ApiError, DEMO_ACCOUNT_ID, type LivingMindApi } from '../api';
 import type {
+  ActionExecution,
   ActivityResponse,
   AdvanceClockResponse,
   AssistantReply,
@@ -103,6 +104,8 @@ export function createHttpApi(options: HttpOptions): LivingMindApi {
       request<OfflineEnergySimulation>('GET', `/api/spaces/${encodeURIComponent(spaceId)}/energy/simulation?${q}`),
     confirmPlan: (planId, req) =>
       request<ConfirmPlanResponse>('POST', `/api/plans/${encodeURIComponent(planId)}/confirm`, req),
+    reconcileAction: (actionId, context) =>
+      request<ActionExecution>('POST', `/api/actions/${encodeURIComponent(actionId)}/reconcile`, { context }),
     stopService: (serviceId, req) =>
       request<StopServiceResponse>('POST', `/api/services/${encodeURIComponent(serviceId)}/stop`, req),
     advanceClock: (serviceId, req) =>

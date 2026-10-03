@@ -2,7 +2,7 @@
 
 更新：2026-10-03（模型评测保留 2026-10-02 原始记录）。此表按可核对的代码、测试与原始结果整理；个人贡献待团队成员逐项确认。
 
-本日第二轮未提交增量的设计、实验与后续步骤见 [设计与验证记录](design-and-validation-2026-10-03.md)。**本轮没有新的 GitHub CI 结果**，以下把本地新验证和已发布的历史证据分开。
+语义保护与 40 次连接实验已发布为 `d3d0d87`，CI 37110992787 六项通过。后续独立网关和双 API 的设计、故障实验及限制见 [独立网关说明](durable-gateway.md)；新批次最终运行与发布状态见 [交接文档](../AGENT-HANDOFF.md)，旧 CI 不替代新 head 验收。
 
 | 主张 | 当前证据 | 边界 |
 |---|---|---|
@@ -11,11 +11,12 @@
 | PostgreSQL 业务约束 | `backend/app/repositories/sql_store.py`、`backend/tests/test_persistence.py` | 数据库约束不替代真实设备幂等与多实例联调 |
 | Redis 协调 | `backend/app/cache/locks.py`、`backend/app/cache/cooldown.py`、`backend/tests/test_cache_coordination.py` | 短锁和冷却；未做数据缓存提速实验；锁无续租 |
 | 事务出箱 | `backend/app/events/outbox.py`、`backend/tests/test_outbox_events.py`；独立数据库连接并发写入、发布、消费已验证 | PostgreSQL 事件队列；按空间保序；未接 Kafka，未做长期生产压力测试 |
-| 自动化回归（本轮） | 本机 Python 3.11 连接 Docker SQL+Redis+LangGraph **231 通过 / 1 跳过**；默认后端 **199/33**；前端 **94**；本机 Docker API+LangGraph 浏览器 **28/28** | `docs/evidence/implementation-*.xml`、`docker-browser-2026-10-03.json`；新改动未托管 CI，不代替真机验收 |
+| 自动化回归（新批次） | 最终默认后端 **210/41**；前端 **101** 与类型检查；iOS/Android JS/Hermes 导出通过 | `durable-gateway-memory-final-2026-10-03.xml`；完整 SQL/容器和托管 CI 结果见交接文档；导出不是安装包/真机 |
 | 请求语义保护 | 12 条新增开发回归；前端 Mock 和浏览器澄清流程同步 | 明确否定/限制先澄清；只检查列出的方向模式，不是通用语言理解。旧 v2 的失败已用于开发，新 v3 30 条候选待人工审核 |
 | 连接复用实验 | deepseek-flash 真实 40 次：每组 20 次；P50 1529.759→1393.337 ms，P95 2642.971→2972.948 ms，均通过预置方向检查 | `real-http-pooling-2026-10-03.json`；本地 HTTP API+内存存储，不含平板/设备；**P95 未改善，默认不启用**。不与模型选型的 96 次混算 |
-| 未知动作回执核对 | 14 条故障回归；只 query 不 submit；同事务更新账本/计划；停止后不续跑 | `tests/test_action_reconciliation.py`；网关回执仍在进程内，未实现跨网关重启恢复；App 专用按钮未接 |
-| 依赖风险记录 | 23 个受影响包，来自 3 个根公告 | `npm-audit-2026-10-03.json`；未完成可达性审计或修补，不宣称风险已消除 |
+| 未知动作回执核对 | 15 条专项用例；只 query 不 submit；账本/计划/单次活动记录同事务；App 已有核对按钮 | `tests/test_action_reconciliation.py`；独立网关回执持久化，原单实例模式仍在内存；停止后不续跑；直接控制核对入口仍有限 |
+| 双 API 故障验证 | 真实 HTTP 进程，覆盖跨实例停止、重复/不同计划、Redis TTL/断连、API/网关重启和共享撤销 | `test_http_replicas.py` 8 场景、`test_persistent_gateway.py` 10 用例；结果以新 CI/原始报告为准，非物理设备或生产可用性保证 |
+| 依赖修补 | xcode 使用的 uuid 升级至 11.1.1；受影响包 23→16，根公告 3→2 | `dependency-risk.md`、修补后原始审计；剩余 16 high，没有宣称全修复 |
 
 ## 2026-10-02 至首次 10-03 发布的历史实验
 

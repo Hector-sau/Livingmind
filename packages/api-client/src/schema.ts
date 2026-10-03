@@ -1502,8 +1502,10 @@ export interface components {
         };
         /** StopServiceResponse */
         StopServiceResponse: {
-            deviceState: components["schemas"]["DeviceState"];
+            deviceState: components["schemas"]["DeviceState"] | null;
             service: components["schemas"]["Service"];
+            /** Warning */
+            warning?: string | null;
         };
         /** UndoRequest */
         UndoRequest: {

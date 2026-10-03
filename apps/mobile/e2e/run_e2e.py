@@ -778,6 +778,18 @@ def scenario_unknown_receipt(page: Page) -> None:
     assert "已为你调整好" not in text and "未执行" not in text, text
     assert "不自动重发" in text, text
     shot(page, "http-unknown-receipt")
+    # Read-only receipt lookup can fix a historical card even after stop; it must
+    # neither restart the service nor submit another confirmation/device write.
+    page.get_by_test_id("stop-service").first.click()
+    page.get_by_text("休息服务已停止", exact=False).wait_for()
+    confirmations = []
+    page.on("request", lambda req: confirmations.append(req.url) if req.url.endswith("/confirm") else None)
+    page.get_by_test_id("reconcile-result").click()
+    card.get_by_text("已为你调整好", exact=True).wait_for()
+    assert "没有重发设备动作" in card.inner_text()
+    assert page.get_by_test_id("stop-service").count() == 0
+    assert confirmations == []
+    shot(page, "http-reconciled-without-replay")
 
 
 def scenario_offline(page: Page, backend: subprocess.Popen) -> None:

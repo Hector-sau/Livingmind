@@ -178,7 +178,7 @@ class MemoryStore:
 
     def append_result(self, plan_id: str, result: ActionResult) -> None:
         stored = self._plans.get(plan_id)
-        if stored is not None:
+        if stored is not None and not any(item.action_id == result.action_id for item in stored.results):
             stored.results.append(result.model_copy())
 
     def invalidate_proposed_plans(self, space_id: str) -> None:
@@ -286,8 +286,13 @@ class MemoryStore:
         self.save_action_execution(execution)
         record = self._plans.get(execution.plan_id)
         if record:
+            from app.harness.reconciliation import reconciliation_activity
+            present = any(item.action_id == execution.action_id for item in record.results)
             record.results = [result.model_copy(deep=True) if item.action_id == execution.action_id
                               and item.outcome == "unknown" else item for item in record.results]
+            if not present:
+                record.results.append(result.model_copy(deep=True))
+            self.append_activity(reconciliation_activity(execution, result, record.plan.person_id))
         return execution.model_copy(deep=True)
 
     def unresolved_action_executions(self) -> list[ActionExecution]:

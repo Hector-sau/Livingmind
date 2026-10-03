@@ -34,10 +34,22 @@ def test_reconcile_lost_reply_updates_ledger_and_plan_without_a_second_write(ser
     assert resolved.json()["status"] == "completed" and resolved.json()["attemptCount"] == 1
     again = client.post(f"/api/actions/{action_id}/reconcile", json={"context": ctx()})
     assert again.json() == resolved.json()
+    records = service.activity(context.account_id, context.space_id, 100)
+    assert len([r for r in records if r.activity_id.startswith("reconcile-")]) == 1
     repeated = service.confirm_plan(plan.plan_id, context, plan.version)
     assert repeated.results[0].outcome == "succeeded"
     assert repeated.results[1].outcome == "succeeded"
     assert service.device_state(context.account_id, context.space_id) == before
+
+
+def test_late_unknown_callback_does_not_duplicate_or_replace_a_reconciled_result(service):
+    context, _, plan, response = uncertain_action(service)
+    late = response.results[0]
+    service.reconcile_action(late.action_id, context)
+    service._store.append_result(plan.plan_id, late)
+    results = service._store.get_plan(plan.plan_id).results
+    assert len(results) == 3
+    assert results[0].outcome == "succeeded"
 
 
 @pytest.mark.parametrize("kind", ["missing", "wrong_id", "accepted", "timeout", "no_time", "old_time"])

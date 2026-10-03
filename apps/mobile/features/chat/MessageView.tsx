@@ -2,6 +2,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { Image, StyleSheet, Text, View } from 'react-native';
 
 import { Card } from '../../components/Card';
+import { Button } from '../../components/Button';
 import { DeviceIcon, Icon, type IconName } from '../../components/Icon';
 import { FadeIn } from '../../components/motion';
 import { Pill } from '../../components/Pill';
@@ -21,6 +22,8 @@ interface Props {
   busy: boolean;
   confirmLoading: boolean;
   onConfirm: () => void;
+  onReconcile?: () => void;
+  reconcileLoading?: boolean;
 }
 
 const SYSTEM_TONE: Record<string, { bg: string; fg: string; icon: IconName }> = {
@@ -41,7 +44,7 @@ function AssistantAvatar() {
   );
 }
 
-export function MessageView({ message, livePlan, actionable, blockReason, busy, confirmLoading, onConfirm }: Props) {
+export function MessageView({ message, livePlan, actionable, blockReason, busy, confirmLoading, onConfirm, onReconcile, reconcileLoading }: Props) {
   switch (message.kind) {
     case 'user':
       return (
@@ -116,6 +119,11 @@ export function MessageView({ message, livePlan, actionable, blockReason, busy, 
               <Text style={styles.note}>
                 {message.deviceState.source === 'virtual_device' ? '数值读回自后端虚拟设备' : '前端模拟设备'}，不代表真实硬件。
               </Text>
+              {message.results.some((r) => r.outcome === 'unknown') && onReconcile ? (
+                <Button label="核对结果（不重发）" variant="secondary" testID="reconcile-result"
+                  loading={reconcileLoading} onPress={onReconcile} />
+              ) : null}
+              {message.reconciliationNote ? <Text style={styles.note} testID="reconciliation-note">{message.reconciliationNote}</Text> : null}
             </Card>
           </View>
         </FadeIn>

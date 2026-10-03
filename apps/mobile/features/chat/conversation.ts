@@ -1,5 +1,5 @@
 // Conversation state for the chat home. Pure and in-memory: nothing is persisted.
-import type { ActionResult, AgentStep, DeviceState, Plan } from '../../services/types';
+import type { ActionExecution, ActionResult, AgentStep, DeviceState, Plan } from '../../services/types';
 
 export type Message =
   // `badge` names where the text came from when it was not typed: a tapped example or
@@ -7,13 +7,15 @@ export type Message =
   | { kind: 'user'; id: string; text: string; at: string; badge?: string | null }
   | { kind: 'assistant'; id: string; text: string; trace: AgentStep[]; at: string }
   | { kind: 'plan'; id: string; plan: Plan; at: string }
-  | { kind: 'result'; id: string; plan: Plan; results: ActionResult[]; deviceState: DeviceState; repeated: boolean; at: string }
+  | { kind: 'result'; id: string; plan: Plan; results: ActionResult[]; deviceState: DeviceState; repeated: boolean; at: string; reconciliationNote?: string }
   | { kind: 'system'; id: string; text: string; tone: 'info' | 'success' | 'warning' | 'error'; at: string };
 
 export type Conversations = Record<string, Message[]>;
 
 export type ConversationAction =
   | { type: 'append'; personId: string; message: Message }
+  | { type: 'reconcileResult'; personId: string; messageId: string; receipt: ActionExecution }
+  | { type: 'reconcileNote'; personId: string; messageId: string; text: string }
   | { type: 'clearAll' };
 
 export function conversationReducer(state: Conversations, action: ConversationAction): Conversations {
@@ -24,6 +26,29 @@ export function conversationReducer(state: Conversations, action: ConversationAc
     }
     case 'clearAll':
       return {};
+    case 'reconcileResult':
+    case 'reconcileNote': {
+      const list = state[action.personId];
+      // A late read may update existing history, never recreate a reset conversation.
+      if (!list?.some((m) => m.id === action.messageId)) return state;
+      return { ...state, [action.personId]: list.map((m) => {
+        if (m.id !== action.messageId || m.kind !== 'result' || m.plan.personId !== action.personId) return m;
+        if (action.type === 'reconcileNote') return { ...m, reconciliationNote: action.text };
+        const r = action.receipt;
+        if (r.planId !== m.plan.planId || r.spaceId !== m.plan.spaceId) return m;
+        const terminal = r.status === 'completed' || r.status === 'failed' || r.status === 'rejected';
+        return {
+          ...m,
+          reconciliationNote: terminal ? '已核对历史回执；没有重发设备动作，也没有重启服务。' : '暂未查到最终回执，结果仍未知；没有重发设备动作。',
+          results: m.results.map((previous): ActionResult => {
+            if (previous.actionId !== r.actionId || previous.outcome !== 'unknown' || !terminal) return previous;
+            if (previous.device !== r.device || previous.command !== r.command || previous.value !== r.requestedValue) return previous;
+            return { ...previous, outcome: r.status === 'completed' ? 'succeeded' : r.status as 'failed' | 'rejected',
+              observedValue: r.observedValue ?? null, reason: r.errorDetail ?? null };
+          }),
+        };
+      }) };
+    }
   }
 }
 

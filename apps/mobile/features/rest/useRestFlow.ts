@@ -345,7 +345,7 @@ export function useRestFlow(api: LivingMindApi) {
     patch({ busy: 'stop', error: null, info: null });
     try {
       const res = await api.stopService(service.serviceId, { context: ctx });
-      patch({ service: res.service, deviceState: res.deviceState, deviceStale: false, busy: null });
+      patch({ service: res.service, deviceState: res.deviceState ?? stateRef.current.deviceState, deviceStale: res.deviceState === null, busy: null });
       await loadActivity(ctx.spaceId);
       return { ok: true, value: res };
     } catch (e) {

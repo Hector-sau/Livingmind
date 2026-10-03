@@ -6,7 +6,17 @@ command caused it, so it must not be used to turn unknown into completed.
 
 from app.adapters.protocol import DeviceGateway
 from app.clock import Clock
-from app.contracts import ActionExecution, ActionResult
+from app.contracts import ActionExecution, ActionResult, ActivityRecord
+from uuid import uuid5, NAMESPACE_URL
+
+
+def reconciliation_activity(execution, result, person_id):
+    return ActivityRecord(activity_id=f"reconcile-{uuid5(NAMESPACE_URL, execution.action_id)}",
+                          timestamp=execution.completed_at, space_id=execution.space_id,
+                          kind="action_executed" if result.outcome == "succeeded" else "action_rejected",
+                          source="executor", message=f"回执核对：{execution.action_id} → {execution.status}（未重发设备动作）",
+                          service_id=execution.service_id, plan_id=execution.plan_id,
+                          person_id=person_id, action=result)
 
 
 def resolve_receipt(execution: ActionExecution, gateway: DeviceGateway, clock: Clock):

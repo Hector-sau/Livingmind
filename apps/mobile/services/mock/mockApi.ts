@@ -358,6 +358,9 @@ export function createMockApi(options: MockOptions = {}): LivingMindApi {
 
   return {
     mode: 'mock',
+    async reconcileAction() {
+      throw new ApiError('NOT_FOUND', '前端模拟没有持久化设备回执，请使用后端模式');
+    },
 
     async bootstrap() {
       return delay(bootstrap());

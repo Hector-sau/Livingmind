@@ -3,7 +3,7 @@ import { test } from 'node:test';
 
 import { actionOutcomeLabel, actionablePlanId, conversationReducer, greeting, resultPresentation, resultSummary, type Message } from '../features/chat/conversation';
 import { sceneTimeline } from '../features/scenes/timeline';
-import type { ActionResult, ActivityRecord, Plan } from '../services/types';
+import type { ActionExecution, ActionResult, ActivityRecord, DeviceState, Plan } from '../services/types';
 
 const plan = (planId: string): Plan => ({
   planId,
@@ -56,6 +56,55 @@ test('result summary and greeting wording', () => {
 const result = (outcome: ActionResult['outcome']): ActionResult => ({
   actionId: 'a', device: 'ac', command: 'set_target_temperature', value: 24,
   outcome, reason: null, observedValue: outcome === 'succeeded' ? 24 : null,
+});
+
+const receipt: ActionExecution = {
+  actionId: 'a', planId: 'p1', spaceId: 's', serviceId: 'service', grantId: 'grant',
+  serviceEpoch: 0, attemptCount: 1, device: 'ac', command: 'set_target_temperature',
+  requestedAt: '', requestedValue: 24, status: 'completed', observedValue: 24,
+};
+const unknownMessage: Message = { kind: 'result', id: 'result-1', plan: plan('p1'),
+  results: [result('unknown')], deviceState: {} as DeviceState, repeated: false, at: '' };
+const receiptAction = { type: 'reconcileResult', personId: 'person-lin', messageId: 'result-1', receipt } as const;
+
+test('reconciliation updates a matching unknown result without adding a new message', () => {
+  const state = conversationReducer({ 'person-lin': [unknownMessage] }, receiptAction);
+  assert.equal(state['person-lin'].length, 1);
+  const m = state['person-lin'][0];
+  assert.equal(m.kind, 'result');
+  if (m.kind !== 'result') return;
+  assert.equal(m.results[0].outcome, 'succeeded');
+  assert.equal(m.results[0].observedValue, 24);
+  assert.match(m.reconciliationNote!, /没有重发/);
+});
+
+test('late reconciliation cannot recreate cleared history or update another person', () => {
+  assert.deepEqual(conversationReducer({}, receiptAction), {});
+  const state = { 'person-lin': [unknownMessage], other: [] };
+  assert.deepEqual(conversationReducer(state, { ...receiptAction, personId: 'other' }), state);
+});
+
+test('mismatched receipt scope cannot alter a result', () => {
+  const state = { 'person-lin': [unknownMessage] };
+  for (const change of [{ planId: 'other' }, { spaceId: 'other' }]) {
+    assert.deepEqual(conversationReducer(state, { ...receiptAction, receipt: { ...receipt, ...change } }), state);
+  }
+});
+
+test('unknown receipts stay unknown and terminal receipts are not overwritten', () => {
+  let state = conversationReducer({ 'person-lin': [unknownMessage] }, { ...receiptAction, receipt: { ...receipt, status: 'unknown' } });
+  let m = state['person-lin'][0];
+  if (m.kind !== 'result') throw new Error('result expected');
+  assert.equal(m.results[0].outcome, 'unknown');
+  state = conversationReducer(state, receiptAction);
+  state = conversationReducer(state, { ...receiptAction, receipt: { ...receipt, status: 'failed' } });
+  m = state['person-lin'][0];
+  if (m.kind !== 'result') throw new Error('result expected');
+  assert.equal(m.results[0].outcome, 'succeeded');
+});
+
+test('late query failures cannot restore cleared messages', () => {
+  assert.deepEqual(conversationReducer({}, { type: 'reconcileNote', personId: 'person-lin', messageId: 'result-1', text: 'offline' }), {});
 });
 
 test('lost receipts are unknown, not success or proof of non-execution', () => {

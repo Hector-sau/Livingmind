@@ -695,7 +695,8 @@ class ConfirmPlanResponse(Contract):
 
 class StopServiceResponse(Contract):
     service: Service
-    device_state: DeviceState
+    device_state: Optional[DeviceState]
+    warning: Optional[str] = None
 
 
 class EventResult(Contract):

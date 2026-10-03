@@ -16,11 +16,14 @@ from __future__ import annotations
 import hashlib
 import re
 import threading
+from contextlib import contextmanager, ExitStack
 from datetime import timedelta
 from typing import Literal, Optional
 
 from app import config
 from app.adapters.gateway import AdapterDeviceGateway
+from app.adapters.http_gateway import HttpDeviceAdapter, HttpDeviceGateway
+from app.db.ownership import ExecutionOwner, SessionLock
 from app.adapters.virtual.devices import VirtualDeviceAdapter
 from app.cache import Cooldown, SpaceLock
 from app.api.errors import ApiError
@@ -106,6 +109,15 @@ class RestService:
         self._max_adjustments = config.EVENT_MAX_ADJUSTMENTS if event_max_adjustments is None else event_max_adjustments
         self._lock = threading.RLock()
         self._store: Store = store or default_store()
+        self._owner = None
+        self._execution_local = threading.local()
+        if config.GATEWAY_URL:
+            if not isinstance(self._store, SqlStore):
+                raise RuntimeError("The shared HTTP gateway requires PostgreSQL business storage")
+            if not config.GATEWAY_TOKEN:
+                raise RuntimeError("LIVINGMIND_GATEWAY_TOKEN is required")
+            self._owner = ExecutionOwner().__enter__()
+            self._store.owner_id = self._owner.owner_id
         recovered = self._store.startup_reconcile()
         sql_store = isinstance(self._store, SqlStore)
         self._recovery = RecoveryStatus(
@@ -118,14 +130,17 @@ class RestService:
             checked_at=clock(),
             note=(
                 "业务状态已从 PostgreSQL 读取；崩溃时处于 running 的步骤已取消，避免结果未知的设备动作被盲目重放。"
-                "虚拟设备状态属于进程内状态，未做硬件回读恢复。"
+                + ("虚拟设备和回执保存在独立 HTTP 网关；未知动作可显式查询，不自动重放。"
+                   if config.GATEWAY_URL else "虚拟设备状态属于进程内状态，未做硬件回读恢复。")
                 if sql_store
                 else "内存模式没有跨进程恢复；重启会重新创建演示状态。"
             ),
         )
         self._planner = planner or planner_from_config(clock)
         self._devices = {
-            s.space_id: VirtualDeviceAdapter(s.space_id, seed.INITIAL_DEVICE_STATE, clock) for s in seed.SPACES
+            s.space_id: (HttpDeviceAdapter(s.space_id, config.GATEWAY_URL, config.GATEWAY_TOKEN,
+                                           self._store.epoch, config.GATEWAY_TIMEOUT_S) if config.GATEWAY_URL
+                         else VirtualDeviceAdapter(s.space_id, seed.INITIAL_DEVICE_STATE, clock)) for s in seed.SPACES
         }
         self._gateways: dict[str, AdapterDeviceGateway] = {}
         self._memory = MemoryService(clock, preferences or default_preference_repository())
@@ -172,17 +187,48 @@ class RestService:
 
     # ---- helpers ----
 
-    def _space_lock(self, space_id: str) -> SpaceLock:
-        """Hold while this request may write devices. A no-op when Redis is not configured."""
-        return SpaceLock(space_id)
+    @contextmanager
+    def _space_lock(self, space_id: str):
+        """Remote mode always uses SQL ownership; the original demo uses optional Redis."""
+        if self._owner is None:
+            with SpaceLock(space_id) as lock:
+                yield lock
+            return
+        # SQL session lock is the serialization boundary; Redis remains optional.
+        with SessionLock(f"livingmind-execution:{space_id}") as database_lock:
+            self._execution_local.lock = database_lock
+            try:
+                if database_lock.blocked:
+                    yield database_lock
+                else:
+                    with SpaceLock(space_id) as lock:
+                        yield lock
+            finally:
+                self._execution_local.lock = None
+
+    def _execution_guard(self):
+        if self._owner is not None:
+            lock = getattr(self._execution_local, "lock", None)
+            if not self._owner.alive() or lock is None or not lock.alive():
+                return "执行进程或空间锁连接已失效，未继续发送设备动作"
+        return None
+
+    def close(self):
+        self._planner.close()
+        for adapter in self._devices.values():
+            if isinstance(adapter, HttpDeviceAdapter):
+                adapter.close()
+        if self._owner is not None:
+            self._owner.__exit__()
 
     def _gateway(self, space_id: str) -> AdapterDeviceGateway:
         """Keep gateway receipts across calls, while allowing tests to replace an adapter."""
         adapter = self._devices[space_id]
         gateway = self._gateways.get(space_id)
         if gateway is None or gateway.adapter is not adapter:
-            gateway = AdapterDeviceGateway(adapter)
-            gateway.advance_fence(space_id, self._store.epoch(space_id))
+            gateway = HttpDeviceGateway(adapter) if isinstance(adapter, HttpDeviceAdapter) else AdapterDeviceGateway(adapter)
+            if not isinstance(adapter, HttpDeviceAdapter):
+                gateway.advance_fence(space_id, self._store.epoch(space_id))
             self._gateways[space_id] = gateway
         return gateway
 
@@ -225,7 +271,15 @@ class RestService:
         )
 
     def _space(self, space: Space) -> Space:
-        return space.model_copy(update={"energy_mode": self._energy_modes[space.space_id]})
+        return space.model_copy(update={"energy_mode": self._energy_mode(space.space_id)})
+
+    def _energy_mode(self, space_id):
+        if isinstance(self._store, SqlStore):
+            saved = self._store.get_setting(f"energy:{space_id}")
+            if saved:
+                return saved["mode"]
+            return next(s.energy_mode for s in seed.SPACES if s.space_id == space_id)
+        return self._energy_modes[space_id]
 
     def _bootstrap(self) -> BootstrapResponse:
         space_id = seed.DEFAULT_SPACE_ID
@@ -361,7 +415,7 @@ class RestService:
             text,
             mode,
             self._devices[ctx.space_id],
-            self._energy_modes[ctx.space_id],
+            self._energy_mode(ctx.space_id),
             self._store.new_id,
             force_intent=forced_intent,
             wake_time=wake_time,
@@ -509,6 +563,8 @@ class RestService:
             raise ApiError("FORBIDDEN_CONTEXT", "空间与请求上下文不一致", {"spaceId": space_id})
         with self._lock:
             self._energy_modes[space_id] = mode
+            if isinstance(self._store, SqlStore):
+                self._store.set_setting(f"energy:{space_id}", {"mode": mode})
             self._store.record_events(
                 [
                     domain_event(
@@ -735,7 +791,8 @@ class RestService:
                 )
 
         Executor(
-            self._devices[plan.space_id], gateway=self._gateway(plan.space_id), clock=self._clock
+            self._devices[plan.space_id], gateway=self._gateway(plan.space_id), clock=self._clock,
+            execution_guard=self._execution_guard,
         ).run(
             actions,
             guard,
@@ -808,7 +865,8 @@ class RestService:
         if active_grant is None:
             raise RuntimeError(f"service {service.service_id} has no execution grant")
         Executor(
-            self._devices[service.space_id], gateway=self._gateway(service.space_id), clock=self._clock
+            self._devices[service.space_id], gateway=self._gateway(service.space_id), clock=self._clock,
+            execution_guard=self._execution_guard,
         ).run(
             actions,
             guard,
@@ -887,7 +945,8 @@ class RestService:
                     action=result,
                 )
 
-            Executor(adapter).run([action], guard, on_result)
+            Executor(adapter, gateway=self._gateway(space_id), execution_guard=self._execution_guard).run(
+                [action], guard, on_result, service_epoch=epoch_at_start)
             result = results[0]
 
             undo: Optional[UndoWindow] = None
@@ -907,6 +966,9 @@ class RestService:
                     if window.space_id == space_id:
                         self._undo.pop(undo_id, None)
                 self._undo[undo.undo_id] = (undo, epoch_at_start)
+                if isinstance(self._store, SqlStore):
+                    self._store.set_setting(f"undo:{space_id}", {"window": undo.model_dump(mode="json"),
+                                                               "epoch": epoch_at_start, "person": ctx.person_id})
 
             return DeviceControlResponse(
                 device_state=adapter.read_state(), result=result, undo=undo
@@ -924,6 +986,13 @@ class RestService:
                 raise self._busy(ctx.space_id)
             self._drop_expired_undo()
             entry = self._undo.get(undo_id)
+            if isinstance(self._store, SqlStore):
+                saved = self._store.get_setting(f"undo:{ctx.space_id}")
+                entry = None
+                if saved and saved["window"]["undo_id"] == undo_id and saved["person"] == ctx.person_id:
+                    window = UndoWindow.model_validate(saved["window"])
+                    if self._clock() <= window.expires_at:
+                        entry = (window, saved["epoch"])
             if entry is None:
                 raise ApiError("UNDO_EXPIRED", "撤销窗口已结束", {"undoId": undo_id})
             window, epoch_at_write = entry
@@ -960,7 +1029,11 @@ class RestService:
                     action=result,
                 )
 
-            Executor(adapter).run([action], guard, on_result)
+            # Consume before the uncertain write. A lost reply cannot permit a replay.
+            if isinstance(self._store, SqlStore):
+                self._store.set_setting(f"undo:{ctx.space_id}", None)
+            Executor(adapter, gateway=self._gateway(ctx.space_id), execution_guard=self._execution_guard).run(
+                [action], guard, on_result, service_epoch=epoch_at_write)
             result = results[0]
             # The offer is consumed either way: a failed undo must not be retried silently.
             self._undo.pop(undo_id, None)
@@ -973,6 +1046,14 @@ class RestService:
     # ---- environment events (step 6) ----
 
     def inject_event(self, space_id: str, ctx: RequestContext, event_type: EventType, room_temp_c: float) -> EventResult:
+        if self._owner is not None:
+            with self._space_lock(space_id) as lock:
+                if lock.blocked:
+                    raise self._busy(space_id)
+                return self._inject_event(space_id, ctx, event_type, room_temp_c)
+        return self._inject_event(space_id, ctx, event_type, room_temp_c)
+
+    def _inject_event(self, space_id: str, ctx: RequestContext, event_type: EventType, room_temp_c: float) -> EventResult:
         """Simulated room-temperature event -> at most one automatic adjustment of the active service."""
         self._check_context(ctx)
         if ctx.space_id != space_id:
@@ -1353,7 +1434,6 @@ class RestService:
             # Invalidate every plan created before this stop (they cannot restart the service).
             next_epoch = self._store.bump_epoch(service.space_id)
             self._store.revoke_grants(service.space_id, self._clock())
-            self._gateway(service.space_id).advance_fence(service.space_id, next_epoch)
             self._store.invalidate_proposed_plans(service.space_id)
             pending = [st for st in service.schedule if st.status == "pending"]
             for st in pending:
@@ -1371,11 +1451,19 @@ class RestService:
                     )
                 ],
             )
+            # Persist the user's stop before talking to an unavailable gateway.
+            # A stopped service is not proof that an already-sent write was cancelled.
+            warning, device_state = None, None
+            try:
+                self._gateway(service.space_id).advance_fence(service.space_id, next_epoch)
+                device_state = self._devices[service.space_id].read_state()
+            except (OSError, TimeoutError, ValueError):
+                warning = "服务已停止，但网关暂不可达，未确认停止代次及设备状态；在途动作可能已执行，需稍后核对回执。"
             self._log(
                 service.space_id,
                 "service_stopped",
                 "user",
-                "用户停止服务，设备保持当前状态",
+                warning or "用户停止服务，不恢复设备；已经发出的动作仍需以回执为准",
                 service_id=service_id,
                 plan_id=service.plan_id,
                 person_id=service.person_id,
@@ -1390,7 +1478,7 @@ class RestService:
                     person_id=service.person_id,
                 )
             # Default: keep devices as they are (no automatic restore).
-            return StopServiceResponse(service=service, device_state=self._devices[service.space_id].read_state())
+            return StopServiceResponse(service=service, device_state=device_state, warning=warning)
 
     def activity(self, account_id: str, space_id: str, limit: int) -> list[ActivityRecord]:
         self._check_space(account_id, space_id)
@@ -1398,6 +1486,19 @@ class RestService:
             return self._store.activity(space_id, limit)
 
     def reset(self, account_id: str) -> BootstrapResponse:
+        self._check_account(account_id)
+        # A demo reset is not an emergency stop. In shared-gateway mode it must
+        # not erase another process's active write/receipt bookkeeping.
+        if self._owner is not None:
+            with ExitStack() as stack:
+                for space in sorted(seed.SPACES, key=lambda s: s.space_id):
+                    lock = stack.enter_context(self._space_lock(space.space_id))
+                    if lock.blocked:
+                        raise self._busy(space.space_id)
+                return self._reset(account_id)
+        return self._reset(account_id)
+
+    def _reset(self, account_id: str) -> BootstrapResponse:
         self._check_account(account_id)
         with self._lock:
             # Give references held by in-flight requests a terminal state before
@@ -1441,5 +1542,5 @@ def close_rest_service() -> None:
     global _service
     with _service_lock:
         if _service is not None:
-            _service._planner.close()
+            _service.close()
             _service = None
