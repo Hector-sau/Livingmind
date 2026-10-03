@@ -10,5 +10,8 @@
   "preserved_failure": {"passed": 14, "failed": 1, "report": "recovery-db-faults-fixture-failure-2026-10-03.xml", "cause": "New fixture's monkeypatch teardown restored a SQL URL after outer fixture cleanup, leaking state into a later test. Replaced with explicitly ordered config restoration; no assertion weakened."},
   "checks": ["No query before durable claim", "Unknown and lease preserved on pre-commit disconnection", "Terminal status and one activity preserved after commit", "Recovery process survives disconnection and resumes without restart"],
   "limitations": ["Connection close/rejection, not silent packet loss", "Only recovery worker database transport, not all API network partitions", "Virtual devices, not physical hardware", "No new model calls, quality scores, or latency improvement claim"],
-  "evaluation": {"count": 30, "human_reviewed": false, "cases_sha256": "04a48852e74fa823a3a7f2ae99a65c53f0a5751227b7c4e7818d423861f5b9ff"}
+  "evaluation": {"count": 30, "human_reviewed": false, "cases_sha256": "04a48852e74fa823a3a7f2ae99a65c53f0a5751227b7c4e7818d423861f5b9ff"},
+  "tested_commit": "176f9d192e77b219f3d12adb519e2aacb6c6a264",
+  "ci_evidence": "github-ci-37119652911.json",
+  "cleanup": {"project": "livingmind-eval", "containers_remaining": 0, "volumes_preserved": ["livingmind-eval_gateway-data", "livingmind-eval_postgres-data"], "other_projects_modified": false}
 }

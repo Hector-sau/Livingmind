@@ -2,7 +2,7 @@
 
 更新：2026-10-03（模型评测保留 2026-10-02 原始记录）。此表按可核对的代码、测试与原始结果整理；个人贡献待团队成员逐项确认。
 
-当前工程版本 **22193f6**，CI [37116952951](https://github.com/Hector-sau/Livingmind/actions/runs/37116952951) 六项通过。已在独立网关基础上增加手动/撤销动作账本、后台只读恢复及页面核对。设计见 [动作恢复](action-recovery.md)、[独立网关说明](durable-gateway.md)，后续状态见 [交接](../AGENT-HANDOFF.md)。模型数据仍对应各自历史实验，本批次没有新的模型准确率或提速结论。
+当前受测版本 **176f9d1**，CI [37119652911](https://github.com/Hector-sau/Livingmind/actions/runs/37119652911) 六项通过。业务沿用 `22193f6` 的手动/撤销动作账本、后台只读恢复及页面核对，新增实际数据库断连验证。设计见 [数据库故障实验](database-fault-validation.md)、[动作恢复](action-recovery.md)、[独立网关说明](durable-gateway.md)，后续状态见 [交接](../AGENT-HANDOFF.md)。模型数据仍对应各自历史实验，本批次没有新的模型准确率或提速结论。
 
 | 主张 | 当前证据 | 边界 |
 |---|---|---|
@@ -11,11 +11,12 @@
 | PostgreSQL 业务约束 | `backend/app/repositories/sql_store.py`、`backend/tests/test_persistence.py` | 数据库约束不替代真实设备幂等与多实例联调 |
 | Redis 协调 | `backend/app/cache/locks.py`、`backend/app/cache/cooldown.py`、`backend/tests/test_cache_coordination.py` | 短锁和冷却；未做数据缓存提速实验；锁无续租 |
 | 事务出箱 | `backend/app/events/outbox.py`、`backend/tests/test_outbox_events.py`；独立数据库连接并发写入、发布、消费已验证 | PostgreSQL 事件队列；按空间保序；未接 Kafka，未做长期生产压力测试 |
-| 自动化回归（最终代码） | CI 默认 **223/52**、SQL+legacy **265/10**、全栈 **274/1**；前端 **106**、类型/契约；Docker 浏览器 **29/29**；本机 iOS/Android JS/Hermes 导出通过 | `github-ci-37116952951.json`、`action-recovery-local-2026-10-03.json`；通过/跳过，不跨配置相加；导出不是安装包/真机，本机 SQL 部分 XML 是中断记录，不冒充通过 |
+| 自动化回归（最终代码） | CI 默认 **223/56**、SQL+legacy **269/10**、全栈 **278/1**；前端 **106**、类型/契约；Docker 浏览器 **29/29**；前批本机 iOS/Android JS/Hermes 导出通过 | `github-ci-37119652911.json`、`recovery-db-local-2026-10-03.json`、`action-recovery-local-2026-10-03.json`；通过/跳过，不跨配置相加；本批未重跑原生导出，导出不是安装包/真机 |
 | 请求语义保护 | 12 条新增开发回归；前端 Mock 和浏览器澄清流程同步 | 明确否定/限制先澄清；只检查列出的方向模式，不是通用语言理解。旧 v2 的失败已用于开发，新 v3 30 条候选待人工审核 |
 | 连接复用实验 | deepseek-flash 真实 40 次：每组 20 次；P50 1529.759→1393.337 ms，P95 2642.971→2972.948 ms，均通过预置方向检查 | `real-http-pooling-2026-10-03.json`；本地 HTTP API+内存存储，不含平板/设备；**P95 未改善，默认不启用**。不与模型选型的 96 次混算 |
 | 未知动作回执核对 | 计划、手动和撤销均入账；只 query 不 submit；账本/计划/单次活动记录同事务；空间页按人物列出最近记录并核对 | `test_action_reconciliation.py`、`test_manual_action_ledger.py`；独立网关回执持久化，原单实例模式仍在内存；停止后不续跑，历史完成不是新设备回读；重新提交手动控制 API 仍是新操作 |
-| 常驻结果恢复 | 短事务 token/租期认领，事务外查网关；退避与上限；过期 token 不能回写，停止/重置不被复活 | `test_background_recovery.py` **9 用例**；恢复进程只读网关，不重放动作，不接管仍存活但卡住的 API；DB 故障用例是注入异常而非真实网络分区 |
+| 常驻结果恢复 | 短事务 token/租期认领，事务外查网关；退避与上限；过期 token 不能回写，停止/重置不被复活 | `test_background_recovery.py` **9 用例**；恢复进程只读网关，不重放动作，不接管仍存活但卡住的 API |
+| 数据库断连验证 | 4 条实际 TCP 断连测试：认领前、回执后、结果提交后、独立 Worker 进程保持存活；相关 34 条测试在本机全 SQL 配置通过 | `test_recovery_database_faults.py`、`recovery-db-sql-2026-10-03.xml`；不是静默丢包、数据库故障切换或所有 API 分区路径；没有改写业务实现，不能包装成新的性能优化 |
 | 双 API 故障验证 | 真实 HTTP 进程，覆盖跨实例停止、重复/不同计划、Redis TTL/断连、API/网关重启、共享撤销、首次重置，以及独立 Worker 收尾且另一 API 无需重启 | `test_http_replicas.py` **10 场景**、`test_persistent_gateway.py` **10 用例**；最终全栈 CI 均通过，非物理设备或生产可用性保证 |
 | 依赖修补 | xcode 使用的 uuid 升级至 11.1.1；受影响包 23→16，根公告 3→2 | `dependency-risk.md`、修补后原始审计；剩余 16 high，没有宣称全修复 |
 
@@ -59,7 +60,7 @@ python scripts/compare_models.py --models deepseek-chat deepseek-flash
 ## 待补实验（按当前状态更新）
 
 1. `h26` 歧义已修复为澄清。v2 已进入历史/回归角色；审核并冻结 v3 候选标签后，才能获得新的未调参验收结果。
-2. 独立持久化网关、按所有权恢复、两个真实 API 实例和常驻 Worker 已完成，见顶部当前证据。可继续验证真实 DB 网络分区、客户端幂等键与长期运行；不能把已通过的故障用例外推成生产高可用。
+2. 独立持久化网关、按所有权恢复、两个真实 API 实例和常驻 Worker 已完成；恢复 Worker 的实际数据库连接断开/重连已有 4 条用例。未验证的部分是静默网络丢包、API 执行途中数据库分区的全部组合、客户端幂等键与长期运行；不能把已通过的故障用例外推成生产高可用。
 3. 对 Outbox 做更长时间的并发压力试验与跨空间公平性检查；保留死信人工处理的运维说明。
 4. 在真实平板、真实网络和至少一种真实设备上建立端到端延迟与回读基线；本地毫秒数字不可外推。
 

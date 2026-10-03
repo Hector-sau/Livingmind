@@ -1,0 +1,84 @@
+{
+  "conclusion": "success",
+  "databaseId": 37119652911,
+  "headSha": "176f9d192e77b219f3d12adb519e2aacb6c6a264",
+  "jobs": [
+    {
+      "completedAt": "2026-10-03T11:26:48Z",
+      "conclusion": "success",
+      "databaseId": 111193132614,
+      "name": "contract consistency",
+      "startedAt": "2026-10-03T11:26:24Z",
+      "status": "completed"
+    },
+    {
+      "completedAt": "2026-10-03T11:26:57Z",
+      "conclusion": "success",
+      "databaseId": 111193132683,
+      "name": "mobile",
+      "startedAt": "2026-10-03T11:26:24Z",
+      "status": "completed"
+    },
+    {
+      "completedAt": "2026-10-03T11:32:47Z",
+      "conclusion": "success",
+      "databaseId": 111193132687,
+      "name": "backend (postgres-redis-langgraph)",
+      "startedAt": "2026-10-03T11:26:24Z",
+      "status": "completed"
+    },
+    {
+      "completedAt": "2026-10-03T11:31:47Z",
+      "conclusion": "success",
+      "databaseId": 111193132706,
+      "name": "Docker API + browser E2E",
+      "startedAt": "2026-10-03T11:26:25Z",
+      "status": "completed"
+    },
+    {
+      "completedAt": "2026-10-03T11:27:10Z",
+      "conclusion": "success",
+      "databaseId": 111193132712,
+      "name": "backend (memory-legacy)",
+      "startedAt": "2026-10-03T11:26:24Z",
+      "status": "completed"
+    },
+    {
+      "completedAt": "2026-10-03T11:31:00Z",
+      "conclusion": "success",
+      "databaseId": 111193132736,
+      "name": "backend (postgres-legacy)",
+      "startedAt": "2026-10-03T11:26:24Z",
+      "status": "completed"
+    }
+  ],
+  "status": "completed",
+  "url": "https://github.com/Hector-sau/Livingmind/actions/runs/37119652911",
+  "verification": {
+    "memory_legacy": {
+      "passed": 223,
+      "skipped": 56
+    },
+    "postgres_legacy": {
+      "passed": 269,
+      "skipped": 10
+    },
+    "postgres_redis_langgraph": {
+      "passed": 278,
+      "skipped": 1
+    },
+    "mobile": {
+      "passed": 106,
+      "typecheck": "passed"
+    },
+    "contracts": "passed",
+    "migration": "empty CI database head -> 0002 -> head passed",
+    "docker_browser": {
+      "passed": 29,
+      "total": 29,
+      "model": "local stub",
+      "hardware": "persistent virtual HTTP gateway"
+    },
+    "scope": "Four actual database TCP disconnection tests; business code unchanged from 22193f6. No native or physical-device verification."
+  }
+}
