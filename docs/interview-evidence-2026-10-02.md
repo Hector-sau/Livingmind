@@ -2,7 +2,7 @@
 
 更新：2026-10-03（模型评测保留 2026-10-02 原始记录）。此表按可核对的代码、测试与原始结果整理；个人贡献待团队成员逐项确认。
 
-语义保护与 40 次连接实验已发布为 `d3d0d87`，CI 37110992787 六项通过。后续独立网关和双 API 的设计、故障实验及限制见 [独立网关说明](durable-gateway.md)；新批次最终运行与发布状态见 [交接文档](../AGENT-HANDOFF.md)，旧 CI 不替代新 head 验收。
+语义保护与 40 次连接实验已发布为 `d3d0d87`。后续独立网关与双 API 最终代码为 **a3594c1**，CI [37114091256](https://github.com/Hector-sau/Livingmind/actions/runs/37114091256) 六项通过。设计与故障边界见 [独立网关说明](durable-gateway.md)，后续状态见 [交接](../AGENT-HANDOFF.md)。
 
 | 主张 | 当前证据 | 边界 |
 |---|---|---|
@@ -11,11 +11,11 @@
 | PostgreSQL 业务约束 | `backend/app/repositories/sql_store.py`、`backend/tests/test_persistence.py` | 数据库约束不替代真实设备幂等与多实例联调 |
 | Redis 协调 | `backend/app/cache/locks.py`、`backend/app/cache/cooldown.py`、`backend/tests/test_cache_coordination.py` | 短锁和冷却；未做数据缓存提速实验；锁无续租 |
 | 事务出箱 | `backend/app/events/outbox.py`、`backend/tests/test_outbox_events.py`；独立数据库连接并发写入、发布、消费已验证 | PostgreSQL 事件队列；按空间保序；未接 Kafka，未做长期生产压力测试 |
-| 自动化回归（新批次） | 最终默认后端 **210/41**；前端 **101** 与类型检查；iOS/Android JS/Hermes 导出通过 | `durable-gateway-memory-final-2026-10-03.xml`；完整 SQL/容器和托管 CI 结果见交接文档；导出不是安装包/真机 |
+| 自动化回归（最终代码） | CI 默认 **210/42**、SQL+legacy **242/10**、全栈 **251/1**；前端 **101**、类型/契约；Docker 浏览器 **28/28**；本机 iOS/Android JS 导出通过 | `github-ci-37114091256.json`、`durable-gateway-browser-2026-10-03.json`；导出不是安装包/真机，中间版本 XML 不与最终数量混算 |
 | 请求语义保护 | 12 条新增开发回归；前端 Mock 和浏览器澄清流程同步 | 明确否定/限制先澄清；只检查列出的方向模式，不是通用语言理解。旧 v2 的失败已用于开发，新 v3 30 条候选待人工审核 |
 | 连接复用实验 | deepseek-flash 真实 40 次：每组 20 次；P50 1529.759→1393.337 ms，P95 2642.971→2972.948 ms，均通过预置方向检查 | `real-http-pooling-2026-10-03.json`；本地 HTTP API+内存存储，不含平板/设备；**P95 未改善，默认不启用**。不与模型选型的 96 次混算 |
 | 未知动作回执核对 | 15 条专项用例；只 query 不 submit；账本/计划/单次活动记录同事务；App 已有核对按钮 | `tests/test_action_reconciliation.py`；独立网关回执持久化，原单实例模式仍在内存；停止后不续跑；直接控制核对入口仍有限 |
-| 双 API 故障验证 | 真实 HTTP 进程，覆盖跨实例停止、重复/不同计划、Redis TTL/断连、API/网关重启和共享撤销 | `test_http_replicas.py` 8 场景、`test_persistent_gateway.py` 10 用例；结果以新 CI/原始报告为准，非物理设备或生产可用性保证 |
+| 双 API 故障验证 | 真实 HTTP 进程，覆盖跨实例停止、重复/不同计划、Redis TTL/断连、API/网关重启、共享撤销和首次重置 | `test_http_replicas.py` **9 场景**、`test_persistent_gateway.py` **10 用例**；最终全栈 CI 均通过，非物理设备或生产可用性保证 |
 | 依赖修补 | xcode 使用的 uuid 升级至 11.1.1；受影响包 23→16，根公告 3→2 | `dependency-risk.md`、修补后原始审计；剩余 16 high，没有宣称全修复 |
 
 ## 2026-10-02 至首次 10-03 发布的历史实验

@@ -1,0 +1,18 @@
+{
+  "implementationCommit": "a3594c1cd97a339d8ceca427b8a6f3df596dee02",
+  "date": "2026-10-03",
+  "environment": "Mac, isolated livingmind-eval Docker project",
+  "backendPython": "3.12.15",
+  "backendSourceSha256": "3290b8912aeabc3cfff637e382a7fcfd13bb67318f0ca9822234ded3f936b318",
+  "containerMatchesLocalBackendSource": true,
+  "topology": ["API A", "API B", "persistent HTTP SQLite virtual gateway", "PostgreSQL 16", "Redis 7", "LangGraph", "outbox publisher", "activity projector"],
+  "command": "python apps/mobile/e2e/run_e2e.py --skip-build --external-backend http://127.0.0.1:8000 --stub-bind 0.0.0.0",
+  "browserScenariosPassed": 28,
+  "browserScenariosTotal": 28,
+  "memoryBrowserAlsoPassed": 28,
+  "modelSource": "local HTTP stub, no paid API calls",
+  "receiptUiCheck": "Unknown result is shown honestly; after stop, the receipt check updates the historical card without confirming again or restarting the service.",
+  "nativeJsExports": ["iOS Hermes", "Android Hermes"],
+  "physicalDeviceTested": false,
+  "note": "Both APIs were bootstrapped and healthy. Browser traffic targets API A; dedicated HTTP subprocess tests cover cross-instance behavior. Native exports are not installable build or hardware verification."
+}

@@ -1,6 +1,6 @@
 # LivingMind AI 交接文档
 
-> **当前交接（2026-10-03，独立网关批次）**：用户要求先推送 GitHub 再继续完善。第一批已推送 `d3d0d87`，CI [37110992787](https://github.com/Hector-sau/Livingmind/actions/runs/37110992787) 六项通过。此后新增独立网关、双 API、核对 UI 与依赖修补；新批次正在验证，不能用该旧 CI 替代新代码验收。先读 [独立网关与双 API](docs/durable-gateway.md) 和 [依赖风险](docs/dependency-risk.md)，再按下方继续。
+> **当前交接（2026-10-03，独立网关批次已发布）**：用户要求先推送再完善。第一批 `d3d0d87` 已通过 CI；后续实现 `c9ebe73`，首次重置修正为 **`a3594c1`**，已推送 GitHub。该最终代码的 [CI 37114091256](https://github.com/Hector-sau/Livingmind/actions/runs/37114091256) **6/6 通过**，原始元数据已入库。此后收尾只改文档/证据，不把文档提交冒充新的业务验收。先读 [独立网关与双 API](docs/durable-gateway.md) 和 [依赖风险](docs/dependency-risk.md)，再按下方继续。
 
 ## 当前已完成与验证
 
@@ -10,21 +10,22 @@
 - **独立网关**：`compose.gateway.yaml` 提供可选 HTTP + SQLite 虚拟网关及第二个 API；状态/回执/代次持久化，同 actionId 不再次写。所有设备写路径（含直接控制和撤销）经过共享网关。不是 SpaceMind 或真实硬件。
 - **执行所有权**：迁移 `0007`；远程网关模式使用 PostgreSQL 会话级空间锁，Redis 仍可选。每 API 专属 ownerId 及会话锁，启动只清理已死亡所有者的步骤/动作。能源模式、撤销窗口落 SQL，停止不等待执行锁；停止先存业务事实，网关离线返回 warning 与空设备状态。
 - **未知动作核对**：API 只查询、不提交；SQL 同事务更新账本、计划结果和一次活动记录；重复/迟到回调不追加第二条结果。App 已有“核对结果（不重发）”，迟到响应不重建已清空会话，也不重启停止的服务。
-- **新批次本机验证**：最终默认后端 **210 通过 / 41 跳过**，前端 **101/101** 与类型检查通过，契约重新生成；iOS/Android JS/Hermes 导出成功，非安装包/真机。独立网关 10 条、真实双 API 最初 5 条专项已通过；当前扩为 8 条，新增断网停止、Redis TTL/断连。完整 SQL/容器浏览器最终结果仍待记录，不能把早期中间测试当最终批次。
+- **最终 CI 验证**：默认后端 **210 通过 / 42 跳过**，SQL+legacy **242/10**，SQL+Redis+LangGraph **251/1**；前端 **101/101** 与类型检查；契约一致；迁移 head→0002→head；双 API + 独立网关的 Docker 浏览器 **28/28**。共享网关专项为真实 HTTP 双 API **9 场景**、独立网关 **10 用例**，包含断网停止、Redis TTL/断连和首次重置。跳过项由存储/Redis 配置决定，全栈唯一跳过是内存模式专属断言。
+- **本机证据**：全栈中间版本 249/1（约 20 分钟，SQL 磁盘同步等待明显）；最终去重/首次重置另有 2 条 SQL 定点回归。最终 UI 内存浏览器 28/28；最终源代码构建的 Docker API+LangGraph+第二 API+网关亦 **28/28**，容器与本地 `rest_service.py` SHA-256 一致。iOS/Android JS/Hermes 导出成功，非安装包/真机。原始中间报告保留，最终数量采用 CI，不把不同版本数量混算。
 - **依赖修补**：局部升级 xcode 使用的 uuid 至 11.1.1，CommonJS/工程 ID 测试与导出通过。审计从 23 变为 **16 high / 0 moderate**，剩余 braces/node-forge 两个根公告截至检查无已发布修复；没有宣称清零，没有强制降级 Expo。
 
 ## 下一位 Agent 从这里继续
 
-1. 先核对 git status、远端 headSha 与最新 CI。当前分支保留原单实例模式，启用双 API 必须用 `compose.gateway.yaml`；不要混跑两种设备模式。
-2. 验证新批次三套后端、契约、前端和 Docker 浏览器。CI 容器 job 已改成两 API + 独立网关；只有新提交运行通过才能写完成。原始报告另存，不覆盖旧实验。
-3. 人工审核 30 条 v3 候选标签后冻结；未审核不能写成客观准确率。无需为交接重跑已保存的付费模型实验。
-4. 后续故障深挖优先：DB 连接/网络分区、在途停止与重置混合竞争、常驻死亡所有者回收、直接控制的用户侧核对入口。不要把目前有限故障测试扩张成生产多实例高可用或物理设备 exactly-once。
-5. 关注 braces/node-forge 的兼容修复；完整风险与受影响路径见 `docs/dependency-risk.md`。不使用 `audit fix --force` 冒险跨版本退回旧框架。
-6. 真机、真实 SpaceMind/厂商设备、生产鉴权和真实调度器是后续独立验收。用户先亲自运行一个故障实验并记录预测/结果，再整理个人贡献与面试表述。
+1. 核对 git status、远端 headSha 和本文业务基线；最新纯文档提交不改变已通过的业务代码。原单实例模式仍保留，启用双 API 必须用 `compose.gateway.yaml`；不要混跑两种设备模式，不重做已完成的专项。
+2. 请用户/同学人工审核 30 条 v3 候选标签，再记录审核人并冻结；未审核不能写成客观准确率。无需为交接重跑已保存的付费模型实验。后续改提示词时另留未见过的验收集。
+3. 按需要继续故障深挖：DB 连接/网络分区、停止与重置混合竞争、常驻死亡所有者回收、直接控制的用户侧核对入口；每项先写失败用例再改。当前不是生产高可用或物理设备 exactly-once。
+4. 关注 braces/node-forge 的兼容修复；完整风险及调用路径见 `docs/dependency-risk.md`。不使用 `audit fix --force` 退回旧框架，不自行拼补密码学实现凑零告警。
+5. 真机、真实 SpaceMind/厂商设备、生产鉴权和真实调度器是后续独立验收，需要相应设备与接口。新增业务代码后再跑三套后端、契约、前端和 Docker 浏览器，不减少测试换绿灯。
+6. 用户亲自运行一个故障实验，记录预测/结果/读过的代码，再整理个人贡献和简历表述。重点可选：丢回复后核对、另一 API 停止、为什么 Redis 失效仍不重复写。
 
 临时环境仍是 `/private/tmp/livingmind-eval-venv`，数据库仅用 Compose 项目 `livingmind-eval` 的专用测试卷、宿主 55432 与 Redis 56379/15；测试会清空该专用库，不能指向其他项目。原有 `backend/.venv` 是 Python 3.9。所有新增说明都在仓库，无外部 Pages；保留历史实验文件，不把旧的“仅一次调用”或旧 CI 结论摘成当前状态。
 
-当前验证环境：`livingmind-eval` 的 PostgreSQL/Redis 正在本机回归使用，未删除数据卷，也未操作其他项目。SQL 全套测试遇到明显磁盘同步等待（`DataFileImmediateSync`），不是已证实的业务死锁；Docker `_ping` 正常。退出前应记录运行结果，再用本项目对应 Compose 文件收起容器，不加 `-v`。最终 OpenAPI/TS 生成和 `git diff --check` 已通过。
+收尾环境：`docker compose -p livingmind-eval -f compose.yaml -f compose.gateway.yaml --profile replicas down` 已完成，只有本任务容器/网络被移除，**PostgreSQL 与 gateway 数据卷保留**；未操作其他项目。SQL 全套测试曾明显等待磁盘同步（`DataFileImmediateSync`），最终通过，不把它归因为已证实的业务死锁或磁盘损坏。OpenAPI/TS 连续生成哈希一致，`git diff --check` 通过。首次 CI 新库重置失败及修复过程保存在 `docs/evidence/gateway-first-reset-failure-2026-10-03.json`，不是被隐藏的成功记录。
 
 ---
 

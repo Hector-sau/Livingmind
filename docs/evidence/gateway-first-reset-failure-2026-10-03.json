@@ -1,0 +1,17 @@
+{
+  "runId": 37113760441,
+  "headSha": "c9ebe73dc255d173958a5327c3ed1d61c264de5e",
+  "url": "https://github.com/Hector-sau/Livingmind/actions/runs/37113760441",
+  "conclusion": "failure",
+  "jobsPassed": 5,
+  "failedJob": "Docker API + browser E2E",
+  "browserPassed": 10,
+  "browserTotal": 28,
+  "serverError": "OSError: gateway rejected a stale reset; device state was not reset",
+  "sourceArtifact": "container-e2e-artifacts/container-e2e.log",
+  "cause": "A fresh business database had no space epoch row, so clear did not increment epoch zero. The gateway correctly rejected a reset with a non-new epoch.",
+  "fixCommit": "a3594c1cd97a339d8ceca427b8a6f3df596dee02",
+  "regressionTest": "tests/test_http_replicas.py::test_fresh_gateway_reset_and_shared_energy_reset",
+  "localTargetedReport": "durable-gateway-final-fixes-2026-10-03.xml",
+  "scope": "Virtual devices only. Full post-fix CI is recorded separately; this failed run is not a success claim."
+}

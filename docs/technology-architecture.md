@@ -70,15 +70,15 @@ Docker Compose：在开发机和 CI 中统一启动 API、数据库、缓存和 
 | Experience Agent | DeepSeek Provider；结构化输出；失败降级 | 作为 LangGraph 节点复用 | 已实现 |
 | 人物记忆 | `MemoryService` + 内存/SQL两种Repository，按人物与空间隔离 | 继续完善认证与权限边界 | PostgreSQL持久化已实现 |
 | 运行状态 | 内存/SQL 两种 Store；计划、服务、策略决策、执行授权、动作账本、步骤、活动与代次可落库 | 真实设备观测状态仍由 Gateway 负责 | PostgreSQL 持久化已实现 |
-| 并发控制 | Python锁、PostgreSQL约束与行级认领、Redis空间锁/冷却 | 生产级多机压测仍是后续项 | 本地组合与降级已验证 |
-| 设备 | 有状态虚拟 Adapter + `AdapterDeviceGateway`；`actionId` 幂等、`serviceEpoch` fencing、回执/回读 | 保持 `DeviceGateway` Protocol，替换为真实 SpaceMind / 厂商对端 | 虚拟 V2 路径已实现；真实对端未接入 |
+| 并发控制 | Python锁、SQL约束/行级认领、Redis短锁/冷却；共享网关模式另有 SQL 会话级执行与 owner 锁 | 生产级多机压测与网络分区仍是后续项 | 组合与故障验证见独立网关说明 |
+| 设备 | 进程内 Adapter，或可选 HTTP/SQLite 持久化虚拟 Gateway；actionId 幂等、代次 fencing、回执查询 | 保持 `DeviceGateway` Protocol，替换为真实 SpaceMind / 厂商对端 | 两种虚拟模式有实现；真实对端未接入 |
 | 能源 | 在线规则 + 离线固定日仿真 | 保持边界；事件进入 Kafka 分析流 | 已实现规则与只读展示 |
 | 异步事件 | PostgreSQL Transactional Outbox → 数据库队列 → 幂等Consumer Projection；活动仍同步写入 | Kafka仅保留可选接口 | 已实现数据库队列 |
 | 语音入口 | App 已实现语音回合、TTS 与设备端识别适配；外部音箱的 `adapters/voice.py` 仍只有协议 | 外部音箱/底座返回文本与来源后走同一 assistant 契约 | App 逻辑已测试；设备端识别待真机，外部音箱未接入 |
 | 容器化 | Python 3.12多阶段非root镜像 + Compose | 保持可复现冻结 | 宿主机全栈与容器E2E通过 |
-| CI | 三套后端matrix、迁移升降、TS、契约、Docker E2E | 后续提交持续保持全绿 | 历史 `bfcdd0e` 为 6/6；本轮本地验证见证据主索引，尚未推送触发托管 CI |
+| CI | 三套后端matrix、迁移升降、TS、契约、Docker 两 API + 独立网关 E2E | 后续提交持续保持全绿 | 每轮核对 headSha；最新运行见交接文档，不使用旧绿灯代替新验证 |
 
-本轮工程证据统一见 `docs/interview-evidence-2026-10-02.md`。两个独立服务进程共享虚拟网关的专项测试覆盖重复确认、停止、API 崩溃、Redis TTL 过期与 TCP 断连，但当前 Compose 仍为单 API 部署：虚拟设备、直接控制撤销窗口和启动恢复均未变成生产级多实例实现。测试夹具不能代替真实设备或部署验收。
+本轮工程证据统一见 `docs/interview-evidence-2026-10-02.md`。原 Compose 是单 API 进程内网关；新增 overlay 可部署两个真实 API 与独立持久化虚拟网关，撤销/能源设置共享，启动恢复按所有者区分。HTTP 进程测试覆盖重复/不同计划、停止、API/网关重启、Redis TTL 过期与 TCP 断连；这不是生产级多实例高可用或真实设备验收。
 
 网关提交或查询回执发生规范化的 `OSError/TimeoutError` 时，Executor 把动作落为 `unknown`，不自动重发；未来厂商适配器需自行设置有限网络超时并转换 SDK 异常。`requestId → planId → serviceId/actionId` 将 HTTP、Agent 分段、动作结果和设备写入/回读日志关联起来。Outbox 的同空间写入用事务 advisory lock 序列化，发布/消费都阻止越过未完成的前序事件；死信保留并阻塞该空间后续事件，必须显式重投。
 
