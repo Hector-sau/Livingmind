@@ -124,6 +124,21 @@ def test_two_http_apis_share_state_and_undo(replicas):
     assert state(a)["version"] == 2
 
 
+def test_fresh_gateway_reset_and_shared_energy_reset(replicas):
+    (a, b), _, _ = replicas
+    b.start(BOOT)
+    first = post(b, "/api/demo/reset?accountId=demo-account", {})
+    assert first.status_code == 200, first.text
+    assert state(a)["version"] == 1
+    changed = httpx.put(a.url + f"/api/spaces/{SPACE}/energy-mode", json={"context": ctx(), "mode": "eco"}, timeout=10)
+    assert changed.status_code == 200, changed.text
+    assert httpx.get(b.url + BOOT).json()["spaces"][0]["energyMode"] == "eco"
+    reset = post(b, "/api/demo/reset?accountId=demo-account", {})
+    assert reset.status_code == 200, reset.text
+    assert httpx.get(a.url + BOOT).json()["spaces"][0]["energyMode"] == "comfort_first"
+    assert state(a)["version"] == 2
+
+
 def seed_light():
     from app.demo import seed
     return seed.INITIAL_DEVICE_STATE["light_brightness"]

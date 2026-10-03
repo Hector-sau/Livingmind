@@ -1520,6 +1520,10 @@ class RestService:
             self._undo.clear()
             self._energy_modes = {sp.space_id: sp.energy_mode for sp in seed.SPACES}
             for adapter in self._devices.values():
+                # A brand-new SQL database has no space row for clear() to bump.
+                # The durable gateway starts at epoch 0, so its first reset needs 1.
+                if self._owner is not None and self._store.epoch(adapter.space_id) == 0:
+                    self._store.bump_epoch(adapter.space_id)
                 adapter.reset()
                 self._gateway(adapter.space_id).advance_fence(adapter.space_id, self._store.epoch(adapter.space_id))
                 self._log(adapter.space_id, "demo_reset", "system", "演示数据已重置（内存数据与虚拟设备回到初始状态）")
