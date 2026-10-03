@@ -1,0 +1,14 @@
+{
+  "date": "2026-10-03",
+  "base_commit": "eff0bb437f7f1b0baa1ce0ef94ba0296685c9855",
+  "scope": "Four PostgreSQL TCP disconnection tests, evaluation worksheet, and engineering documentation. No business implementation, API contract, prompt, or candidate label changes.",
+  "environment": "macOS; Python 3.11; isolated livingmind-eval PostgreSQL; HTTP persistent virtual gateway",
+  "default_backend": {"passed": 223, "skipped": 56, "seconds": 4.13, "report": "recovery-db-default-2026-10-03.xml"},
+  "related_recovery_mixed": {"passed": 34, "seconds": 14.76, "report": "recovery-db-faults-final-2026-10-03.xml", "note": "SQL-specific fixtures use SQL; general service tests use memory"},
+  "related_recovery_sql": {"passed": 34, "seconds": 40.0, "report": "recovery-db-sql-2026-10-03.xml", "note": "All service tests use SQL storage"},
+  "early_fault_cases": {"passed": 3, "report": "recovery-db-faults-2026-10-03.xml"},
+  "preserved_failure": {"passed": 14, "failed": 1, "report": "recovery-db-faults-fixture-failure-2026-10-03.xml", "cause": "New fixture's monkeypatch teardown restored a SQL URL after outer fixture cleanup, leaking state into a later test. Replaced with explicitly ordered config restoration; no assertion weakened."},
+  "checks": ["No query before durable claim", "Unknown and lease preserved on pre-commit disconnection", "Terminal status and one activity preserved after commit", "Recovery process survives disconnection and resumes without restart"],
+  "limitations": ["Connection close/rejection, not silent packet loss", "Only recovery worker database transport, not all API network partitions", "Virtual devices, not physical hardware", "No new model calls, quality scores, or latency improvement claim"],
+  "evaluation": {"count": 30, "human_reviewed": false, "cases_sha256": "04a48852e74fa823a3a7f2ae99a65c53f0a5751227b7c4e7818d423861f5b9ff"}
+}
