@@ -4,7 +4,7 @@
 
 **One root advisory is fixed; two remain unresolved.**
 
-原报告有 23 个受影响包，来自 3 个根公告。此次修复 `xcode → uuid` 后，复查剩余 16 个 high、0 个 moderate，来自另外 2 个根公告。受影响包数量包含依赖链传播，不能写成“修了 7 个独立漏洞”。原始对照保存在 `docs/evidence/npm-audit-2026-10-03.json` 与 `npm-audit-after-uuid-2026-10-03.json`。
+原报告有 23 个受影响包，来自 3 个根公告。此次修复 `xcode → uuid` 后，复查剩余 16 个 high、0 个 moderate，来自另外 2 个根公告。受影响包数量包含依赖链传播，不能写成“修了 7 个独立漏洞”。原始 [修复前报告](https://github.com/Hector-sau/Livingmind/blob/a49a7e89ff7011b5b996a8f433a2b3c9bb794bd9/docs/evidence/npm-audit-2026-10-03.json) 与 [修复后报告](https://github.com/Hector-sau/Livingmind/blob/a49a7e89ff7011b5b996a8f433a2b3c9bb794bd9/docs/evidence/npm-audit-after-uuid-2026-10-03.json) 保留在 Git 仓库，历史报告不进入整理后的发行包。
 
 ## 已处理的 uuid
 

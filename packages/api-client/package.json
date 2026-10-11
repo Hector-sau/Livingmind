@@ -1,6 +1,6 @@
 {
   "name": "@livingmind/api-client",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "private": true,
   "description": "TypeScript types generated from the backend contracts. Do not edit src/schema.ts by hand.",
   "scripts": {

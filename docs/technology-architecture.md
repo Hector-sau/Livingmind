@@ -2,7 +2,7 @@
 
 更新：2026-10-03（新增独立评测、跨进程故障验证、Outbox 保序与分段日志）
 
-本日增量见 [设计与验证记录](design-and-validation-2026-10-03.md)：明确限制先澄清、模型方向检查、HTTP 连接复用实验（默认不开启）和只查回执。后续已实现 [独立持久化虚拟网关与双 API](durable-gateway.md)：可选 Compose 组合中两个 API 共享 HTTP/SQLite 虚拟网关；按进程所有权恢复、跨进程执行锁和 App 核对入口均有代码。最终验证数字和发布状态以交接文档顶部为准，真实设备仍未接入。
+本日增量见 Git 仓库保留的 [设计与验证记录](https://github.com/Hector-sau/Livingmind/blob/a49a7e89ff7011b5b996a8f433a2b3c9bb794bd9/docs/design-and-validation-2026-10-03.md)：明确限制先澄清、模型方向检查、HTTP 连接复用实验（默认不开启）和只查回执。后续已实现 [独立持久化虚拟网关与双 API](durable-gateway.md)：可选 Compose 组合中两个 API 共享 HTTP/SQLite 虚拟网关；按进程所有权恢复、跨进程执行锁和 App 核对入口均有代码。正式版本范围与验收要求见 [发布说明](releases/v1.0.0.md)，真实设备仍未接入。
 
 这份文档用于回答三类问题：项目实际用了什么技术、每项技术解决什么问题、后续怎样把演示原型升级成可持续维护的真实工程。
 

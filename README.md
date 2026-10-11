@@ -10,6 +10,14 @@ LivingMind 以“我想休息”为核心场景，将自然语言理解、人物
 
 当前版本为可运行的工程原型：设备通过虚拟网关执行，夜间服务由模拟时钟推进。SpaceMind 与真实厂商设备为预留接入方向，尚未完成实际联调。
 
+## Release 正式版本
+
+**[LivingMind v1.0.0](https://github.com/Hector-sau/Livingmind/releases/tag/v1.0.0)** is the first versioned source and demonstration release, not an App Store or production deployment.
+
+首个正式版本提供源码下载包、发布说明、校验文件与验证记录，适合复现、产品演示和工程评审。推荐下载 Release 中的 `LivingMind-v1.0.0-source.zip`；交接文档和历史开发报告保留在 Git 仓库，不进入整理后的发行包。当前不提供 APK / IPA，也不声明真实设备或公网生产环境已验收。
+
+版本功能与边界见[发布说明](docs/releases/v1.0.0.md)，版本历史见[CHANGELOG](CHANGELOG.md)。下文的快速运行命令同样适用于解压后的源码包；也可使用 `git clone --branch v1.0.0 --depth 1 https://github.com/Hector-sau/Livingmind.git LivingMind` 固定到本版本。
+
 ## Product 产品能力
 
 - **自然语言规划**：理解休息需求，生成灯光、空调和窗帘方案；含糊或冲突的表达先澄清。

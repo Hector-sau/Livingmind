@@ -6,7 +6,7 @@ Human review comes before scoring. The current 30-case dataset is still a candid
 
 ## 你或同学需要审核什么
 
-可以直接填写 [三十条人工审核表](evaluation-review-sheet.md)，不必先阅读 JSON。表里是原候选标签，不是模型结果；审核表填写完以后仍需按下文更新源文件与哈希。
+可以参考 Git 仓库中保留的 [三十条人工审核表](https://github.com/Hector-sau/Livingmind/blob/a49a7e89ff7011b5b996a8f433a2b3c9bb794bd9/docs/evaluation-review-sheet.md)，不必先阅读 JSON。表里是原候选标签，不是模型结果；审核表填写完以后仍需按下文更新源文件与哈希。历史审核表不包含在整理后的发行包中。
 
 逐条看输入、人物和预期行为：它应该生成计划、直接命令、回答状态、先澄清，还是拒绝范围外任务？“只调灯”不能顺带改变空调；“更凉”要明确比较个人偏好还是当前温度；含糊的表达不能只因模型碰巧输出一个值就算正确。
 

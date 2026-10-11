@@ -1,0 +1,18 @@
+# Keep development history in Git, but omit internal handoff and historical
+# reports from git-archive distributions. Application code, tests, locked
+# dependencies, Compose files, CI and energy provenance stay in the archive.
+AGENT-HANDOFF.md export-ignore
+**/AGENTS.md export-ignore
+dist export-ignore
+dist/** export-ignore
+docs/status.md export-ignore
+docs/demo-freeze.md export-ignore
+docs/team-workflow.md export-ignore
+docs/project-metrics.md export-ignore
+docs/evidence.md export-ignore
+docs/evidence export-ignore
+docs/evidence/** export-ignore
+docs/interview-evidence-*.md export-ignore
+docs/design-and-validation-*.md export-ignore
+docs/evaluation-review-sheet.md export-ignore
+scripts/build_evidence.py export-ignore
