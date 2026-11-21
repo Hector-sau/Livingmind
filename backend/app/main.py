@@ -10,6 +10,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.api import health, routes
 from app.api.errors import install_error_handlers
+from app.family.api import family_app
 from app.config import APP_NAME, APP_VERSION, CORS_ORIGINS
 from app.observability.context import reset_request_id, set_request_id
 
@@ -66,6 +67,7 @@ def create_app() -> FastAPI:
     install_error_handlers(app)
     app.include_router(health.router)
     app.include_router(routes.router)
+    app.mount("/api/family", family_app())
     return app
 
 

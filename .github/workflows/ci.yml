@@ -105,6 +105,9 @@ jobs:
       - run: npm ci --no-audit --no-fund
       - run: npm run typecheck
       - run: npm test
+      - name: Family browser voice contracts
+        working-directory: .
+        run: node --test scripts/family_voice.test.cjs
 
   container-e2e:
     name: Docker API + browser E2E

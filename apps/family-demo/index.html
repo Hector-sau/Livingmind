@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="theme-color" content="#f4f7f7" />
+    <title>LivingMind · 家庭空间</title>
+    <link rel="stylesheet" href="./styles.css" />
+    <script src="./voice.js" defer></script>
+    <script src="./speaker-upload.js" defer></script>
+    <script src="./app.js" defer></script>
+  </head>
+  <body>
+    <div class="shell">
+      <aside class="rail">
+        <a class="brand" href="#home" aria-label="LivingMind 首页"
+          ><img src="./assets/livingmind.png" alt="LivingMind"
+        /></a>
+        <div class="rail-content">
+          <nav aria-label="工作区">
+            <button class="nav-item selected" id="nav-home" data-testid="nav-home" data-view="home">
+              <span data-icon="home"></span><span>家庭空间</span>
+            </button>
+            <button class="nav-item" data-testid="nav-history" data-view="history">
+              <span data-icon="history"></span><span>服务记录</span><small id="history-count"></small>
+            </button>
+          </nav>
+          <div class="rail-bottom">
+            <button class="nav-item" id="presenter-open" data-testid="presenter-toggle">
+              <span data-icon="sliders"></span><span>场景模拟器</span>
+            </button>
+            <div class="rail-foot">
+              <span class="dot available" id="conn-dot"></span><span id="conn-state">正在连接</span>
+            </div>
+          </div>
+        </div>
+      </aside>
+      <main>
+        <header class="topline">
+          <div class="crumb">
+            <span data-icon="layers"></span>居住服务<span>/</span
+            ><strong id="crumb-current">家庭空间</strong>
+          </div>
+          <div class="top-actions">
+            <label class="resident-select" title="当前操作成员"
+              ><span data-icon="user"></span
+              ><select id="resident" aria-label="当前操作成员" data-testid="resident-member"
+                ><option value="mother">妈妈</option></select
+              ></label
+            ><button class="voice-button" id="voice-open" data-testid="voice-open">
+              <span data-icon="voice"></span>语音交互
+            </button>
+          </div>
+        </header>
+        <div id="connection-warning" class="warning" hidden>
+          <span id="warning-text"></span><button id="retry-connect">重新连接</button>
+        </div>
+        <section class="view" id="home-view">
+          <div class="page-heading">
+            <div>
+              <div class="eyebrow"><i></i>FAMILY SPACE</div>
+              <h1>家庭空间</h1>
+            </div>
+            <span class="sim-badge"><span class="dot"></span>模拟家庭</span>
+          </div>
+          <div class="hero-grid">
+            <section class="room-hero" aria-label="模拟空间示意图">
+              <div class="room-label">
+                <span data-icon="home"></span>空间示意<span class="room-en">OUR HOME</span>
+              </div>
+              <div class="room-pins" id="room-pins" aria-label="按房间查看灯光读数"></div>
+              <div class="room-caption">
+                <div class="room-time" id="room-time">--:--</div>
+                <div>
+                  <span class="yellow-dot"></span><span id="room-summary">正在读取家庭状态</span>
+                </div>
+              </div>
+            </section>
+            <section class="service" aria-label="主动服务">
+              <div class="service-head">
+                <div class="service-mark"><span data-icon="spark"></span></div>
+                <strong>主动服务</strong
+                ><span id="service-indicator" class="service-indicator">待命</span>
+              </div>
+              <div id="proposal" class="service-body" aria-live="polite"></div>
+            </section>
+          </div>
+          <section class="section" aria-label="家庭成员">
+            <div class="section-head">
+              <h2>家庭成员</h2>
+              <span class="section-meta" id="members-meta"></span>
+            </div>
+            <div id="members" class="members"></div>
+          </section>
+          <section class="section" aria-label="设备状态">
+            <div class="section-head">
+              <div class="device-title">
+                <h2>设备状态</h2>
+                <select id="room-filter" aria-label="按空间筛选设备" data-testid="room-filter"
+                  ><option value="">全部空间</option></select
+                >
+              </div>
+              <span class="section-meta"><span class="dot available"></span>虚拟网关回读</span>
+            </div>
+            <div id="devices" class="devices"></div>
+          </section>
+        </section>
+        <section class="view" id="history-view" hidden>
+          <div class="page-heading">
+            <div>
+              <div class="eyebrow"><i></i>SERVICE HISTORY</div>
+              <h1>服务记录</h1>
+            </div>
+            <span class="sim-badge"><span class="dot"></span>模拟家庭</span>
+          </div>
+          <div class="history-panel">
+            <div class="section-head">
+              <h2>家庭服务时间线</h2>
+              <span class="section-meta" id="history-meta"></span>
+            </div>
+            <div id="timeline"></div>
+          </div>
+        </section>
+      </main>
+    </div>
+    <dialog id="sheet"
+      ><div class="dialog-head">
+        <div>
+          <div class="eyebrow" id="sheet-kicker"></div>
+          <h2 id="sheet-title"></h2>
+        </div>
+        <button class="icon-button" id="sheet-close" aria-label="关闭">
+          <span data-icon="close"></span>
+        </button>
+      </div>
+      <div id="sheet-body"></div
+    ></dialog>
+    <div id="toast" class="toast" role="status" hidden></div>
+  </body>
+</html>

@@ -1,0 +1,303 @@
+"""Shared state machine for the isolated, single-household evening demonstration."""
+from __future__ import annotations
+
+from copy import deepcopy
+import re
+from threading import RLock
+from uuid import uuid4
+
+from .gateway import ROOMS, VirtualFamilyGateway
+from .agents import capability_actions, experience_targets
+from .model_edit import configured_provider, interpret
+
+ACTIVITIES = {"away": "未到家", "home": "在家", "study": "阅读学习", "tv": "看电视", "sleep": "准备休息"}
+MEMBERS = [
+    ("mother", "妈妈", "away", None, "回家喜欢柔和灯光，客厅 25°C"),
+    ("father", "爸爸", "home", "living", "观影时客厅亮度 20%"),
+    ("child", "孩子", "home", "study", "学习时书桌灯亮度 75%"),
+]
+EVENT_CONTEXT = {
+    "arrival": ("home", "living"), "study": ("study", "study"),
+    "tv": ("tv", "living"), "sleep": ("sleep", "bedroom"),
+}
+EVENT_TYPES = {*EVENT_CONTEXT, "unknown_arrival"}
+AGENTS = ["主 Agent", "体验 Agent", "空间执行 Agent"]
+ACTION_TEXT = {"confirmed": "虚拟回读一致", "unknown": "状态未知，保留上次读数", "offline": "设备离线，跳过", "rejected": "能力校验拒绝", "mismatch": "回读与目标不一致"}
+
+
+class FamilyError(ValueError):
+    def __init__(self, status, code, message):
+        super().__init__(message)
+        self.status = status
+        self.payload = {"error": {"code": code, "message": message}}
+
+
+def check(condition, message, *, status=422, code="INVALID_INPUT"):
+    if not condition:
+        raise FamilyError(status, code, message)
+
+
+def text_field(data, key):
+    value = data.get(key)
+    check(isinstance(value, str) and 0 < len(value) <= 128 and value.strip() == value, f"{key} 需为 1–128 字符的非空文本")
+    return value
+
+
+class FamilyEvening:
+    def __init__(self, gateway_factory=VirtualFamilyGateway, edit_provider=None):
+        self.lock = RLock()
+        self.gateway_factory = gateway_factory
+        self.edit_provider = edit_provider or configured_provider()
+        self.reset()
+
+    def reset(self):
+        self.gateway = self.gateway_factory()
+        self.members = {i: {"id": i, "name": n, "activity": a, "roomId": r, "activityLabel": ACTIVITIES[a],
+                            "preference": p} for i, n, a, r, p in MEMBERS}
+        self.minutes = 18 * 60 + 25
+        self.day = 1
+        self.suggestion = None
+        self.muted = False
+        self.snooze_until = None
+        self.events = {}
+        self.recent_signals = {}
+        self.decisions = {}
+        self.exceptions = {}
+        self.timeline = []
+        self.receipts = []
+        self.outcome = "ready"
+        self.log("reset", "家庭空间已就绪", "晚间模拟从 18:25 开始。所有空间信号和设备回读均为模拟。")
+        return self.state()
+
+    @property
+    def time(self):
+        return "%02d:%02d" % (self.minutes // 60 % 24, self.minutes % 60)
+
+    def log(self, kind, title, detail):
+        self.timeline.insert(0, {"id": uuid4().hex, "day": self.day, "time": self.time, "kind": kind, "title": title, "detail": detail})
+
+    def state(self):
+        return deepcopy({"plannerSource": "rule", "source": "simulation", "time": self.time, "day": self.day, "members": list(self.members.values()),
+                         "rooms": ROOMS, "devices": self.gateway.snapshot(), "suggestion": self.suggestion,
+                         "muted": self.muted, "snoozed": self.snooze_until is not None and self.minutes < self.snooze_until,
+                         "receipts": self.receipts, "timeline": self.timeline, "lastOutcome": self.outcome})
+
+    def dispatch(self, method, path, data=None):
+        """Use one state lock. Optional remote interpretation runs outside the lock."""
+        with self.lock:
+            try:
+                return self._dispatch(method, path, data)
+            except FamilyError as error:
+                if (self.edit_provider is None or path != "/decision"
+                        or error.payload["error"]["code"] != "UNPARSED_EDIT"):
+                    if error.payload["error"]["code"] == "UNPARSED_EDIT":
+                        error.payload["error"]["code"] = "NOT_UNDERSTOOD"
+                    raise
+                allowed = {action["deviceId"] for action in self.suggestion["actions"]}
+                devices = [d for d in self.gateway.snapshot() if d["id"] in allowed]
+        parsed = interpret(self.edit_provider, data["text"], devices)
+        check(parsed is not None, "未理解修改，请明确设备和目标。", code="NOT_UNDERSTOOD")
+        with self.lock:
+            # Recheck member, plan identity, range and family constraints after waiting.
+            retry = {k: v for k, v in data.items() if k != "text"}
+            self.decide({**retry, **parsed})
+            self.suggestion["editSource"] = "model"
+            self.suggestion["trace"][1]["detail"] += "（模型辅助解析，规则校验通过）"
+            return self.state()
+
+    def _dispatch(self, method, path, data):
+        if path == "/state" and method == "GET":
+            return self.state()
+        handlers = {"/events": self.event, "/decision": self.decide, "/devices": self.device}
+        check(path in {*handlers, "/reset", "/next-day", "/state"}, "未找到路径", status=404, code="NOT_FOUND")
+        check(method == "POST" and path != "/state", "此路径不支持该请求方法", status=405, code="METHOD")
+        check(isinstance(data, dict), "请求内容应为 JSON 对象")
+        if path == "/reset":
+            return self.reset()
+        if path == "/next-day":
+            self.next_evening()
+            return self.state()
+        handlers[path](data)
+        return self.state()
+
+
+    def next_evening(self):
+        self.day += 1
+        self.minutes = 18 * 60 + 25
+        self.muted = False
+        self.snooze_until = None
+        self.exceptions.clear()
+        self.recent_signals.clear()
+        self.suggestion = None
+        self.receipts = []
+        for mid, _, activity, room, _ in MEMBERS:
+            self.members[mid].update(activity=activity, activityLabel=ACTIVITIES[activity], roomId=room)
+        self.outcome = "next_day"
+        self.log("next_day", f"第 {self.day} 天 · 新的傍晚", "昨晚临时设定已到期。保留长期偏好、虚拟设备当前值和活动记录。")
+
+    def device(self, data):
+        device_id, mode = text_field(data, "deviceId"), text_field(data, "mode")
+        check(any(d["id"] == device_id for d in self.gateway.snapshot()), "未知设备")
+        check(mode in ("online", "offline", "unknown"), "未知设备模拟状态")
+        self.gateway.set_mode(device_id, mode)
+        self.log("device_mode", "模拟设备状态已更改", f"{device_id} · {mode}")
+        self.outcome = "device_mode"
+
+    def event(self, data):
+        event_id, typ = text_field(data, "eventId"), text_field(data, "type")
+        check(typ in EVENT_TYPES, "未知家庭事件")
+        member_id = data.get("memberId")
+        check(isinstance(member_id, str) and member_id in self.members or (typ == "unknown_arrival" and member_id is None), "未知家庭成员")
+        room = data.get("roomId", EVENT_CONTEXT.get(typ, (None, None))[1])
+        check(room == EVENT_CONTEXT.get(typ, (None, None))[1] or (typ == "study" and room == "living"), "此事件不支持该空间")
+        fingerprint = (typ, member_id, room)
+        if event_id in self.events:
+            check(self.events[event_id] == fingerprint, "同一个事件号不能用于另一条信号", status=409, code="EVENT_ID_REUSED")
+            self.outcome = "duplicate"
+            return
+        self.events[event_id] = fingerprint
+        self.minutes += 5
+        if self.minutes >= 24 * 60:
+            self.next_evening()
+        if typ == "unknown_arrival":
+            if self.minutes - self.recent_signals.get(("unknown",), -100) <= 10:
+                self.outcome = "coalesced"
+                return
+            self.recent_signals[("unknown",)] = self.minutes
+            self.outcome = "identity_uncertain"
+            self.log("suppressed", "身份待确认", "门口有活动，但无法确定是谁。保持设备现状，不调用个人偏好。")
+            return
+        member = self.members[member_id]
+        activity = EVENT_CONTEXT[typ][0]
+        same_activity = (member["activity"], member["roomId"]) == (activity, room)
+        member.update(activity=activity, activityLabel=ACTIVITIES[activity], roomId=room)
+        # New event IDs often describe the same situation. Keep an open edit and
+        # its confirmation ID intact while the household context remains identical.
+        context = tuple((m["activity"], m["roomId"]) for m in self.members.values())
+        signal = (typ, member_id, room, context)
+        quiet = self.muted or (self.snooze_until is not None and self.minutes < self.snooze_until)
+        pending_same = (self.suggestion is not None and self.suggestion["memberId"] == member_id
+                        and self.suggestion["eventType"] == typ and self.suggestion["roomId"] == room)
+        if same_activity and not quiet and signal in self.recent_signals and (pending_same or self.minutes - self.recent_signals[signal] <= 10):
+            self.outcome = "coalesced"
+            return
+        self.log("signal", f"{member['name']} · {ACTIVITIES[activity]}", "来自模拟家庭事件面板。")
+        if self.suggestion:
+            self.log("superseded", "旧建议已撤下", "成员活动已变化，原建议不能再确认。")
+            self.suggestion = None
+        if quiet:
+            self.outcome = "muted" if self.muted else "snoozed"
+            self.log("suppressed", "保持安静", "当前处于免打扰时段，只记录空间状态。")
+            return
+        self.recent_signals[signal] = self.minutes
+        self.plan(member_id, typ)
+
+    def plan(self, member_id, typ):
+        member = self.members[member_id]
+        others = [m for m in self.members.values() if m["id"] != member_id]
+        by_id = {d["id"]: d for d in self.gateway.snapshot()}
+        title, reason, actions = experience_targets(member, others, typ, by_id)
+        exception = self.exceptions.get((member_id, typ))
+        if exception:
+            revised = []
+            for d, v in actions:
+                if d != exception["deviceId"]:
+                    continue
+                override = exception["value"] if exception["value"] is not None else v
+                if d == "living-speaker" and any(m["activity"] in ("study", "sleep") for m in self.members.values()):
+                    override = min(override, v)
+                revised.append((d, override))
+            actions = revised
+            reason += "已应用本成员今晚对此场景的限定。"
+        # Suppress a no-op only with a known, current virtual reading.
+        actions, skipped = capability_actions(actions, by_id)
+        if skipped:
+            reason += "跳过不支持的动作：" + "、".join(skipped) + "。"
+        if not actions:
+            self.outcome = "no_change"
+            self.log("suppressed", "无需调整", reason + "当前无需新增动作。")
+            return
+        self.suggestion = {"id": uuid4().hex, "title": title, "reason": reason, "memberId": member_id,
+                           "eventType": typ, "roomId": member["roomId"], "scope": "tonight", "plannerSource": "rule", "actions": [{"deviceId": d, "value": v} for d,v in actions],
+                           "trace": [{"agent": AGENTS[0], "detail": f"识别{member['name']}的空间事件，核对免打扰和其他成员活动。"},
+                                     {"agent": AGENTS[1], "detail": reason},
+                                     {"agent": AGENTS[2], "detail": "按虚拟设备能力生成待确认动作：" + "、".join(by_id[d]["name"] for d,v in actions)}]}
+        self.outcome = "suggested"
+        self.log("suggested", title, reason)
+
+    def decide(self, data):
+        sid, decision = text_field(data, "suggestionId"), text_field(data, "decision")
+        check(decision in ("confirm", "dismiss", "mute", "snooze", "edit"), "未知决策")
+        check(decision == "edit" or not {"onlyDeviceId", "value", "text"}.intersection(data), "仅编辑请求可设置设备和值")
+        actor = text_field(data, "memberId")
+        old = self.decisions.get(sid)
+        owner = old[1] if old else (self.suggestion or {}).get("memberId")
+        if owner is not None:
+            check(owner == actor, "当前建议属于另一位成员", status=403, code="WRONG_MEMBER")
+        if self.decisions.get(sid, (None,))[0] == decision and decision != "edit":
+            return
+        suggestion = self.suggestion
+        check(suggestion is not None and suggestion["id"] == sid, "建议已过期，请查看当前家庭状态", status=409, code="STALE_SUGGESTION")
+        if decision == "edit":
+            self.edit(suggestion, data)
+            return
+        if decision == "confirm":
+            if "exception" in suggestion:
+                self.exceptions[suggestion["memberId"], suggestion["eventType"]] = suggestion["exception"]
+            self.receipts = [
+                self.gateway.submit(f"{sid}:{a['deviceId']}", a["deviceId"], a["value"])
+                for a in suggestion["actions"]
+            ]
+            all_ok = all(r["status"] == "confirmed" for r in self.receipts)
+            self.outcome = "confirmed" if all_ok else "incomplete"
+            names = {d["id"]: d["name"] for d in self.gateway.snapshot()}
+            details = [f"{names[r['deviceId']]}：{ACTION_TEXT[r['status']]}" + (f"（{r['observed']}）" if r["observed"] is not None else "") for r in self.receipts]
+            self.log(self.outcome, "已确认 · 虚拟设备执行结果", "；".join(details))
+        else:
+            self.outcome = {"dismiss": "dismissed", "mute": "muted", "snooze": "snoozed"}[decision]
+            if decision == "mute":
+                self.muted = True
+            if decision == "snooze":
+                self.snooze_until = self.minutes + 30
+            labels = {"mute": "今晚免打扰", "dismiss": "已跳过这条建议", "snooze": "已暂停提醒 30 分钟"}
+            self.log(self.outcome, labels[decision], "无设备写入。")
+        self.decisions[sid] = decision, suggestion["memberId"]
+        self.suggestion = None
+
+    def edit(self, suggestion, data):
+        if "text" in data:
+            check(not {"onlyDeviceId", "value"}.intersection(data), "文字与结构化修改不能混用")
+            command = re.sub(r"[\s，。！,!？?]", "", text_field(data, "text"))
+            command = re.sub(r"(?:其他|其它)(?:设备)?(?:都)?(?:保持不变|不要动|别动|不动)$", "", command)
+            if re.fullmatch(r"(?:我)?今晚(?:还要|想|要)看书客厅亮一点卧室先别动", command):
+                command = "今晚只调客厅灯到65%"
+            elif re.fullmatch(r"今晚只(?:开|调)客厅灯空调(?:先)?(?:别开|不动|别动)", command):
+                command = "今晚只调客厅灯"
+            names = {d["name"]: d["id"] for d in self.gateway.snapshot()}
+            terms = "|".join(map(re.escape, names))
+            match = re.fullmatch(rf"(?:今晚|今夜|这次)?只(?:调|开|打开|调整|改|动)?({terms})(?:(?:到|至|为|调到|调至)([0-9]{{1,3}})(%|％|度|°C|档)?)?", command)
+            check(match, "未理解本次修改。可说“今晚只调客厅灯到 35%”。原建议保持待确认。", code="UNPARSED_EDIT")
+            device_id = names[match[1]]
+            value = int(match[2]) if match[2] else None
+            unit = match[3]
+        else:
+            device_id = text_field(data, "onlyDeviceId")
+            value = data.get("value")
+            unit = None
+        actions = [dict(a) for a in suggestion["actions"] if a["deviceId"] == device_id]
+        check(bool(actions), "只能缩小当前建议的设备范围")
+        device = next(d for d in self.gateway.snapshot() if d["id"] == device_id)
+        check(unit is None or {"度": "°C", "％": "%"}.get(unit, unit) == device["unit"], "单位与设备不符", code="NOT_UNDERSTOOD")
+        if value is not None:
+            low, high, step = device["capability"]["valueRange"]
+            check(type(value) is int and low <= value <= high and (value - low) % step == 0, "数值超出设备支持范围")
+            if device_id == "living-speaker" and any(m["activity"] in ("study", "sleep") for m in self.members.values()):
+                limit = 12 if any(m["activity"] == "sleep" for m in self.members.values()) else 18
+                check(value <= limit, f"家人正在学习或休息，当前音量上限为 {limit}%")
+            actions[0]["value"] = value
+        detail = f"按要求今晚此场景只调{device['name']}到 {actions[0]['value']}{device['unit']}，保留长期偏好。"
+        suggestion.update(id=uuid4().hex, actions=actions, reason=detail, editSource="rule", exception={"deviceId": device_id, "value": value})
+        suggestion["trace"][1]["detail"] = detail
+        suggestion["trace"][2]["detail"] = f"仅{device['name']}待确认，其余设备没有待执行动作。"
+        self.outcome = "edited"
+        self.log("edited", "今晚的建议已修改", detail)
