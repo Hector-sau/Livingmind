@@ -32,7 +32,16 @@ def experience_targets(member, others, typ, by_id):
         else:
             actions = [("desk-light", pref["studyLight"]), ("study-fan", 1)]
         if viewers and not in_living:
-            reason += f"{'、'.join(viewers)}正在客厅看电视，保留客厅环境。"
+            reason += f"{'、'.join(viewers)}正在客厅看电视，保留客厅灯光。"
+        if viewers:
+            speaker = by_id.get("living-speaker")
+            limit = 12 if sleepers else 18
+            if speaker and speaker["mode"] == "online":
+                if speaker["value"] > limit:
+                    actions.append(("living-speaker", limit))
+                    reason += f"客厅音量当前为 {speaker['value']}%，确认后降至 {limit}%。"
+            else:
+                reason += "当前没有可靠的客厅音量读数，保留音箱设置。"
     elif typ == "tv":
         title = "为观影调暗客厅灯？"
         reason = f"{member['name']}在客厅看电视，偏好观影亮度 {pref['tvLight']}%。"

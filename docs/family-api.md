@@ -21,13 +21,13 @@ All successful responses return a complete state snapshot. All POST bodies are J
 | Method | Path under `/api/family` | Body / behavior |
 |---|---|---|
 | GET | `/state` | Read the current household. 查看状态。 |
-| POST | `/events` | Supply `eventId`, `type` and `memberId`. Types: `arrival`, `study`, `tv`, `sleep`, `unknown_arrival`. Identity may be omitted for `unknown_arrival`. 学习默认在书房，也可传 `roomId: "living"`。 |
+| POST | `/events` | Supply `eventId`, `type` and `memberId`. Types: `arrival`, `study`, `tv`, `sleep`, `unknown_arrival`. Identity may be omitted for `unknown_arrival`. Optional `source` identifies the panel (`simulated`), typed input (`resident-input`), sample transcript (`simulated-transcript`) or browser recognition (`browser-asr`). 学习默认在书房，也可传 `roomId: "living"`。 |
 | POST | `/decision` | Supply current `suggestionId`, selected `memberId` and `decision`. Choose `confirm`, `edit`, `dismiss`, `snooze` (30 simulated minutes) or `mute` (tonight). 决策必须匹配建议所属成员。 |
 | POST | `/devices` | Supply `deviceId` and `mode` (`online`, `offline`, `unknown`). Inject a virtual connection condition. |
 | POST | `/next-day` | `{}` begins the next evening at 18:25. Clear tonight’s exceptions, silence settings and open proposal. Keep device values, connection conditions, preferences and history. |
 | POST | `/reset` | `{}` restores every fixture and clears history. |
 
-A unique event advances simulated time by five minutes. A duplicate ID with the same payload produces no second proposal or log entry. Reusing that ID with a different event returns 409. A new identified activity invalidates the previous unconfirmed proposal. Confirmation is atomic within this process and retried confirmations reuse the original outcome. Matching device settings produce no extra action when the virtual readback is current.
+A unique event advances simulated time by five minutes. A duplicate ID with the same payload produces no second proposal or log entry. Reusing that ID with a different event returns 409. A real activity change can invalidate the previous proposal. A no-op signal from another member preserves a still-valid pending plan. Confirmation is atomic within this process and retried confirmations reuse the original outcome. Matching device settings produce no extra action when the virtual readback is current.
 
 每个新信号推进五分钟。重复信号不推进时间。下一条明确身份的活动会撤下已经过时的建议。建议在确认前不会写设备。跨到午夜会进入下一天的傍晚；也可用“下一晚”直接观察临时设置到期。
 
@@ -40,7 +40,7 @@ Send the events in order, confirming each proposal before sending the next event
 | Type / member | Result from the fresh fixtures · 初始数据下的结果 |
 |---|---|
 | `arrival` / `mother` | Living light 45%, curtain opening 45%, AC 25°C. 妈妈到家后先看到建议。 |
-| `study` / `child` | Desk lamp 75%, study fan level 1. 孩子的学习设置只作用在书房。 |
+| `study` / `child` | Desk lamp 75%, study fan level 1. 此时只需调整书房。若爸爸已开始观影且音量过高，学习建议也会包含客厅音量调整。 |
 | `tv` / `father` | Living light 20%, volume 18%. 孩子正在学习，音量从独处观影目标 35% 限到 18%。 |
 | `sleep` / `mother` | Bed light 8%, bedroom curtain closed, living volume 12%. 方案说明会降低客厅音量，确认后才执行。书桌保持 75%。 |
 
@@ -54,9 +54,9 @@ For a shared-room conflict, reset, send `study` with `memberId: "child"` and `ro
 {"memberId":"mother","suggestionId":"use-current-id","decision":"edit","text":"我今晚还要看书，客厅亮一点，卧室先别动"}
 ```
 
-The rule parser maps this supported phrase to the living light at 65%. “今晚只开客厅灯，空调先别开” retains only the proposed light target. “今晚只调客厅灯到 35%” specifies a numeric target. A structured alternative uses `onlyDeviceId` and optional `value`. Both forms may narrow the current proposal. An edit returns a new suggestion ID, and confirmation must use that new ID.
+From the initial 0% reading, this phrase proposes 65%. When the light is already at 80%, it proposes 90%. An unknown reading requires an explicit target before a relative adjustment can be proposed. “今晚只开客厅灯，空调先别开” retains only the proposed light target. “今晚只调客厅灯到 35%” specifies a numeric target. A structured alternative uses `onlyDeviceId` and optional `value`. Both forms may narrow the current proposal. An edit returns a new suggestion ID, and confirmation must use that new ID.
 
-这里的语言理解来自有限规则。没理解的指令返回 `NOT_UNDERSTOOD`，未获支持的单位、设备和数值也会被拒绝。设备维持原值。修改经确认才成为“该成员、该场景、该晚”的约束。家庭成员的长期偏好保持原值，下一晚按原偏好重新规划。
+这里的语言理解来自有限规则。没理解的指令返回 `NOT_UNDERSTOOD`，未获支持的单位、设备和数值也会被拒绝。设备维持原值。以“这次”开头的修改只作用于当前计划；“今晚”的要求经确认才成为该成员在当晚该场景的约束。结构化编辑可指定 `scope` 为 `once` 或 `tonight`。家庭成员的长期偏好保持原值，下一晚按原偏好重新规划。
 
 ## MIoT mapping · 能力与回读
 

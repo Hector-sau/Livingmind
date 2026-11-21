@@ -115,32 +115,50 @@ function showConnection(isOk, message) {
   $('connection-warning').hidden = isOk;
   if (!isOk) $('warning-text').textContent = message || '未能读取家庭状态。请检查服务并重试。';
 }
+async function fetchHousehold(path, data) {
+  const options =
+    data === undefined
+      ? {}
+      : {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(data)
+        };
+  const response = await fetch('/api/family/' + path, { ...options, cache: 'no-store' });
+  const payload = await response.json().catch(() => null);
+  if (!response.ok) {
+    const message =
+      payload?.error?.message ||
+      (typeof payload?.detail === 'string' && payload.detail) ||
+      '家庭服务未完成此请求。';
+    throw Object.assign(new Error(message), { api: true, status: response.status });
+  }
+  if (!Array.isArray(payload?.members)) throw new Error('服务返回了未识别的数据。');
+  return payload;
+}
+
 async function call(path, data) {
   if (busy) return false;
   busy = true;
   document.body.classList.add('pending');
   try {
-    const options =
-      data === undefined
-        ? {}
-        : {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(data)
-          };
-    const res = await fetch('/api/family/' + path, { ...options, cache: 'no-store' });
-    const payload = await res.json().catch(() => null);
-    if (!res.ok)
-      throw Object.assign(
-        new Error(
-          typeof payload?.detail === 'string'
-            ? payload.detail
-            : payload?.error?.message || payload?.error || '请求没有完成，请刷新状态后重试。'
-        ),
-        { api: true }
-      );
-    if (!payload || !Array.isArray(payload.members)) throw new Error('服务返回了未识别的数据。');
-    state = payload;
+    let latest;
+    try {
+      latest = await fetchHousehold(path, data);
+    } catch (error) {
+      if (path !== 'decision' || ![403, 409].includes(error.status)) throw error;
+      // Another tab can replace a proposal with a different owner's proposal.
+      // Read the current household once. Never resend the user's decision.
+      latest = await fetchHousehold('state');
+      if (latest.suggestion?.id === data.suggestionId) throw error;
+      state = latest;
+      showConnection(true);
+      closeSheet();
+      render();
+      tip('原建议已失效，已更新家庭状态。请重新核对。');
+      return false;
+    }
+    state = latest;
     showConnection(true);
     render();
     return true;
@@ -314,7 +332,7 @@ function renderProposal() {
       acts +
       '</div><div class="action-row">' +
       button('action-confirm', '确认执行', 'primary-btn', 'check') +
-      button('action-edit', '仅本次调整', 'pill-btn', 'tune') +
+      button('action-edit', '调整方案', 'pill-btn', 'tune') +
       button('action-dismiss', '跳过', 'plain-btn') +
       '</div><div class="service-tools">' +
       button('action-trace', '协作过程', 'trace-toggle', 'trace') +
@@ -455,9 +473,9 @@ function edit() {
     .join('');
   openSheet(
     'edit',
-    'ONE-NIGHT ADJUSTMENT',
-    '仅调整今晚的方案',
-    '<p class="dialog-copy">保留一个设备动作，或用一句话修改。修改后可预览方案并再次确认。</p>' +
+    'PLAN ADJUSTMENT',
+    '调整当前方案',
+    '<p class="dialog-copy">选择设备或用一句话修改。用“这次只……”限定当前方案，用“今晚只……”应用到当晚同一场景。修改后仍需确认。</p>' +
       choices +
       button('edit-save', '仅保留所选动作', 'pill-btn') +
       '<label class="field">用一句话调整<input id="edit-text" ' +
@@ -483,7 +501,11 @@ async function decide(decision, extra = {}, memberId) {
     closeSheet();
     navigate('home');
     tip(
-      decision === 'edit' ? '已修改今晚的方案，请核对后确认。' : state.timeline?.[0]?.title || '已完成'
+      decision === 'edit'
+        ? state.suggestion?.scope === 'once'
+          ? '本次方案已修改，请核对后确认。'
+          : '今晚的方案已修改，请核对后确认。'
+        : state.timeline?.[0]?.title || '已完成'
     );
     return true;
   }
@@ -545,8 +567,8 @@ function initVoice() {
         voicePhase = phase;
         if (dialogKind === 'voice' && $('voice-status')) $('voice-status').textContent = message || '';
       },
-      onTranscript: ({ text, source, final }) => {
-        if (dialogKind === 'voice' && $('speech-input')) {
+      onTranscript: ({ text, source, final, memberId }) => {
+        if (dialogKind === 'voice' && memberId === voicePerson && $('speech-input')) {
           $('speech-input').value = text;
           voiceNotice = source;
           if ($('voice-status'))
@@ -568,6 +590,7 @@ function voiceSheet() {
   }
   initVoice();
   voicePerson = selectedResident;
+  voiceNotice = '';
   voice?.selectMember(voicePerson);
   const options = state.members
     .map(
@@ -611,6 +634,10 @@ function voiceSheet() {
     selectedResident = voicePerson;
     $('resident').value = selectedResident;
     voice?.selectMember(voicePerson);
+    voiceNotice = '';
+    $('speech-input').value = '';
+    $('voice-status').textContent = '已切换说话人，请重新说话或输入。';
+    $('dialog-error')?.remove();
   };
   $('speech-input').onkeydown = e => {
     if (e.key === 'Enter') submitSpeech();
@@ -645,6 +672,16 @@ async function submitSpeech() {
   // A new event must be an entire, unambiguous utterance. Mixed requests belong
   // to the current proposal’s bounded editor and can never imply confirmation.
   const simple = txt.replace(/[，。！,!？?\s]/g, '');
+  const namedMember = state.members.find(m => simple.startsWith(m.name));
+  if (namedMember && namedMember.id !== voicePerson) {
+    $('voice-status').textContent =
+      '这句话提到' +
+      namedMember.name +
+      '，当前选择的是' +
+      titleForMember(voicePerson) +
+      '。请切换说话人后重新输入，或用第一人称描述自己的活动。';
+    return;
+  }
   const eventPatterns = [
     ['arrival', /^(?:我|我们)?(?:刚刚|刚|已经)?(?:到家|回家)(?:了|啦)?$/],
     [
@@ -815,4 +852,7 @@ $('room-filter').onchange = e => {
   perRoomFilter = e.target.value;
   render();
 };
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible' && state && !elSheet.open) call('state');
+});
 call('state');

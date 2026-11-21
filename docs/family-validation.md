@@ -11,7 +11,7 @@
 node --test scripts/family_voice.test.cjs
 ```
 
-- 家庭测试覆盖入户、身份不确定、重复信号、共享空间冲突、临时例外、次日日切、陈旧方案、并发确认、设备离线以及未知回读。默认内存配置的一次完整后端回归为 242 项通过、56 项按配置跳过，报告另列 4 个通过的 subtests；家庭用例已包含其中。
+- 家庭测试覆盖入户、身份不确定、重复信号、共享空间冲突、临时例外、次日日切、陈旧方案、并发确认、设备离线以及未知回读。默认内存配置的一次完整后端回归为 249 项通过、56 项按配置跳过，报告另列 16 个通过的 subtests；家庭用例已包含其中。
 - 浏览器语音接口测试使用替身覆盖转写、能力缺失、权限错误、打断和跨成员迟到回调。真实模型的公开录音烟雾测试以及在本地注册声音模板的方法见[说话人实验](family-voice.md)。
 - 已在真实 Chromium 中从浏览器控件操作并核对到家、修改、确认、学习、观影、回执未知及次日偏好。手机使用触摸输入模拟完成确认与打开回执，桌面和手机都使用服务端返回的状态。
 - 设计取舍来自既有方案及使用场景假设。演示成员均为虚构人物。打扰率、真实家庭满意度和硬件识别率仍需用户研究。
@@ -23,15 +23,24 @@ node --test scripts/family_voice.test.cjs
 | 手机 390 × 844，3× | 一列服务流、底部导航、家庭成员纵向排列 | 1170 × 2532 |
 | 手机 375 × 812，3× | 同一路径检查横向溢出、触控和滚动 | 验证，无单独发行图 |
 | iPad 竖屏 820 × 1180，2× | 上下排列空间与建议，设备继续向下滚动 | 1640 × 2360 |
+| 大屏 iPad 竖屏 1024 × 1366，2× | 触控设备保持上下排列，检查空间图与建议卡的实际位置 | 验证，无单独发行图 |
 | iPad 横屏 1180 × 820，2× | 侧栏导航，空间与建议并排 | 2360 × 1640 |
 
 视口单位为 CSS 像素，对应模拟设备的逻辑显示尺寸。原图固定截取单个视口，未使用整页长截图。脚本断言横向页面宽度、DPR 以及核心操作至少约 44 CSS px 的高度，并通过触摸完成确认与回执查看。
 
 ## 复现浏览器操作和媒体
 
-QA 脚本使用 Node.js 和 Playwright。将 Playwright 安装在自己的开发环境中，并安装其 Chromium。可用 `PLAYWRIGHT_MODULE` 指定已安装的模块入口，`CHROMIUM_PATH` 指定兼容的本地 Chromium。脚本每次创建独立的回环服务器与家庭状态，退出时关闭。浏览日常演示不需要这些录制依赖。
+QA 脚本使用 Node.js 和锁定版本的 Playwright。在仓库根目录执行下列命令安装测试依赖与 Chromium。
 
 ```sh
+npm ci --prefix scripts
+(cd scripts && npx --no-install playwright install chromium)
+```
+
+可用 `PLAYWRIGHT_MODULE` 指定已安装的模块入口，`CHROMIUM_PATH` 指定兼容的本地 Chromium。脚本每次创建独立的回环服务器与家庭状态，退出时关闭。浏览日常演示不需要这些录制依赖。
+
+```sh
+node scripts/family-ui-regression.cjs
 node scripts/family-film/capture.cjs /tmp/livingmind-qa
 node scripts/family-film/viewports.cjs /tmp/livingmind-screens
 ```

@@ -165,6 +165,92 @@ class EveningTests(unittest.TestCase):
         desk = next(d for d in done["devices"] if d["id"] == "desk-light")
         self.assertEqual(desk["value"], 75)
 
+    def test_reading_after_tv_proposes_a_quieter_shared_speaker(self):
+        self.event("tv", "father")
+        watched = self.decide("confirm")
+        self.assertEqual(next(d["value"] for d in watched["devices"] if d["id"] == "living-speaker"), 35)
+        studying = self.event("study", "child")
+        self.assertEqual(self.actions(studying)["living-speaker"], 18)
+        self.assertEqual(studying["devices"], watched["devices"])
+        done = self.decide("confirm")
+        self.assertEqual(next(d["value"] for d in done["devices"] if d["id"] == "living-speaker"), 18)
+
+    def test_reading_will_not_raise_or_assume_a_quiet_or_unknown_speaker(self):
+        for mode in ("unknown", "offline", "online"):
+            with self.subTest(mode=mode):
+                self.post("/reset")
+                self.event("tv", "father")
+                if mode == "online":
+                    self.decide("edit", onlyDeviceId="living-speaker", value=5)
+                self.decide("confirm")
+                self.post("/devices", deviceId="living-speaker", mode=mode)
+                self.assertNotIn("living-speaker", self.actions(self.event("study", "child")))
+
+    def test_this_time_does_not_restrict_next_arrival_or_replace_nightly_exception(self):
+        self.event()
+        once = self.decide("edit", text="这次只调客厅灯到 35%")
+        self.assertEqual(once["suggestion"]["scope"], "once")
+        self.decide("confirm")
+        self.event("sleep")
+        normal = self.event()
+        self.assertEqual(self.actions(normal), {"living-light": 45, "living-curtain": 45, "living-ac": 25})
+        self.decide("edit", text="今晚只调客厅灯到 65%")
+        self.decide("confirm")
+        self.event("tv")
+        self.decide("confirm")
+        self.event()
+        self.decide("edit", onlyDeviceId="living-light", value=70, scope="once")
+        self.decide("confirm")
+        self.event("sleep")
+        self.assertEqual(self.actions(self.event()), {"living-light": 65})
+
+    def test_relative_brightness_uses_observed_value_and_reports_unknown_or_limit(self):
+        for current, expected in ((80, 90), (96, 100), (100, None)):
+            with self.subTest(current=current):
+                self.post("/reset")
+                self.event()
+                self.decide("edit", onlyDeviceId="living-light", value=current)
+                self.decide("confirm")
+                self.post("/next-day")
+                before = self.event()
+                if expected:
+                    edited = self.decide("edit", text="我今晚还要看书，客厅亮一点，卧室先别动")
+                    self.assertEqual(self.actions(edited), {"living-light": expected})
+                    self.assertEqual(edited["devices"], before["devices"])
+                else:
+                    with self.assertRaises(FamilyError) as caught:
+                        self.decide("edit", text="我今晚还要看书，客厅亮一点，卧室先别动")
+                    self.assertEqual(caught.exception.payload["error"]["code"], "ALREADY_AT_LIMIT")
+        for mode in ("offline", "unknown"):
+            self.post("/devices", deviceId="living-light", mode=mode)
+            before = self.house.state()
+            with self.assertRaises(FamilyError) as caught:
+                self.decide("edit", text="我今晚还要看书，客厅亮一点，卧室先别动")
+            self.assertEqual(caught.exception.payload["error"]["code"], "READBACK_UNAVAILABLE")
+            self.assertEqual(before, self.house.state())
+
+    def test_noop_signal_preserves_another_members_valid_pending_proposal(self):
+        self.event()
+        self.decide("confirm")
+        reading = self.event("study", "child")["suggestion"]
+        again = self.event()
+        self.assertEqual(again["lastOutcome"], "no_change")
+        self.assertEqual(again["suggestion"], reading)
+        self.assertTrue(self.decide("confirm")["receipts"])
+
+    def test_signal_provenance_is_validated_before_mutation(self):
+        for source in ("simulated", "resident-input", "simulated-transcript", "browser-asr"):
+            with self.subTest(source=source):
+                self.post("/reset")
+                state = self.event(source=source)
+                signal = next(row for row in state["timeline"] if row["kind"] == "signal")
+                self.assertEqual(signal["source"], source)
+                self.assertTrue(signal["eventId"])
+        before = self.house.state()
+        with self.assertRaises(FamilyError):
+            self.event(source="actual-mijia")
+        self.assertEqual(self.house.state(), before)
+
     def test_shared_room_preserves_readers_light(self):
         self.event("study", "child", roomId="living")
         self.decide("confirm")

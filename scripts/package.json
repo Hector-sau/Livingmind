@@ -1,0 +1,12 @@
+{
+  "name": "livingmind-browser-checks",
+  "private": true,
+  "description": "Browser checks for the family evening simulator",
+  "scripts": {
+    "test:family": "node family-ui-regression.cjs",
+    "test:viewports": "node family-film/viewports.cjs"
+  },
+  "devDependencies": {
+    "playwright": "1.62.1"
+  }
+}

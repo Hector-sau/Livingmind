@@ -1483,7 +1483,8 @@ dialog::backdrop {
     min-height: 296px;
   }
 }
-@media (min-width: 621px) and (max-width: 900px) {
+@media (min-width: 621px) and (max-width: 900px),
+  (min-width: 901px) and (max-width: 1100px) and (orientation: portrait) and (pointer: coarse) {
   .shell {
     display: block;
   }
@@ -1548,7 +1549,8 @@ dialog::backdrop {
     font-size: 15px;
   }
 }
-@media (min-width: 621px) and (max-width: 900px) and (orientation: portrait) {
+@media (min-width: 621px) and (max-width: 900px) and (orientation: portrait),
+  (min-width: 901px) and (max-width: 1100px) and (orientation: portrait) and (pointer: coarse) {
   .hero-grid {
     grid-template-columns: minmax(0, 1fr);
     gap: 16px;
@@ -1939,7 +1941,8 @@ dialog::backdrop {
     grid-template-columns: 1fr;
   }
 }
-@media (min-width: 621px) and (max-width: 900px) {
+@media (min-width: 621px) and (max-width: 900px),
+  (min-width: 901px) and (max-width: 1100px) and (orientation: portrait) and (pointer: coarse) {
   .rail-content .nav-item {
     width: auto;
     white-space: nowrap;

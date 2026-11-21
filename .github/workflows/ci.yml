@@ -109,6 +109,31 @@ jobs:
         working-directory: .
         run: node --test scripts/family_voice.test.cjs
 
+  family-browser:
+    name: Family demo + responsive viewports
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: scripts/package-lock.json
+      - run: npm ci --no-audit --no-fund
+        working-directory: scripts
+      - run: npx --no-install playwright install --with-deps chromium
+        working-directory: scripts
+      - name: Verify the shared household and speaker changes
+        run: node scripts/family-ui-regression.cjs
+      - name: Replay the film scenario and check phone and iPad viewports
+        run: |
+          node scripts/family-film/capture.cjs "$RUNNER_TEMP/family-replay"
+          node scripts/family-film/viewports.cjs "$RUNNER_TEMP/family-viewports"
+
   container-e2e:
     name: Docker API + browser E2E
     runs-on: ubuntu-latest

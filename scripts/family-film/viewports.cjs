@@ -11,8 +11,9 @@ const root = path.resolve(__dirname, '../..');
 const out = path.resolve(process.argv[2] || path.join(root,'docs/media'));
 const devices = [
   {name:'phone', width:390, height:844, scale:3},
-  {name:'phone-compact',width:375,height:812,scale:3},
+  {name:'phone-compact',width:375,height:812,scale:3,exportFrame:false},
   {name:'ipad-portrait', width:820, height:1180, scale:2},
+  {name:'ipad-large-portrait', width:1024, height:1366, scale:2,exportFrame:false},
   {name:'ipad-landscape', width:1180, height:820, scale:2},
 ];
 async function main(){
@@ -43,14 +44,25 @@ async function main(){
         await p.waitForTimeout(3350);  // Allow the ephemeral simulated-event toast to leave.
         const geometry=await p.evaluate(()=>{
           const primary=['presenter-toggle','voice-open','action-confirm','action-edit'];
-          return {width:innerWidth,height:innerHeight,scrollWidth:document.documentElement.scrollWidth,
+          const room=paneBounds('.room-hero'), service=paneBounds('.service');
+          function paneBounds(selector){
+            const {x,y,right,bottom}=document.querySelector(selector).getBoundingClientRect();
+            return {x,y,right,bottom};
+          }
+          return {room,service,width:innerWidth,height:innerHeight,scrollWidth:document.documentElement.scrollWidth,
             pageHeight:document.documentElement.scrollHeight,dpr:devicePixelRatio,
             targetHeights:Object.fromEntries(primary.map(id=>[id,document.querySelector('[data-testid="'+id+'"]').getBoundingClientRect().height]))};
         });
         assert.equal(geometry.width,d.width);assert.equal(geometry.height,d.height);assert.equal(geometry.dpr,d.scale);
         assert.ok(geometry.scrollWidth<=d.width, d.name+' horizontal overflow');
         for(const [id,h] of Object.entries(geometry.targetHeights))assert.ok(h>=43.5, d.name+' '+id+' touch height '+h);
-        const fileName=d.name==='phone-compact' ? null : d.name+'.jpg';
+        if(d.width < d.height){
+          assert.ok(geometry.service.y >= geometry.room.bottom, d.name+' proposal must stack below the room');
+        }else{
+          assert.ok(geometry.service.x >= geometry.room.right, d.name+' proposal must sit beside the room');
+          assert.ok(Math.abs(geometry.service.y-geometry.room.y)<1, d.name+' panels must share a top edge');
+        }
+        const fileName=d.exportFrame===false ? null : d.name+'.jpg';
         if(fileName)await p.screenshot({path:path.join(out,fileName),type:'jpeg',quality:84,fullPage:false});
         await p.locator('#devices').scrollIntoViewIfNeeded();
         assert.ok(await p.locator('#devices').isVisible());

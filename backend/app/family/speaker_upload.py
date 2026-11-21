@@ -79,7 +79,6 @@ def identify_upload(data):
                 raise FamilyError(503, "SPEAKER_UNAVAILABLE", "请检查本机声纹依赖和注册模板。")
             result = json.loads(proc.stdout)
             return {"candidate": result["candidate"], "comparison": result["comparison"],
-                    "scores": result["scores"], "threshold": result["threshold"],
-                    "requiredMargin": result["required_margin"], "deviceAuthorized": False}
+                    "deviceAuthorized": False}
     finally:
         _worker.release()

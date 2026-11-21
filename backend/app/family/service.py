@@ -21,6 +21,12 @@ EVENT_CONTEXT = {
     "tv": ("tv", "living"), "sleep": ("sleep", "bedroom"),
 }
 EVENT_TYPES = {*EVENT_CONTEXT, "unknown_arrival"}
+EVENT_SOURCES = {
+    "simulated": "模拟家庭事件面板",
+    "resident-input": "成员键入的文字",
+    "simulated-transcript": "模拟语音转写",
+    "browser-asr": "浏览器语音识别转写",
+}
 AGENTS = ["主 Agent", "体验 Agent", "空间执行 Agent"]
 ACTION_TEXT = {"confirmed": "虚拟回读一致", "unknown": "状态未知，保留上次读数", "offline": "设备离线，跳过", "rejected": "能力校验拒绝", "mismatch": "回读与目标不一致"}
 
@@ -73,8 +79,8 @@ class FamilyEvening:
     def time(self):
         return "%02d:%02d" % (self.minutes // 60 % 24, self.minutes % 60)
 
-    def log(self, kind, title, detail):
-        self.timeline.insert(0, {"id": uuid4().hex, "day": self.day, "time": self.time, "kind": kind, "title": title, "detail": detail})
+    def log(self, kind, title, detail, **fields):
+        self.timeline.insert(0, {"id": uuid4().hex, "day": self.day, "time": self.time, "kind": kind, "title": title, "detail": detail, **fields})
 
     def state(self):
         return deepcopy({"plannerSource": "rule", "source": "simulation", "time": self.time, "day": self.day, "members": list(self.members.values()),
@@ -100,6 +106,10 @@ class FamilyEvening:
         with self.lock:
             # Recheck member, plan identity, range and family constraints after waiting.
             retry = {k: v for k, v in data.items() if k != "text"}
+            if data["text"].strip().startswith("这次"):
+                retry["scope"] = "once"
+            elif "今晚" in data["text"] or "今夜" in data["text"]:
+                retry["scope"] = "tonight"
             self.decide({**retry, **parsed})
             self.suggestion["editSource"] = "model"
             self.suggestion["trace"][1]["detail"] += "（模型辅助解析，规则校验通过）"
@@ -147,10 +157,12 @@ class FamilyEvening:
         event_id, typ = text_field(data, "eventId"), text_field(data, "type")
         check(typ in EVENT_TYPES, "未知家庭事件")
         member_id = data.get("memberId")
+        source = data.get("source", "simulated")
+        check(isinstance(source, str) and source in EVENT_SOURCES, "未知事件来源")
         check(isinstance(member_id, str) and member_id in self.members or (typ == "unknown_arrival" and member_id is None), "未知家庭成员")
         room = data.get("roomId", EVENT_CONTEXT.get(typ, (None, None))[1])
         check(room == EVENT_CONTEXT.get(typ, (None, None))[1] or (typ == "study" and room == "living"), "此事件不支持该空间")
-        fingerprint = (typ, member_id, room)
+        fingerprint = (typ, member_id, room, source)
         if event_id in self.events:
             check(self.events[event_id] == fingerprint, "同一个事件号不能用于另一条信号", status=409, code="EVENT_ID_REUSED")
             self.outcome = "duplicate"
@@ -165,7 +177,7 @@ class FamilyEvening:
                 return
             self.recent_signals[("unknown",)] = self.minutes
             self.outcome = "identity_uncertain"
-            self.log("suppressed", "身份待确认", "门口有活动，但无法确定是谁。保持设备现状，不调用个人偏好。")
+            self.log("suppressed", "身份待确认", f"来自{EVENT_SOURCES[source]}。门口有活动，但无法确定是谁。保持设备现状，不调用个人偏好。", source=source, eventId=event_id)
             return
         member = self.members[member_id]
         activity = EVENT_CONTEXT[typ][0]
@@ -181,8 +193,8 @@ class FamilyEvening:
         if same_activity and not quiet and signal in self.recent_signals and (pending_same or self.minutes - self.recent_signals[signal] <= 10):
             self.outcome = "coalesced"
             return
-        self.log("signal", f"{member['name']} · {ACTIVITIES[activity]}", "来自模拟家庭事件面板。")
-        if self.suggestion:
+        self.log("signal", f"{member['name']} · {ACTIVITIES[activity]}", f"来自{EVENT_SOURCES[source]}。", source=source, eventId=event_id)
+        if self.suggestion and (not same_activity or quiet):
             self.log("superseded", "旧建议已撤下", "成员活动已变化，原建议不能再确认。")
             self.suggestion = None
         if quiet:
@@ -217,6 +229,8 @@ class FamilyEvening:
             self.outcome = "no_change"
             self.log("suppressed", "无需调整", reason + "当前无需新增动作。")
             return
+        if self.suggestion:
+            self.log("superseded", "旧建议已撤下", "新的可执行建议替换了原建议。")
         self.suggestion = {"id": uuid4().hex, "title": title, "reason": reason, "memberId": member_id,
                            "eventType": typ, "roomId": member["roomId"], "scope": "tonight", "plannerSource": "rule", "actions": [{"deviceId": d, "value": v} for d,v in actions],
                            "trace": [{"agent": AGENTS[0], "detail": f"识别{member['name']}的空间事件，核对免打扰和其他成员活动。"},
@@ -228,7 +242,7 @@ class FamilyEvening:
     def decide(self, data):
         sid, decision = text_field(data, "suggestionId"), text_field(data, "decision")
         check(decision in ("confirm", "dismiss", "mute", "snooze", "edit"), "未知决策")
-        check(decision == "edit" or not {"onlyDeviceId", "value", "text"}.intersection(data), "仅编辑请求可设置设备和值")
+        check(decision == "edit" or not {"onlyDeviceId", "value", "text", "scope"}.intersection(data), "仅编辑请求可设置设备、值和作用时段")
         actor = text_field(data, "memberId")
         old = self.decisions.get(sid)
         owner = old[1] if old else (self.suggestion or {}).get("memberId")
@@ -242,7 +256,7 @@ class FamilyEvening:
             self.edit(suggestion, data)
             return
         if decision == "confirm":
-            if "exception" in suggestion:
+            if suggestion["scope"] == "tonight" and "exception" in suggestion:
                 self.exceptions[suggestion["memberId"], suggestion["eventType"]] = suggestion["exception"]
             self.receipts = [
                 self.gateway.submit(f"{sid}:{a['deviceId']}", a["deviceId"], a["value"])
@@ -265,12 +279,23 @@ class FamilyEvening:
         self.suggestion = None
 
     def edit(self, suggestion, data):
+        scope = data.get("scope", suggestion["scope"])
+        check(scope in ("once", "tonight"), "未知修改作用时段")
         if "text" in data:
-            check(not {"onlyDeviceId", "value"}.intersection(data), "文字与结构化修改不能混用")
+            check(not {"onlyDeviceId", "value", "scope"}.intersection(data), "文字与结构化修改不能混用")
             command = re.sub(r"[\s，。！,!？?]", "", text_field(data, "text"))
+            if command.startswith("这次"):
+                scope = "once"
+            elif "今晚" in command or "今夜" in command:
+                scope = "tonight"
             command = re.sub(r"(?:其他|其它)(?:设备)?(?:都)?(?:保持不变|不要动|别动|不动)$", "", command)
             if re.fullmatch(r"(?:我)?今晚(?:还要|想|要)看书客厅亮一点卧室先别动", command):
-                command = "今晚只调客厅灯到65%"
+                lamp = next((d for d in self.gateway.snapshot() if d["id"] == "living-light"), None)
+                check(lamp is not None and lamp["mode"] == "online", "客厅灯缺少可靠读数，无法比较亮度。请指定一个目标百分比。", code="READBACK_UNAVAILABLE")
+                if lamp["value"] >= lamp["capability"]["valueRange"][1]:
+                    raise FamilyError(422, "ALREADY_AT_LIMIT", "客厅灯已达到最高亮度。原建议仍待确认。")
+                brighter = min(lamp["capability"]["valueRange"][1], max(65, lamp["value"] + 10))
+                command = f"今晚只调客厅灯到{brighter}%"
             elif re.fullmatch(r"今晚只(?:开|调)客厅灯空调(?:先)?(?:别开|不动|别动)", command):
                 command = "今晚只调客厅灯"
             names = {d["name"]: d["id"] for d in self.gateway.snapshot()}
@@ -295,9 +320,14 @@ class FamilyEvening:
                 limit = 12 if any(m["activity"] == "sleep" for m in self.members.values()) else 18
                 check(value <= limit, f"家人正在学习或休息，当前音量上限为 {limit}%")
             actions[0]["value"] = value
-        detail = f"按要求今晚此场景只调{device['name']}到 {actions[0]['value']}{device['unit']}，保留长期偏好。"
-        suggestion.update(id=uuid4().hex, actions=actions, reason=detail, editSource="rule", exception={"deviceId": device_id, "value": value})
+        duration = "仅这次" if scope == "once" else "今晚此场景"
+        detail = f"按要求{duration}只调{device['name']}到 {actions[0]['value']}{device['unit']}，保留长期偏好。"
+        suggestion.update(id=uuid4().hex, actions=actions, reason=detail, editSource="rule", scope=scope)
+        if scope == "tonight":
+            suggestion["exception"] = {"deviceId": device_id, "value": value}
+        else:
+            suggestion.pop("exception", None)
         suggestion["trace"][1]["detail"] = detail
         suggestion["trace"][2]["detail"] = f"仅{device['name']}待确认，其余设备没有待执行动作。"
         self.outcome = "edited"
-        self.log("edited", "今晚的建议已修改", detail)
+        self.log("edited", "本次建议已修改" if scope == "once" else "今晚的建议已修改", detail)
