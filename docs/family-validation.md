@@ -45,13 +45,16 @@ node scripts/family-film/capture.cjs /tmp/livingmind-qa
 node scripts/family-film/viewports.cjs /tmp/livingmind-screens
 ```
 
-制作影片需要具有 H.264、AAC、GIF 编码能力的 FFmpeg，以及 Python Pillow。默认中文旁白使用 macOS 系统语音 Tingting，可用 `NARRATOR` 更换。其他系统也可以在工作目录预先放入 `voice-0.wav` 至 `voice-8.wav`（单声道、22,050 Hz、16 位 PCM），再运行相同命令。`CAPTION_FONT` 可指定支持中文的 TrueType 或 TTC 字体，`FFMPEG` 可指定编码器路径。
+制作无声影片需要支持 H.264 与 GIF 编码的 FFmpeg、Python Pillow，以及可显示中文的字体。在 Linux 上，将 `CAPTION_FONT` 设为已安装的中文 TrueType 或 TTC 字体的完整路径，例如安装 Noto CJK 后可用 `fc-match -f '%{file}' 'Noto Sans CJK SC'` 查询。先用 `--film` 录制真实浏览器操作，再运行 `render`，合成底部中文说明和穿插在录屏中的架构图解、源码片段。
 
 ```sh
-python3 scripts/family-film/finish.py voices /tmp/livingmind-film
 node scripts/family-film/capture.cjs /tmp/livingmind-film --film
 python3 scripts/family-film/finish.py render /tmp/livingmind-film --media docs/media
 node scripts/family-film/viewports.cjs docs/media
+ffprobe -v error -select_streams v -show_entries stream=codec_name -of csv=p=0 docs/media/family-evening.mp4
+ffprobe -v error -select_streams a -show_entries stream=codec_name -of csv=p=0 docs/media/family-evening.mp4
 ```
 
-脚本会按照 [story.json](../scripts/family-film/story.json) 操作实际界面，在录屏之外添加旁白与字幕。独立展示页可直接用浏览器打开 [index.html](index.html)，或作为静态站点展示影片与各设备原图。交互模拟 App 由 Python 服务提供。
+两条 `ffprobe` 命令分别检查视频流与音频流。第一条应输出一行 `h264`，第二条应为空。MP4 还含章节数据。打开展示页后，可从「架构章节」分别跳到规划、确认和回执图解，每个跳转取自随影片发布的 WebVTT。逐幕对照 App 的实际读数，可以检查修改后是否只执行所选设备，以及缺失回执是否保留为未知。[分镜文字稿](family-film.md) · [操作场景](../scripts/family-film/story.json)
+
+独立展示页可直接用浏览器打开，也可作为静态站点展示影片与各设备原图。交互模拟 App 由 Python 服务提供。[展示页](index.html)

@@ -1,0 +1,143 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>LivingMind · 家庭服务架构</title>
+<style>
+  :root{color-scheme:dark;--page:#0b2027;--panel:#112d35;--rule:#3a565d;--pale:#eaf3ef;--muted:#b0c6c9;--mint:#9de8cc;--gold:#f1c98c;--blue:#a5cfe9;--mono:"IBM Plex Mono",Menlo,Consolas,monospace;font-family:"DM Sans","Helvetica Neue","PingFang SC","Microsoft YaHei",sans-serif}
+  *{box-sizing:border-box}html,body{margin:0;background:var(--page);color:var(--pale)}
+  main{width:1600px;height:792px;overflow:hidden;position:relative;padding:37px 58px 43px;background:radial-gradient(ellipse at 86% 33%,#16374090,transparent 57%),linear-gradient(90deg,#9ddfd709 1px,transparent 1px),linear-gradient(#9ddfd709 1px,transparent 1px),var(--page);background-size:auto,40px 40px,40px 40px,auto}
+  header{display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid var(--rule);padding:0 0 18px;color:var(--muted);height:55px}
+  .brand,.crumb,.kicker,.panel-title,.signal,.node,.step,.row-label,.scope,.out,.position,.trace-name{display:flex;align-items:center}
+  .brand{gap:11px;font-size:25px;letter-spacing:-.055em;font-weight:700;color:var(--pale)}.brand img{width:34px;height:34px;object-fit:contain}.crumb{gap:14px;font-size:18px;font-weight:500}.crumb i{width:32px;height:1px;background:#728e92}
+  .stage{display:none}.stage.active{display:block}
+  .kicker{margin-top:30px;color:var(--mint);gap:11px;font:600 17px/1.2 var(--mono);letter-spacing:.08em}.kicker:before{content:"";width:20px;height:3px;background:var(--mint)}
+  h1{font-size:57px;line-height:1.18;letter-spacing:-.045em;margin:12px 0 29px;font-weight:590}
+  .columns{display:grid;grid-template-columns:734px 1fr;gap:28px;align-items:stretch}
+  .panel{border:1px solid var(--rule);background:#10292fec;border-radius:18px;padding:26px 27px;min-height:474px}
+  .panel-title{gap:10px;font-size:21px;font-weight:620;letter-spacing:.01em;color:#dfece9}
+  .panel-title:before{content:"";width:9px;height:9px;background:var(--gold);border-radius:50%}
+  .code-panel{background:#0d232be8;position:relative;display:flex;flex-direction:column}
+  .code-panel .panel-title:before{background:var(--blue)}.path{color:var(--muted);font:18px/1.5 var(--mono);margin-top:14px}
+  .function{display:block;font:600 25px/1.35 var(--mono);color:var(--blue);margin:3px 0 18px;letter-spacing:-.04em}
+  .snippet{padding:18px 17px;background:#081d24;border:1px solid #304a52;border-left:3px solid #79b9b2;border-radius:3px 9px 9px 3px;font:21px/1.55 var(--mono);color:#ecf3f0;letter-spacing:-.04em;white-space:pre-wrap;overflow-wrap:anywhere;margin:0}
+  .snippet+.snippet{margin-top:11px}.kw{color:var(--blue)}.str,.num{color:var(--gold)}.fn{color:var(--mint)}
+  .code-note{padding-top:14px;margin-top:auto;color:var(--muted);font-size:20px;line-height:1.5}
+  .code-note b{color:#dfebe7;font-weight:580}
+  .signals{display:flex;gap:12px;margin:23px 0 18px}
+  .signal{gap:12px;flex:1;border:1px solid #426069;border-radius:12px;padding:15px 16px;background:#17353e}
+  .sig-icon,.step-icon{width:37px;height:37px;border-radius:10px;display:grid;place-items:center;flex:none;background:#264851;color:#cae2e9}
+  svg{width:23px;height:23px;fill:none;stroke:currentColor;stroke-width:1.65;stroke-linecap:round;stroke-linejoin:round}
+  .signal b{display:block;font-size:22px;line-height:1.25}.signal small{display:block;font-size:16px;color:var(--muted);margin-top:3px}
+  .nodes{display:grid;grid-template-columns:1fr 19px 1.03fr 19px 1.17fr;align-items:stretch;gap:0;margin-top:21px}
+  .node{display:block;background:#15353b;border:1px solid #45666a;border-radius:10px;padding:15px 10px;text-align:center}
+  .node b{font-size:21px;white-space:nowrap}.node small{display:block;font-size:16px;color:var(--muted);margin:5px 0 0;white-space:nowrap}
+  .connector{align-self:center;text-align:center;font-size:20px;color:#9bbab8}
+  .out{margin-top:20px;gap:16px;padding:18px 18px;background:#23493f;border:1px solid #558479;border-radius:12px;color:#d9f4e5}
+  .out strong{font-size:41px;line-height:1;letter-spacing:-.05em;color:var(--mint)}.out span{font-size:21px}.out small{display:block;color:#c5dfd4;font-size:16px;margin-top:3px}
+  .step{gap:16px;position:relative;padding:15px 0;border-bottom:1px solid #365056}.step:first-of-type{margin-top:12px}.step:last-of-type{border-bottom:0}
+  .step-icon{width:41px;height:41px}.step b{display:block;font-size:24px;line-height:1.25;font-weight:610}.step p{margin:4px 0 0;font-size:18px;color:var(--muted)}
+  .tag{margin-left:auto;font:600 22px/1.2 var(--mono);padding:7px 10px;border-radius:6px;background:#25424b;color:#c8dce4;white-space:nowrap}
+  .step.edit .tag{background:#484439;color:var(--gold)}.step.final .tag{background:#284e42;color:var(--mint)}
+  .scope{margin-top:13px;gap:11px;font-size:19px;color:var(--gold)}.scope svg{width:20px}
+  .decisions{margin-top:23px;border-radius:12px;border:1px solid var(--rule);overflow:hidden}
+  .decisions .row{display:grid;grid-template-columns:1.15fr .88fr 1fr;align-items:center;gap:12px;padding:15px 17px;border-top:1px solid #37545a;font-size:20px}
+  .decisions .labels{border-top:0;color:var(--muted);background:#1c3a42;font-size:16px}.status{font:600 18px/1.35 var(--mono);color:var(--mint)}.status.unknown{color:var(--gold)}.status.mismatch{color:var(--blue)}
+  .receipt-note{display:flex;align-items:center;gap:14px;margin-top:21px;padding:15px 18px;background:#18363e;border-radius:9px;color:#dceae7;font-size:20px}
+</style>
+</head>
+<body>
+<main>
+  <header><div class="brand"><img src="../../apps/mobile/assets/logo-mark.png" alt="">LivingMind</div><div class="crumb">家庭空间模拟器<i></i>实现解析</div></header>
+  <section class="stage" id="planning">
+    <div class="kicker">SERVICE PLANNING</div>
+    <h1>妈妈到家，空间怎样形成第一份建议？</h1>
+    <div class="columns">
+      <article class="panel">
+        <div class="panel-title">家庭场景与 Agent 协作</div>
+        <div class="signals">
+          <div class="signal"><i class="sig-icon" data-icon="bulb"></i><div><b>妈妈到家</b><small>偏好 · 柔和灯光</small></div></div>
+          <div class="signal"><i class="sig-icon" data-icon="tv"></i><div><b>客厅灯光可调整</b><small>当前无人观影或阅读</small></div></div>
+        </div>
+        <div class="nodes">
+          <div class="node"><b>主 Agent</b><small>核对家庭状态</small></div><div class="connector">→</div>
+          <div class="node"><b>体验 Agent</b><small>确定舒适目标</small></div><div class="connector">→</div>
+          <div class="node"><b>空间执行 Agent</b><small>映射可执行动作</small></div>
+        </div>
+        <div class="out"><strong>45%</strong><div><span>客厅灯亮度 · 窗帘开度</span><small>空调目标 25°C，三项动作等待妈妈确认。</small></div></div>
+      </article>
+      <article class="panel code-panel">
+        <div class="panel-title">到家场景的规划规则</div><span class="path">backend/app/family/agents.py</span><b class="function">experience_targets()</b>
+        <pre class="snippet"><code>actions.extend([(<span class="str">"living-light"</span>, pref[<span class="str">"arrivalLight"</span>]), (<span class="str">"living-curtain"</span>, <span class="num">45</span>)])</code></pre>
+        <pre class="snippet"><code>actions.append((<span class="str">"living-ac"</span>, pref[<span class="str">"arrivalTemp"</span>]))</code></pre>
+        <p class="code-note">若家人已在客厅<b>观影或阅读</b>，这条规则保留共享灯光和窗帘设置。</p>
+      </article>
+    </div>
+  </section>
+  <section class="stage" id="consent">
+    <div class="kicker">RESIDENT CONSENT</div>
+    <h1>修改先生成新方案，确认后才执行</h1>
+    <div class="columns">
+      <article class="panel">
+        <div class="panel-title">妈妈到家 · 今晚想看书</div>
+        <div class="step"><i class="step-icon" data-icon="bulb"></i><div><b>初始建议</b><p>客厅灯 45%、窗帘 45%、空调 25°C</p></div><span class="tag">3 项</span></div>
+        <div class="step edit"><i class="step-icon" data-icon="edit"></i><div><b>修改待确认方案</b><p>今晚只调亮客厅灯，保留其他设备。</p></div><span class="tag">65%</span></div>
+        <div class="step final"><i class="step-icon" data-icon="check"></i><div><b>妈妈确认最新方案</b><p>以当前建议编号下发客厅灯动作。</p></div><span class="tag">1 项</span></div>
+        <div class="scope"><span data-icon="shield"></span>检查成员归属、建议编号和有效范围</div>
+      </article>
+      <article class="panel code-panel">
+        <div class="panel-title">两个决策分支</div><span class="path">backend/app/family/service.py</span><b class="function">FamilyEvening.decide()</b>
+        <pre class="snippet"><code><span class="kw">if</span> decision == <span class="str">"edit"</span>:
+    self.edit(suggestion, data)
+    <span class="kw">return</span>
+<span class="kw">if</span> decision == <span class="str">"confirm"</span>:</code></pre>
+        <p class="code-note"><b>edit</b> 更新待确认建议。<b>confirm</b> 遍历确认后的动作并调用虚拟网关。</p>
+      </article>
+    </div>
+  </section>
+  <section class="stage" id="receipt">
+    <div class="kicker">DEVICE READBACK</div>
+    <h1>每个设备的回读，决定这一步的结果</h1>
+    <div class="columns">
+      <article class="panel">
+        <div class="panel-title">虚拟网关 · 逐项核对</div>
+        <div class="decisions">
+          <div class="row labels"><span>回读条件</span><span>结果</span><span>动作状态</span></div>
+          <div class="row"><b>符合目标值</b><span>已确认</span><span class="status">confirmed</span></div>
+          <div class="row"><b>缺少回读</b><span>仍待核对</span><span class="status unknown">unknown</span></div>
+          <div class="row"><b>与目标不同</b><span>读数不符</span><span class="status mismatch">mismatch</span></div>
+        </div>
+        <div class="receipt-note"><span data-icon="moon"></span>夜间演示中，床头灯已确认，卧室窗帘回读未知。</div>
+      </article>
+      <article class="panel code-panel">
+        <div class="panel-title">读取观察值</div><span class="path">backend/app/family/gateway.py</span><b class="function">decode_observation()</b>
+        <pre class="snippet"><code>observed = read_reply.get(<span class="str">"value"</span>)
+<span class="kw">if</span> type(observed) <span class="kw">not in</span> (<span class="fn">int</span>, <span class="fn">float</span>):
+    <span class="kw">return</span> <span class="str">"unknown"</span>, <span class="kw">None</span>
+<span class="kw">return</span> (<span class="str">"confirmed"</span> <span class="kw">if</span> observed == expected <span class="kw">else</span> <span class="str">"mismatch"</span>), observed</code></pre>
+        <p class="code-note">同时核对写入和读取回包中的 <b>did、siid、piid</b>，再比较设备读数。</p>
+      </article>
+    </div>
+  </section>
+</main>
+<script>
+const stage = new URLSearchParams(location.search).get('stage');
+const activeStage = ['planning','consent','receipt'].includes(stage) ? stage : 'planning';
+document.getElementById(activeStage).classList.add('active');
+document.body.dataset.stage = activeStage;
+const shapes = {
+  tv:'<rect x="2" y="4" width="20" height="14" rx="2"/><path d="M8 21h8"/>',
+  book:'<path d="M3 4c3-.8 6 0 9 2 3-2 6-2.8 9-2v14c-3-.7-6 0-9 2-3-2-6-2.7-9-2V4Zm9 2v14"/>',
+  bulb:'<path d="M8 15a6 6 0 1 1 8 0l-1 2H9l-1-2Zm1 5h6"/>',
+  edit:'<path d="m4 17 11-11 4 4L8 21H4v-4Zm9-9 4 4m1-9 3 3"/>',
+  check:'<path d="m4 12 5 5L20 6"/>',
+  shield:'<path d="m12 2 8 4v5c0 5-3 8-8 11-5-3-8-6-8-11V6l8-4Z"/><path d="m8 11 3 3 5-6"/>',
+  moon:'<path d="M20 14A8 8 0 0 1 10 4a9 9 0 1 0 10 10Z"/>'
+};
+for(const node of document.querySelectorAll('[data-icon]')){
+  node.innerHTML='<svg aria-hidden="true" viewBox="0 0 24 24">'+shapes[node.dataset.icon]+'</svg>';
+}
+</script>
+</body>
+</html>

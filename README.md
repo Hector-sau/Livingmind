@@ -10,9 +10,9 @@
 
 ## 观看演示
 
-[![实际 App 操作节选，妈妈把到家方案改为只调客厅灯，然后查看设备回读](docs/media/family-preview.gif)](docs/media/family-evening.mp4)
+[![影片节选，依次展示妈妈到家的设备建议、生成建议的规划规则，以及逐台设备的回执](docs/media/family-preview.gif)](docs/media/family-evening.mp4)
 
-**[播放或下载完整影片 · MP4](docs/media/family-evening.mp4)**　约 1 分钟，有中文旁白和画内字幕。影片使用浏览器实际运行并操作本仓库的 App。房屋封面是概念效果图，空间事件和八台设备的读数来自模拟器。影片中的语音输入示例使用标明来源的模拟转写。
+影片为无声 MP4，底部的中文说明交代每一步发生了什么。实际 App 录屏和架构图解交替出现。你可以先看妈妈修改建议后哪盏灯发生变化，再跟着仓库里的代码片段，了解三个 Agent 怎样形成方案、住户怎样确认、网关怎样核对结果。房屋封面是概念图，空间事件和八台设备的读数来自模拟器。孩子提交学习需求时使用界面中标明的示例转写。[播放或下载影片](docs/media/family-evening.mp4) · [阅读分镜文字稿](docs/family-film.md)
 
 | 当晚发生了什么 | 在 App 里可以核对什么 |
 | --- | --- |
@@ -21,7 +21,7 @@
 | 妈妈准备休息，卧室窗帘缺少回执 | 床头灯和音箱各自显示执行结果，窗帘保留上次读数并显示待核对。 |
 | 进入下一晚，再次模拟妈妈到家 | 系统重新从妈妈通常的 45% 到家亮度规划，昨晚的临时例外到期。 |
 
-[到家建议](docs/media/arrival.jpg)　·　[学习与观影协调](docs/media/coordination.jpg)　·　[逐台执行回执](docs/media/receipts.jpg)
+[到家建议](docs/media/arrival.jpg)　·　[规划规则与源码画面](docs/media/family-planning.jpg)　·　[学习与观影协调](docs/media/coordination.jpg)　·　[逐台执行回执](docs/media/receipts.jpg)
 
 ## 运行模拟 App
 
@@ -56,6 +56,8 @@ flowchart LR
 ```
 
 家庭模拟的三项职责默认由确定性代码实现。可选模型解析额外的修改表达，模型候选值仍要经过当前方案、权限范围、数值范围和家庭约束检查。成员活动变化会撤下过期方案；修改产生新方案编号，确认只执行当前版本。原工程的 LangGraph、DeepSeek 休息规划与持久化虚拟网关可以独立运行。[家庭 API 与设备契约](docs/family-api.md) · [原有架构与运行方式](docs/classic-quickstart.md)
+
+要复查影片里的观影场景，可以先看 `experience_targets` 如何根据孩子的学习状态调整音量，再看 `FamilyEvening.decide` 如何处理确认，最后看 `decode_observation` 如何比较目标值与回读值。[家庭偏好与设备方案](backend/app/family/agents.py) · [提案与确认](backend/app/family/service.py) · [网关与设备回读](backend/app/family/gateway.py)
 
 ## 语音与米家接口
 

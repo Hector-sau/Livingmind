@@ -64,15 +64,45 @@ async function main() {
       return res.json();
     };
     const event = async id => {await click('presenter-toggle'); await pause(450);return submit('sim-'+id,'events');};
-    const durations = fs.existsSync(path.join(out,'durations.json')) ?
-      JSON.parse(fs.readFileSync(path.join(out,'durations.json'))) : [];
+    // Editorial panels are isolated from the household app. The real page keeps its
+    // pending proposal, selected resident, and virtual gateway state throughout.
+    await page.route('**/__film/architecture.html*', route => route.fulfill({
+      path: path.join(__dirname, 'architecture.html'), contentType:'text/html; charset=utf-8'
+    }));
+    await page.route('**/apps/mobile/assets/logo-mark.png', route => route.fulfill({
+      path: path.join(root, 'apps/mobile/assets/logo-mark.png'), contentType:'image/png'
+    }));
+    async function showPanel(stage) {
+      await page.evaluate(stage => {
+        const frame = document.createElement('iframe');
+        frame.id = 'architecture-panel';
+        frame.title = '源码导览';
+        frame.src = '/__film/architecture.html?stage=' + encodeURIComponent(stage);
+        frame.style.cssText = 'position:fixed;inset:0;width:100vw;height:100vh;margin:0;padding:0;max-width:none;max-height:none;box-sizing:border-box;border:0;z-index:2147483647;background:#132f38';
+        // A modal in the top layer may be open. Leave it intact under the film insert.
+        frame.setAttribute('popover', 'manual');
+        document.body.append(frame);
+        frame.showPopover();
+      }, stage);
+      const doc = page.frameLocator('#architecture-panel');
+      await doc.locator('[data-stage="' + stage + '"]').first().waitFor({state:'attached'});
+      await doc.locator('img').evaluate(img => img.decode());
+      const active = doc.locator('.stage.active');
+      const sourcePath = await active.locator('.path').innerText();
+      const source = fs.readFileSync(path.join(root, sourcePath), 'utf8').replace(/\s+/g, ' ');
+      for (const snippet of await active.locator('pre code').allTextContents()) {
+        assert.ok(source.includes(snippet.replace(/\s+/g, ' ').trim()), 'Source excerpt changed: ' + sourcePath);
+      }
+    }
     const beat = async (id, work) => {
       const i = beats.length;
       assert.equal(story[i].id,id);
       const start = Date.now();
       beats.push({id,at:(start-zero)/1000});
-      await work();
-      await pause(Math.max(550, (durations[i] || 6.4)*1000+850 - (Date.now()-start)));
+      if (story[i].panel) await showPanel(story[i].panel);
+      if (work) await work();
+      await pause(Math.max(250, story[i].seconds * 1000 - (Date.now() - start)));
+      if (story[i].panel) await page.locator('#architecture-panel').evaluate(frame => frame.remove());
     };
     await beat('home',async()=>{await shot('home');});
     await beat('arrival',async()=>{
@@ -82,6 +112,7 @@ async function main() {
       await pause(800);await shot('arrival');
       await click('action-trace');await pause(1150);await shot('trace');await close();
     });
+    await beat('planning', async()=>{await shot('architecture-planning');});
     await beat('edit',async()=>{
       await click('action-edit');await by('edit-text').fill('我今晚还要看书，客厅亮一点，卧室先别动');
       await pause(900);
@@ -90,6 +121,7 @@ async function main() {
       assert.equal(device(s,'living-light'),device(baseline,'living-light'));
       await shot('revision');
     });
+    await beat('consent', async()=>{await shot('architecture-consent');});
     await beat('confirm',async()=>{
       const s=await submit('action-confirm','decision');
       assert.equal(s.receipts[0].observed,65);
@@ -118,6 +150,7 @@ async function main() {
       assert.ok(s.receipts.some(r=>r.status==='confirmed'));
       await click('action-receipts');await pause(650);await shot('receipts');
     });
+    await beat('gateway', async()=>{await shot('architecture-receipt');});
     await beat('tomorrow',async()=>{
       await close();await click('presenter-toggle');await submit('next-day','next-day');
       const s=await event('arrival');assert.equal(s.suggestion.actions.find(a=>a.deviceId==='living-light').value,45);

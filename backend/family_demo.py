@@ -14,6 +14,8 @@ DEFAULT_STATIC = Path(__file__).resolve().parents[1] / "apps" / "family-demo"
 
 
 class Handler(SimpleHTTPRequestHandler):
+    extensions_map = {**SimpleHTTPRequestHandler.extensions_map, ".vtt": "text/vtt", ".md": "text/plain; charset=utf-8"}
+
     def json_response(self, status, obj):
         raw = json.dumps(obj, ensure_ascii=False).encode("utf-8")
         self.send_response(status)
@@ -121,9 +123,11 @@ class Handler(SimpleHTTPRequestHandler):
         docs = DEFAULT_STATIC.parents[1] / "docs"
         if route == "/showcase/":
             return str(docs / "index.html")
+        if route == "/showcase/family-film.md":
+            return str(docs / "family-film.md")
         if route.startswith("/showcase/media/"):
             name = route[len("/showcase/media/"):]
-            if name and Path(name).name == name and Path(name).suffix in {".jpg", ".gif", ".mp4"}:
+            if name and Path(name).name == name and Path(name).suffix in {".jpg", ".gif", ".mp4", ".vtt"}:
                 return str(docs / "media" / name)
         return super().translate_path(path)
 
