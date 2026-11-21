@@ -27,7 +27,7 @@ All successful responses return a complete state snapshot. All POST bodies are J
 | POST | `/next-day` | `{}` begins the next evening at 18:25. Clear tonight’s exceptions, silence settings and open proposal. Keep device values, connection conditions, preferences and history. |
 | POST | `/reset` | `{}` restores every fixture and clears history. |
 
-A unique event advances simulated time by five minutes. A duplicate ID with the same payload produces no second proposal or log entry. Reusing that ID with a different event returns 409. A real activity change can invalidate the previous proposal. A no-op signal from another member preserves a still-valid pending plan. Confirmation is atomic within this process and retried confirmations reuse the original outcome. Matching device settings produce no extra action when the virtual readback is current.
+A unique event advances simulated time by five minutes. A duplicate ID with the same payload produces no second proposal or log entry. Reusing that ID with a different event returns 409. A real activity change can invalidate the previous proposal. A no-op signal from another member preserves a still-valid pending plan. Confirmation is atomic within this process and retried confirmations reuse the original outcome. Matching device settings produce no extra action when the virtual readback is current. Terminal decisions include an immutable `decisionResult` with `suggestionId`, `memberId`, `decision`, `outcome` and per-action `receipts`. A retry sets `decisionReplayed` to true. The top-level snapshot still describes the household at response time.
 
 每个新信号推进五分钟。重复信号不推进时间。下一条明确身份的活动会撤下已经过时的建议。建议在确认前不会写设备。跨到午夜会进入下一天的傍晚；也可用“下一晚”直接观察临时设置到期。
 
@@ -60,9 +60,9 @@ From the initial 0% reading, this phrase proposes 65%. When the light is already
 
 ## MIoT mapping · 能力与回读
 
-The fixture maps eight virtual device instances to a room, a property, its access flags, range and step. Each `sim-*` device identifier and its instance numbers belong to this demonstration. A real product supplies its own IDs, supported properties and ranges. [Xiaomi MIoT Spec](https://iot.mi.com/v2/new/doc/introduction/knowledge/spec)
+The default fixture maps eight virtual device instances to a room, a property, its access flags, range and step. Each `sim-*` device identifier and its instance numbers belong to this demonstration. A real product supplies its own IDs, supported properties and ranges. [Xiaomi MIoT Spec](https://iot.mi.com/v2/new/doc/introduction/knowledge/spec)
 
-模拟设备包含客厅灯、客厅空调、客厅窗帘、客厅音箱、书桌灯、书房循环扇、床头灯和卧室窗帘。当前执行链没有厂商账号、实际网络传输或物理设备。将来接入时，由网关适配器发现真实型号能力，并将单位、命令、回执和状态观察映射到这里的接口。
+模拟设备包含客厅灯、客厅空调、客厅窗帘、客厅音箱、书桌灯、书房循环扇、床头灯和卧室窗帘。当前执行链没有厂商账号、实际网络传输或物理设备。真实接入还需由桥接层负责授权、发现设备并导入相应型号的属性能力。
 
 ```json
 {
@@ -73,6 +73,18 @@ The fixture maps eight virtual device instances to a room, a property, its acces
 ```
 
 The execution layer checks readability of the returned address/value and agreement with the target. In the `unknown` fixture the write is acknowledged while the observation is missing. The result stays unknown and retains the last observed value. Offline skips the write. Duplicate action IDs return their prior receipt.
+
+### 可替换的属性传输与离线地址映射
+
+`MiotPropertyGateway(devices, transport)` 接收能力描述和属性传输对象。`write_property(packet)` 接收含目标值的属性请求，`read_property(address)` 读取刚写入的属性。两者各返回一条带地址、结果码的标准化回包。网关检查地址、回读值和动作编号。传输异常或回读缺失时，原动作保留待核对状态。同一网关实例收到相同动作编号时复用原回执。注入适配器的用法见[网关契约测试](../backend/tests/test_family_gateway_contract.py)。
+
+在仓库根目录运行以下命令，可以用自选属性编号跑完整 App。示例只覆盖客厅灯与客厅窗帘的地址，其余设备沿用默认配置。两个入口也都接受环境变量 `LIVINGMIND_FAMILY_MIOT_PROFILE` 指向同一文件。地址配置在启动时校验，重置演示时保留。此模式继续使用内存传输，设备读数均为模拟值。[示例配置](../backend/examples/family-miot-profile.json)
+
+```sh
+python3 backend/family_demo.py --miot-profile backend/examples/family-miot-profile.json
+```
+
+模拟“妈妈到家”并确认后，`POST /api/family/decision` 返回的 `decisionResult.receipts` 中，客厅灯写入应为 `{"did":"demo-lamp-01","siid":3,"piid":7,"value":45}`，该灯回读为 45。请求只改变本地模拟家庭。连接真实环境还需要账户授权或已授权桥接、设备及型号发现、型号能力映射与真实传输。[功能清单与架构评审](family-architecture-review.md)
 
 体验规则依据成员偏好和家人活动提出目标。空间执行规则检查设备是否具备可写属性、合法范围以及是否需要调整。主 Agent 处理身份、免打扰、建议有效性和用户确认。三个角色都使用确定性规则，可从 `plannerSource: "rule"`、建议轨迹和分设备结果中核对。
 

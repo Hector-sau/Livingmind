@@ -1,5 +1,7 @@
 # 架构与目录（第一批实现视角）
 
+The family demo has its own state machine and gateway. 当前首页演示的三 Agent、语音、家庭状态与米家协议覆盖范围见[家庭架构评审与功能清单](family-architecture-review.md)。下文记录经典休息服务。
+
 定稿方案见 `../架构评审/LivingMind-架构评审与迁移步骤-v0.2.md`。本文件只记录**代码里实际怎么分**，以及哪些位置是后续预留。
 
 2026-10-03 增量：原单实例模式保留；可选 `compose.gateway.yaml` + replicas 使用两 API、共享 PostgreSQL 和独立 HTTP/SQLite 虚拟网关。网关持久化状态/回执/代次，SQL 会话锁保护批次，ownerId 让启动恢复区分活跃与死亡实例；App 核对按钮只查询历史回执。详细设计、代码位置及限制见 [独立网关](durable-gateway.md)，当前验证状态见交接文档，不把本文件早期测试数量当最新结果。

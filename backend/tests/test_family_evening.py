@@ -56,6 +56,46 @@ class EveningTests(unittest.TestCase):
         self.assertEqual(receipts["living-light"]["status"], "offline")
         self.assertEqual(receipts["living-curtain"]["observed"], 45)
 
+    def test_fault_controls_are_optional_for_an_injected_gateway(self):
+        class Gateway:
+            def __init__(self):
+                self.device = VirtualFamilyGateway()
+
+            def snapshot(self):
+                return self.device.snapshot()
+
+            def submit(self, action_id, device_id, value):
+                return self.device.submit(action_id, device_id, value)
+
+        self.house = FamilyEvening(gateway_factory=Gateway)
+        original = self.event()
+        with self.assertRaises(FamilyError) as caught:
+            self.post("/devices", deviceId="living-ac", mode="offline")
+        self.assertEqual(caught.exception.status, 409)
+        self.assertEqual(caught.exception.payload["error"]["code"], "SIMULATION_ONLY")
+        self.assertEqual(self.house.state(), original)
+        self.assertEqual(self.decide("confirm")["lastOutcome"], "confirmed")
+
+    def test_decimal_thermostat_step_applies_to_planning_edit_and_readback(self):
+        devices = VirtualFamilyGateway().snapshot()
+        thermostat = next(device for device in devices if device["id"] == "living-ac")
+        thermostat["capability"]["valueRange"] = [16, 30, 0.1]
+        self.house = FamilyEvening(gateway_factory=lambda: VirtualFamilyGateway(devices))
+        initial = self.event()
+        self.assertEqual(self.actions(initial)["living-ac"], 25)
+        with self.assertRaises(FamilyError):
+            self.decide("edit", onlyDeviceId="living-ac", value=22.15)
+        self.assertEqual(self.house.state(), initial)
+        with self.assertRaises(FamilyError):
+            self.decide("edit", onlyDeviceId="living-light", value=22.0)
+        edited = self.decide("edit", onlyDeviceId="living-ac", value=22.1)
+        self.assertEqual(self.actions(edited), {"living-ac": 22.1})
+        self.assertEqual(edited["devices"], initial["devices"])
+        receipt = self.decide("confirm")["decisionResult"]["receipts"][0]
+        self.assertEqual(receipt["status"], "confirmed")
+        self.assertEqual(receipt["propertyRequest"]["value"], 22.1)
+        self.assertEqual(receipt["observed"], 22.1)
+
     def test_gated_tonight_only_changes_expire(self):
         before = self.house.state()
         sid = self.event()["suggestion"]["id"]
@@ -99,6 +139,49 @@ class EveningTests(unittest.TestCase):
             results = list(pool.map(confirm, range(6)))
         self.assertEqual(len(self.house.gateway.receipts), 3)
         self.assertEqual(sum(e["kind"] == "confirmed" for e in results[-1]["timeline"]), 1)
+
+    def test_confirmation_retry_returns_original_decision_and_current_household(self):
+        sid = self.event()["suggestion"]["id"]
+        self.post("/devices", deviceId="living-ac", mode="unknown")
+        original = self.decide("confirm")
+        self.assertFalse(original["decisionReplayed"])
+        first = original["decisionResult"]
+        self.assertEqual((first["suggestionId"], first["memberId"], first["decision"]), (sid, "mother", "confirm"))
+        self.assertEqual(first["outcome"], "incomplete")
+        self.assertIn("unknown", [r["status"] for r in first["receipts"]])
+        self.event("study", "child")
+        later = self.decide("confirm")
+        self.assertEqual(later["decisionResult"]["outcome"], "confirmed")
+        self.event("tv", "father")
+        live_before = self.house.dispatch("GET", "/state")
+        retry = self.post("/decision", suggestionId=sid, memberId="mother", decision="confirm")
+        self.assertTrue(retry.pop("decisionReplayed"))
+        self.assertEqual(retry.pop("decisionResult"), first)
+        self.assertEqual(retry, live_before)
+        self.assertEqual(retry["receipts"], later["receipts"])
+        self.assertEqual(retry["suggestion"]["memberId"], "father")
+        self.assertNotIn("decisionResult", live_before)
+        self.assertNotIn("decisionReplayed", live_before)
+        with self.assertRaises(FamilyError) as caught:
+            self.post("/decision", suggestionId=sid, memberId="child", decision="confirm")
+        self.assertEqual(caught.exception.status, 403)
+        self.assertEqual(self.house.state(), live_before)
+
+    def test_rejected_suggestion_never_inherits_another_plans_receipts(self):
+        self.event()
+        done = self.decide("confirm")
+        self.assertTrue(done["receipts"])
+        sid = self.event("study", "child")["suggestion"]["id"]
+        dismissed = self.decide("dismiss")
+        self.assertEqual(dismissed["receipts"], done["receipts"])
+        self.assertEqual(dismissed["decisionResult"], {
+            "suggestionId": sid, "memberId": "child", "decision": "dismiss",
+            "outcome": "dismissed", "receipts": [],
+        })
+        self.post("/next-day")
+        replay = self.post("/decision", suggestionId=sid, memberId="child", decision="dismiss")
+        self.assertEqual(replay["lastOutcome"], "next_day")
+        self.assertEqual(replay["decisionResult"], dismissed["decisionResult"])
 
     def test_mute_and_dismiss_have_different_scopes(self):
         self.event()
@@ -203,6 +286,25 @@ class EveningTests(unittest.TestCase):
         self.decide("confirm")
         self.event("sleep")
         self.assertEqual(self.actions(self.event()), {"living-light": 65})
+
+    def test_narrowing_again_keeps_the_approved_explicit_tonight_target(self):
+        self.event()
+        self.decide("edit", text="今晚只调客厅灯到 65%")
+        narrowed = self.decide("edit", onlyDeviceId="living-light")
+        self.assertNotIn("decisionResult", narrowed)
+        self.assertEqual(self.actions(narrowed), {"living-light": 65})
+        self.assertEqual(self.decide("confirm")["decisionResult"]["receipts"][0]["observed"], 65)
+        self.event("tv")
+        self.decide("confirm")
+        again = self.event()
+        self.assertEqual(self.actions(again), {"living-light": 65})
+        self.decide("edit", onlyDeviceId="living-light")
+        self.decide("confirm")
+        self.event("tv")
+        self.decide("confirm")
+        self.assertEqual(self.actions(self.event()), {"living-light": 65})
+        self.post("/next-day")
+        self.assertEqual(self.actions(self.event())["living-light"], 45)
 
     def test_relative_brightness_uses_observed_value_and_reports_unknown_or_limit(self):
         for current, expected in ((80, 90), (96, 100), (100, None)):

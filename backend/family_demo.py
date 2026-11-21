@@ -7,7 +7,8 @@ from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import urlsplit
 
-from app.family.service import FamilyError, FamilyEvening
+from app.family.profile import create_family_session
+from app.family.service import FamilyError
 from app.family.speaker_upload import check_upload, identify_upload, speaker_status
 
 DEFAULT_STATIC = Path(__file__).resolve().parents[1] / "apps" / "family-demo"
@@ -136,9 +137,10 @@ class Handler(SimpleHTTPRequestHandler):
         return None
 
 
-def make_server(port, static=DEFAULT_STATIC):
+def make_server(port, static=DEFAULT_STATIC, miot_profile=None):
+    session = create_family_session(miot_profile)
     server = ThreadingHTTPServer(("127.0.0.1", port), partial(Handler, directory=str(static)))
-    server.session = FamilyEvening()
+    server.session = session
     return server
 
 
@@ -146,10 +148,15 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--port", type=int, default=8765)
     parser.add_argument("--static", type=Path, default=DEFAULT_STATIC)
+    parser.add_argument("--miot-profile", type=Path, help="JSON file of property address bindings for the virtual gateway")
     args = parser.parse_args()
     if not args.static.is_dir():
         parser.error(f"Static App directory missing: {args.static}")
-    with make_server(args.port, args.static) as server:
+    try:
+        server = make_server(args.port, args.static, args.miot_profile)
+    except ValueError as error:
+        parser.error(str(error))
+    with server:
         print(f"LivingMind family simulation: http://127.0.0.1:{server.server_port}", flush=True)
         try:
             server.serve_forever()

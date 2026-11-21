@@ -3,13 +3,14 @@ from fastapi import Body, FastAPI, Request
 from fastapi.responses import JSONResponse
 from starlette.concurrency import run_in_threadpool
 
-from .service import FamilyError, FamilyEvening
+from .profile import create_family_session
+from .service import FamilyError
 from .speaker_upload import MAX_AUDIO, check_upload, identify_upload, speaker_status
 
 
 def family_app():
     api = FastAPI(title="LivingMind · Family evening simulator", version="1.0")
-    session = FamilyEvening()
+    session = create_family_session()
 
     @api.exception_handler(FamilyError)
     async def family_error(_, exc):

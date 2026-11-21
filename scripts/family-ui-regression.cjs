@@ -120,6 +120,86 @@ async function speakerDraft(page) {
   assert.equal(submissions[0].postDataJSON().source, 'resident-input');
 }
 
+async function interimSpeech(page, base) {
+  // Drive the browser's speech callbacks without a microphone or cloud ASR.
+  // At first the recognizer hears “确认”; the final utterance is a question.
+  await page.addInitScript(() => {
+    window.SpeechRecognition = class {
+      start() {
+        window.recognitionUnderTest = this;
+        this.onstart();
+      }
+      stop() {}
+      abort() {}
+    };
+  });
+  await page.goto(base);
+  await page.getByTestId('proposal-title').waitFor();
+  await page.getByTestId('presenter-toggle').click();
+  await submit(page, 'reset-demo', 'reset');
+  await event(page, 'arrival');
+  await page.getByTestId('voice-open').click();
+  await page.getByTestId('voice-listen').click();
+  const input = page.getByTestId('speech-input');
+  const send = page.getByTestId('speech-send');
+  const deliver = async (text, final) =>
+    page.evaluate(
+      ({ text, final }) => {
+        const result = Object.assign([{ transcript: text }], { isFinal: final });
+        window.recognitionUnderTest.onresult({ results: [result] });
+      },
+      { text, final }
+    );
+  await deliver('确认', false);
+  assert.equal(await input.inputValue(), '确认');
+  assert.equal(await send.isDisabled(), true, 'interim recognition must never authorize execution');
+  await input.press('Enter');
+  let current = await (await page.request.get(base + '/api/family/state')).json();
+  assert.equal(current.receipts.length, 0);
+  assert.ok(current.suggestion);
+  await deliver('确认之前，可以先看看方案吗', true);
+  await page.evaluate(() => window.recognitionUnderTest.onend());
+  assert.equal(await send.isEnabled(), true);
+  assert.equal(await input.inputValue(), '确认之前，可以先看看方案吗');
+  await input.fill('确认方案');
+  current = await (await submit(page, 'speech-send', 'decision')).json();
+  assert.equal(current.lastOutcome, 'confirmed');
+}
+
+async function unrelatedReceipts(first, second, base) {
+  await first.getByTestId('presenter-toggle').click();
+  await submit(first, 'reset-demo', 'reset');
+  const arrival = await event(first, 'arrival');
+  await first.getByTestId('voice-open').click();
+  await first.getByTestId('speech-input').fill('确认方案');
+  await second.goto(base);
+  await second.getByTestId('action-confirm').waitFor();
+  await submit(second, 'action-confirm', 'decision');
+  await event(second, 'study');
+  await submit(second, 'action-confirm', 'decision');
+  await event(second, 'tv');
+  const skipped = await (await submit(second, 'action-dismiss', 'decision')).json();
+  assert.equal(skipped.lastOutcome, 'dismissed');
+  assert.equal(
+    await second.getByTestId('action-receipts').count(),
+    0,
+    'a skipped TV suggestion must not show the earlier study receipts'
+  );
+
+  // Replaying the previously completed arrival shows that original decision to
+  // the caller while the shared home remains in its later state.
+  const replay = await (await submit(first, 'speech-send', 'decision')).json();
+  assert.equal(replay.decisionReplayed, true);
+  assert.equal(replay.decisionResult.suggestionId, arrival.suggestion.id);
+  assert.equal(replay.lastOutcome, 'dismissed');
+  await first.getByText('原建议的执行回执', { exact: true }).waitFor();
+  const receipts = await first.locator('#sheet-body').innerText();
+  assert.match(receipts, /客厅灯/);
+  assert.doesNotMatch(receipts, /书桌灯/);
+  await first.locator('#sheet-close').click();
+  assert.equal(await first.getByTestId('action-receipts').count(), 0);
+}
+
 async function main() {
   const { base, server } = await startServer();
   let browser;
@@ -136,8 +216,10 @@ async function main() {
     await first.getByTestId('proposal-title').waitFor();
     await sharedProposal(first, second, base);
     await speakerDraft(first);
+    await interimSpeech(first, base);
+    await unrelatedReceipts(first, second, base);
     console.log(
-      'PASS: shared-tab proposal refresh, cross-member drafts, named actors, and input source'
+      'PASS: shared-tab decisions, speaker attribution, interim speech, and proposal-specific receipts'
     );
   } finally {
     if (browser) await browser.close();

@@ -6,7 +6,7 @@ import re
 from threading import RLock
 from uuid import uuid4
 
-from .gateway import ROOMS, VirtualFamilyGateway
+from .gateway import ROOMS, VirtualFamilyGateway, matches_value_range
 from .agents import capability_actions, experience_targets
 from .model_edit import configured_provider, interpret
 
@@ -127,8 +127,13 @@ class FamilyEvening:
         if path == "/next-day":
             self.next_evening()
             return self.state()
-        handlers[path](data)
-        return self.state()
+        result = handlers[path](data)
+        snapshot = self.state()
+        if path == "/decision" and result is not None:
+            decision_result, replayed = result
+            snapshot["decisionResult"] = deepcopy(decision_result)
+            snapshot["decisionReplayed"] = replayed
+        return snapshot
 
 
     def next_evening(self):
@@ -149,7 +154,9 @@ class FamilyEvening:
         device_id, mode = text_field(data, "deviceId"), text_field(data, "mode")
         check(any(d["id"] == device_id for d in self.gateway.snapshot()), "未知设备")
         check(mode in ("online", "offline", "unknown"), "未知设备模拟状态")
-        self.gateway.set_mode(device_id, mode)
+        set_mode = getattr(self.gateway, "set_mode", None)
+        check(callable(set_mode), "当前网关不支持模拟设备故障。", status=409, code="SIMULATION_ONLY")
+        set_mode(device_id, mode)
         self.log("device_mode", "模拟设备状态已更改", f"{device_id} · {mode}")
         self.outcome = "device_mode"
 
@@ -245,11 +252,11 @@ class FamilyEvening:
         check(decision == "edit" or not {"onlyDeviceId", "value", "text", "scope"}.intersection(data), "仅编辑请求可设置设备、值和作用时段")
         actor = text_field(data, "memberId")
         old = self.decisions.get(sid)
-        owner = old[1] if old else (self.suggestion or {}).get("memberId")
+        owner = old["memberId"] if old else (self.suggestion or {}).get("memberId")
         if owner is not None:
             check(owner == actor, "当前建议属于另一位成员", status=403, code="WRONG_MEMBER")
-        if self.decisions.get(sid, (None,))[0] == decision and decision != "edit":
-            return
+        if old and old["decision"] == decision:
+            return old, True
         suggestion = self.suggestion
         check(suggestion is not None and suggestion["id"] == sid, "建议已过期，请查看当前家庭状态", status=409, code="STALE_SUGGESTION")
         if decision == "edit":
@@ -275,8 +282,16 @@ class FamilyEvening:
                 self.snooze_until = self.minutes + 30
             labels = {"mute": "今晚免打扰", "dismiss": "已跳过这条建议", "snooze": "已暂停提醒 30 分钟"}
             self.log(self.outcome, labels[decision], "无设备写入。")
-        self.decisions[sid] = decision, suggestion["memberId"]
+        result = {
+            "suggestionId": sid,
+            "memberId": actor,
+            "decision": decision,
+            "outcome": self.outcome,
+            "receipts": deepcopy(self.receipts) if decision == "confirm" else [],
+        }
+        self.decisions[sid] = result
         self.suggestion = None
+        return result, False
 
     def edit(self, suggestion, data):
         scope = data.get("scope", suggestion["scope"])
@@ -314,17 +329,28 @@ class FamilyEvening:
         device = next(d for d in self.gateway.snapshot() if d["id"] == device_id)
         check(unit is None or {"度": "°C", "％": "%"}.get(unit, unit) == device["unit"], "单位与设备不符", code="NOT_UNDERSTOOD")
         if value is not None:
-            low, high, step = device["capability"]["valueRange"]
-            check(type(value) is int and low <= value <= high and (value - low) % step == 0, "数值超出设备支持范围")
+            bounds = device["capability"]["valueRange"]
+            if all(type(bound) is int for bound in bounds):
+                check(type(value) is int, "此设备只接受整数")
+            check(matches_value_range(value, bounds), "数值超出设备支持范围")
             if device_id == "living-speaker" and any(m["activity"] in ("study", "sleep") for m in self.members.values()):
                 limit = 12 if any(m["activity"] == "sleep" for m in self.members.values()) else 18
                 check(value <= limit, f"家人正在学习或休息，当前音量上限为 {limit}%")
             actions[0]["value"] = value
         duration = "仅这次" if scope == "once" else "今晚此场景"
         detail = f"按要求{duration}只调{device['name']}到 {actions[0]['value']}{device['unit']}，保留长期偏好。"
+        previous_scope = suggestion["scope"]
         suggestion.update(id=uuid4().hex, actions=actions, reason=detail, editSource="rule", scope=scope)
         if scope == "tonight":
-            suggestion["exception"] = {"deviceId": device_id, "value": value}
+            saved_value = value
+            if saved_value is None:
+                prior = suggestion.get("exception") or self.exceptions.get((suggestion["memberId"], suggestion["eventType"]))
+                if previous_scope == "once":
+                    # Extending a single-use target to tonight keeps the displayed number.
+                    saved_value = actions[0]["value"]
+                elif prior and prior["deviceId"] == device_id:
+                    saved_value = prior["value"]
+            suggestion["exception"] = {"deviceId": device_id, "value": saved_value}
         else:
             suggestion.pop("exception", None)
         suggestion["trace"][1]["detail"] = detail

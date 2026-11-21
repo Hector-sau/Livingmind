@@ -1,0 +1,4 @@
+[
+  {"deviceId": "living-light", "did": "demo-lamp-01", "siid": 3, "piid": 7},
+  {"deviceId": "living-curtain", "did": "demo-curtain-01", "siid": 2, "piid": 5}
+]

@@ -2,7 +2,7 @@
 
 **A proactive home agent for a family of three.** · 面向 SpaceMind 生态设计的主动居住服务 Agent。
 
-[English](README.en.md)　·　[观看中文演示影片](docs/media/family-evening.mp4)　·　[运行模拟 App](#运行模拟-app)　·　[家庭服务接口](docs/family-api.md)
+[English](README.en.md)　·　[观看中文演示影片](docs/media/family-evening.mp4)　·　[运行模拟 App](#运行模拟-app)　·　[家庭服务接口](docs/family-api.md)　·　[代码架构与功能清单](docs/family-architecture-review.md)
 
 [![LivingMind 家庭空间效果图，点击打开演示影片](docs/media/social-cover.jpg)](docs/media/family-evening.mp4)
 
@@ -62,7 +62,7 @@ flowchart LR
 ## 语音与米家接口
 
 - **语音输入与朗读。** 支持浏览器中文语音识别、编辑转写、播报与打断。在有本地模型和已注册声音模板的配置下，可以上传 WAV 比对候选家庭成员。成员选择和设备确认各自独立。实际麦克风、远场噪声和家庭声纹识别率尚待实测。[语音代码与复现](docs/family-voice.md)
-- **设备接口。** 客厅灯、书桌灯、床头灯、空调、两处窗帘、音箱和循环扇按能力建模。模拟器编码 MIoT 风格的设备属性，区分写入响应与设备回读。模拟设备编号用于本仓库；真实米家型号、账号授权和 SpaceMind 平台联调属于外部接入范围。[接口样例](docs/family-api.md) · [小米官方集成](https://github.com/XiaoMi/ha_xiaomi_home)
+- **设备接口。** 客厅灯、书桌灯、床头灯、空调、两处窗帘、音箱和循环扇按能力建模。家庭网关支持独立的 MIoT 属性写入、回读和可替换传输，可加载自定义设备地址运行完整模拟。模拟设备编号用于本仓库；真实米家型号、账号授权和 SpaceMind 平台联调属于外部接入范围。[接口样例](docs/family-api.md) · [小米官方集成](https://github.com/XiaoMi/ha_xiaomi_home)
 - **可复验的质量记录。** 包含家庭行为与并发回归、浏览器语音接口测试，以及真实浏览器完成的端到端操作和视口检查。[验证与录制方法](docs/family-validation.md)
 
 ## 项目资料

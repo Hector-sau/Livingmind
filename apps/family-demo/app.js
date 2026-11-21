@@ -350,27 +350,23 @@ function renderProposal() {
       button('action-mute', '今晚不再提醒', 'trace-toggle', 'moon') +
       '</div>';
   } else {
-    const hasAction = receipts.length > 0;
+    const hasExecution = receipts.length > 0 && ['confirmed', 'incomplete'].includes(state.lastOutcome);
     const recent = state.timeline?.[0];
-    const unresolved = hasAction && receipts.some(r => r.status !== 'confirmed');
-    const title = state.muted
-      ? '今晚已开启免打扰'
-      : hasAction && ['confirmed', 'incomplete'].includes(state.lastOutcome)
-      ? unresolved
-        ? '部分设备尚未确认'
-        : '设备调整已完成'
-      : recent && state.lastOutcome && !['ready', 'reset', 'idle'].includes(state.lastOutcome)
-      ? recent.title
-      : '等待合适的服务时机';
-    const copy = state.muted
-      ? '今晚的主动建议已暂停，成员和设备状态仍可查看。'
-      : hasAction && ['confirmed', 'incomplete'].includes(state.lastOutcome)
-      ? unresolved
-        ? '存在离线或未知结果，可逐台核对目标与回读。'
-        : '已按确认的方案执行，可逐台核对目标与回读。'
-      : recent && state.lastOutcome && !['ready', 'reset', 'idle'].includes(state.lastOutcome)
-      ? recent.detail
-      : '家庭成员到家、学习或休息时，空间会结合个人偏好判断是否提出建议。';
+    let title = '等待合适的服务时机';
+    let copy = '家庭成员到家、学习或休息时，空间会结合个人偏好判断是否提出建议。';
+    if (state.muted) {
+      title = '今晚已开启免打扰';
+      copy = '今晚的主动建议已暂停，成员和设备状态仍可查看。';
+    } else if (hasExecution) {
+      const complete = receipts.every(receipt => receipt.status === 'confirmed');
+      title = complete ? '设备调整已完成' : '部分设备尚未确认';
+      copy = complete
+        ? '已按确认的方案执行，可逐台核对目标与回读。'
+        : '请逐台核对目标、回读和未完成的原因。';
+    } else if (recent && !['ready', 'reset', 'idle'].includes(state.lastOutcome)) {
+      title = recent.title;
+      copy = recent.detail;
+    }
     body.innerHTML =
       '<div class="resting-art" aria-hidden="true">' +
       Array.from({ length: 12 }, () => '<span></span>').join('') +
@@ -379,7 +375,7 @@ function renderProposal() {
       '</h3><p>' +
       html(copy) +
       '</p>' +
-      (hasAction
+      (hasExecution
         ? button('action-receipts', '查看设备回执', 'pill-btn intro-btn', 'receipt')
         : button('open-simulator', '模拟空间事件', 'pill-btn intro-btn', 'sliders'));
   }
@@ -508,8 +504,19 @@ async function decide(decision, extra = {}, memberId) {
     ...extra
   });
   if (ok) {
-    closeSheet();
     navigate('home');
+    if (state.decisionReplayed && state.decisionResult) {
+      const result = state.decisionResult;
+      if (result.decision === 'confirm') {
+        if (dialogKind === 'voice') voice?.interrupt();
+        receipts(result.receipts, '原建议的执行回执');
+      } else {
+        closeSheet();
+        tip('原建议已处理。已同步当前家庭状态。');
+      }
+      return true;
+    }
+    closeSheet();
     tip(
       decision === 'edit'
         ? state.suggestion?.scope === 'once'
@@ -543,9 +550,15 @@ function trace() {
     rows || '<p class="empty">当前方案没有可展示的协作记录。</p>'
   );
 }
-function receipts() {
-  const names = { confirmed: '已回读', offline: '设备离线', unknown: '回执未知', rejected: '未执行' };
-  const rows = (state.receipts || [])
+function receipts(results = state.receipts, title = '设备执行回执') {
+  const names = {
+    confirmed: '已回读',
+    offline: '设备离线',
+    unknown: '回执未知',
+    mismatch: '读数不符',
+    rejected: '未执行'
+  };
+  const rows = (results || [])
     .map(
       r =>
         '<div class="trace-row"><span>' +
@@ -563,24 +576,37 @@ function receipts() {
         '</p></div></div>'
     )
     .join('');
-  openSheet(
-    'receipts',
-    'DEVICE RECEIPTS',
-    '设备执行回执',
-    rows || '<p class="empty">尚无设备执行回执。</p>'
-  );
+  openSheet('receipts', 'DEVICE RECEIPTS', title, rows || '<p class="empty">尚无设备执行回执。</p>');
+}
+function speechDraftPending() {
+  // Interim text can look like a complete confirmation before ASR revises it.
+  return ['starting', 'listening', 'stopping'].includes(voicePhase) || voiceNotice === 'asr-interim';
+}
+function refreshSpeechSubmit() {
+  const button = document.querySelector('[data-act="speech-send"]');
+  if (button) button.disabled = speechDraftPending();
 }
 function initVoice() {
   if (!voice && window.FamilyVoice) {
     voice = window.FamilyVoice.create({
       onStatus: ({ message, phase }) => {
         voicePhase = phase;
-        if (dialogKind === 'voice' && $('voice-status')) $('voice-status').textContent = message || '';
+        if (dialogKind !== 'voice' || !$('voice-status')) return;
+        if (phase === 'starting') {
+          voiceNotice = '';
+          $('speech-input').value = '';
+        }
+        $('voice-status').textContent = message || '';
+        if (phase === 'idle' && voiceNotice === 'asr-interim') {
+          $('voice-status').textContent = '未收到最终转写。请重新说话，或手动修改文字后提交。';
+        }
+        refreshSpeechSubmit();
       },
       onTranscript: ({ text, source, final, memberId }) => {
         if (dialogKind === 'voice' && memberId === voicePerson && $('speech-input')) {
           $('speech-input').value = text;
-          voiceNotice = source;
+          voiceNotice = final ? source : 'asr-interim';
+          refreshSpeechSubmit();
           if ($('voice-status'))
             $('voice-status').textContent =
               source === 'simulated-transcript'
@@ -648,15 +674,24 @@ function voiceSheet() {
     $('speech-input').value = '';
     $('voice-status').textContent = '已切换说话人，请重新说话或输入。';
     $('dialog-error')?.remove();
+    refreshSpeechSubmit();
   };
   $('speech-input').onkeydown = e => {
     if (e.key === 'Enter') submitSpeech();
   };
-  $('speech-input').oninput = () => (voiceNotice = 'typed');
+  $('speech-input').oninput = () => {
+    if (speechDraftPending()) {
+      voice?.interrupt();
+      $('voice-status').textContent = '已切换为手动编辑，请核对文字后提交。';
+    }
+    voiceNotice = 'typed';
+    refreshSpeechSubmit();
+  };
+  refreshSpeechSubmit();
 }
 async function submitSpeech() {
   const input = $('speech-input');
-  if (!input) return;
+  if (!input || speechDraftPending()) return;
   const txt = input.value.trim().replace(/[。！!，,]+$/g, '');
   if (!txt) {
     $('voice-status').textContent = '请说一句话，或在输入框中打字。';

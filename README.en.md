@@ -2,7 +2,7 @@
 
 **A proactive residential-service agent designed for the SpaceMind ecosystem.**
 
-[中文](README.md) · [Watch the film](docs/media/family-evening.mp4) · [Run the app](#run-the-app) · [API and device contract](docs/family-api.md)
+[中文](README.md) · [Watch the film](docs/media/family-evening.mp4) · [Run the app](#run-the-app) · [API and device contract](docs/family-api.md) · [Architecture and feature inventory](docs/family-architecture-review.md)
 
 [![An evening at home · concept artwork](docs/media/social-cover.jpg)](docs/media/family-evening.mp4)
 
