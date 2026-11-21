@@ -158,6 +158,16 @@ async function call(path, data) {
       tip('原建议已失效，已更新家庭状态。请重新核对。');
       return false;
     }
+    // A resident may open an editor while a focus/reconnect refresh is in flight.
+    // Never attach that draft to a proposal the editor did not show.
+    if (
+      data === undefined &&
+      state?.suggestion?.id !== latest.suggestion?.id &&
+      ['edit', 'trace', 'voice'].includes(dialogKind)
+    ) {
+      closeSheet();
+      tip('家庭建议已经更新，请重新核对。');
+    }
     state = latest;
     showConnection(true);
     render();

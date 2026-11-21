@@ -84,7 +84,7 @@ async function sharedProposal(first, second, base) {
   assert.equal((await (await first.request.get(base + '/api/family/state')).json()).receipts.length, 0);
 }
 
-async function speakerDraft(page, base) {
+async function speakerDraft(page) {
   await page.getByTestId('presenter-toggle').click();
   await submit(page, 'reset-demo', 'reset');
   await page.getByTestId('voice-open').click();
@@ -135,7 +135,7 @@ async function main() {
     await first.goto(base);
     await first.getByTestId('proposal-title').waitFor();
     await sharedProposal(first, second, base);
-    await speakerDraft(first, base);
+    await speakerDraft(first);
     console.log(
       'PASS: shared-tab proposal refresh, cross-member drafts, named actors, and input source'
     );
