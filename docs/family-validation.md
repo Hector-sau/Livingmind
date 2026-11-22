@@ -1,20 +1,28 @@
 # 家庭晚间模拟 · Validation notes
 
-本轮验证范围为家庭演示、其真实浏览器操作、虚拟网关与语音接口。家庭默认策略使用规则；可选大模型解析以替身验证约束。设备回读来自模拟器。浏览器视口模拟不能替代 Apple 实机、硬件传感器或真实家庭试用。
+家庭模拟的设备写入、回读和故障注入均发生在虚拟网关。可选模型的解析约束使用替身验证。以下检查覆盖日常操作、浏览器表现、型号属性和本机进程恢复。真实硬件、家庭麦克风识别率和住户满意度仍需实测。
 
-## 运行行为测试
+## 核对家庭行为、型号与恢复
 
-从项目根目录执行，无需米家账号、硬件或模型密钥。
+从仓库根目录运行。下列 Python 用例使用标准库，SQLite 和 HTTP 用例会创建临时数据库、进程与回环端口。
 
 ```sh
-(cd backend && python3 -B -m unittest discover -s tests -p test_family_evening.py -v)
+(cd backend && PYTHONPATH=.:tests python3 -B -m unittest -v \
+  test_family_evening test_family_execution test_family_storage \
+  test_family_gateway_contract test_family_profile test_family_miot_spec)
 node --test scripts/family_voice.test.cjs
 ```
 
-- 家庭测试覆盖入户、身份不确定、重复信号、共享空间冲突、临时例外、次日日切、陈旧方案、并发确认、设备离线以及未知回读。默认内存配置的一次完整后端回归为 264 项通过、56 项按配置跳过，报告另列 34 个通过的 subtests；家庭用例已包含其中。
-- 浏览器语音接口测试使用替身覆盖转写、能力缺失、权限错误、打断和跨成员迟到回调。真实模型的公开录音烟雾测试以及在本地注册声音模板的方法见[说话人实验](family-voice.md)。
-- 已在真实 Chromium 中从浏览器控件操作并核对到家、修改、确认、学习、观影、回执未知及次日偏好。手机使用触摸输入模拟完成确认与打开回执，桌面和手机都使用服务端返回的状态。
-- 设计取舍来自既有方案及使用场景假设。演示成员均为虚构人物。打扰率、真实家庭满意度和硬件识别率仍需用户研究。
+| 场景 | 可以核对的结果 |
+| --- | --- |
+| 学习和观影同时发生 | 成员偏好与所在房间共同决定建议。重复信号、免打扰、临时例外与次日到期都有可重放用例。[家庭行为测试](../backend/tests/test_family_evening.py) |
+| 加载两份型号属性 | 书桌灯绑定 `yeelink.light.lamp4` 的亮度，循环扇绑定 `dmaker.fan.p5` 的枚举档位。从初始状态确认学习建议，虚拟设备分别回读 75% 和 1 档。测试另行检查不支持的枚举值。[型号配置](../backend/examples/family-miot-two-models.json) · [型号测试](../backend/tests/test_family_miot_spec.py) |
+| 确认中的设备回读被暂停 | 独立的状态读取可以看见已处理动作数及已提交回执。浏览器测试在第一次动作上暂停虚拟网关，直到发起端和观察端均显示 0/3，放行后观察端自动看到最终回执。打开编辑器时，后台刷新暂停并保留输入。[执行测试](../backend/tests/test_family_execution.py) · [双屏浏览器测试](../scripts/family-ui-regression.cjs) |
+| 多进程同时确认同一建议 | 首个 HTTP 进程退出后，两个使用同一 SQLite 文件的本机服务器恢复同一条待确认建议。并发确认产生一次新结果与一次重放，两次返回相同的原始回执。[SQLite 与 HTTP 测试](../backend/tests/test_family_storage.py) |
+| 设备动作处理中终止写入进程 | 到家方案的第一项灯光已确认，第二项窗帘正在执行，第三项空调尚未下发。恢复后逐项状态为 `confirmed`、`unknown`、`skipped`。重试同一确认返回这组三项原结果，写入日志没有第二次下发窗帘或补发空调。[中断与重放测试](../backend/tests/test_family_storage.py) |
+| 转写尚未完成或切换说话人 | 语音适配使用模拟浏览器回调覆盖权限、打断和迟到结果。真实 Chromium 流程验证临时“确认”不能提交，切换人物会清空草稿。公开样本的声纹比对有独立实验。[语音接口测试](../scripts/family_voice.test.cjs) · [说话人实验](family-voice.md) |
+
+要在界面重现型号示例，使用 [README 中的双型号启动命令](../README.md#运行模拟-app)。`--state-db` 和 `--miot-profile` 都是可选参数；恢复同一个数据库时须沿用原设备配置。上述故障恢复证据适用于同一台电脑上的 SQLite 和模拟设备。
 
 ## 核对视口
 

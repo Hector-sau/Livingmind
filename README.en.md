@@ -24,7 +24,17 @@ From the repository root, with Python 3.9 or later:
 python3 backend/family_demo.py
 ```
 
-Open the [local app](http://127.0.0.1:8765) or the [film and device gallery](http://127.0.0.1:8765/showcase/). In the app, choose the simulator and select **妈妈到家** (mother arrives). The default planner and virtual gateway work offline with the Python standard library. Each server process hosts one household. Browser tabs on the same process share the session. [Original Expo and full backend setup](docs/classic-quickstart.md)
+Open the [local app](http://127.0.0.1:8765) and choose **场景模拟器 → 妈妈到家** (simulate the mother's arrival). The default household runs in memory with the Python standard library. Restarting the server restores its initial state. [Film and device gallery](http://127.0.0.1:8765/showcase/) · [Original Expo and backend setup](docs/classic-quickstart.md)
+
+**Try two device models and save your progress.** This optional setup binds the desk lamp and study fan to two MIoT model specifications and stores household state and receipts in a local SQLite file. Both devices remain simulated.
+
+```sh
+python3 backend/family_demo.py --port 8766 \
+  --state-db /tmp/livingmind-two-models/house.sqlite3 \
+  --miot-profile backend/examples/family-miot-two-models.json
+```
+
+Open the [model demo](http://127.0.0.1:8766). From the initial state, choose **场景模拟器 → 孩子开始学习 → 确认执行** (start a study session and confirm). The receipts show **75% brightness** and **fan level 1**. Restart with the same command to resume. Two local server processes can share the same database and model profile. A second screen can read progress during a slow confirmation. After an interrupted execution, completed actions keep their receipts, the in-flight action is marked unknown, and remaining actions are skipped. Retrying the same confirmation returns its recorded result. Expand a device receipt to inspect its model, property address and response codes. [Receipt screenshot](docs/media/family-miot-receipts.png) · [Model profile](backend/examples/family-miot-two-models.json) · [Cross-process recovery checks](docs/family-validation.md)
 
 ## Phone and tablet
 

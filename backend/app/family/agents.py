@@ -1,5 +1,5 @@
 """Deterministic experience planning and space capability mapping for the family simulator."""
-from .gateway import matches_value_range
+from .gateway import supports_value
 
 
 PREFERENCES = {
@@ -79,7 +79,7 @@ def capability_actions(targets, by_id):
         if device is None or "write" not in device["capability"]["access"]:
             skipped.append(device_id)
             continue
-        if not matches_value_range(value, device["capability"]["valueRange"]):
+        if not supports_value(device["capability"], value):
             skipped.append(device_id)
             continue
         if device["mode"] != "online" or device["value"] != value:

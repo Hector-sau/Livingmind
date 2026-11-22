@@ -2,15 +2,15 @@
 
 **Engineering review · 2026-11-22**　[中文首页](../README.md) · [能运行的家庭演示](family-api.md) · [影片与源码分镜](family-film.md)
 
-The family demo can generate a plan, revise it, obtain consent and verify each virtual device. These operations run through the browser and Python backend. Keep this architecture for the demo. Before adding a live bridge, make device execution recoverable and make the household state shareable across processes.
+The family service now supports two operating modes. A quick demo owns its state in memory. Starting two local servers with the same SQLite state file lets them share proposals, preferences for tonight and device receipts across restarts. The devices in both modes are simulated.
 
-家庭版已经跑通从空间事件、主动建议、成员修改，到确认和逐台回读的完整链路，适合继续作为 SpaceMind 方向的主原型。下一阶段最值得投资的是家庭状态和动作回执的持久化，以及传输等待期间的可用性。本文以 GitHub 主分支 `61232a1` 为评审基线，并列入本次修改与回归结果。
+住户确认方案后，如果有人在中途关闭服务，其他家人如何判断哪些动作已经完成？以 `61232a1` 为基线的评审先补齐了方案重试、数字偏好和属性回读。此后新增的共享存储将每台设备的发送意图与执行结果分别保存，恢复进程可以据此给出逐台答案。[家庭状态机](../backend/app/family/service.py) · [共享存储](../backend/app/family/storage.py)
 
 ## How the code runs · 两条执行路径
 
 | 路径 | 入口与实际职责 | 验证边界 |
 | --- | --- | --- |
-| **Family demo · 家庭版** | 浏览器向标准库 HTTP 服务或 FastAPI 子应用提交事件。两种入口共用 `FamilyEvening`。主 Agent 管理事件与确认，体验规则生成目标，空间执行规则筛选设备动作，网关保存回执。[浏览器](../apps/family-demo/app.js) · [入口一](../backend/family_demo.py) · [入口二](../backend/app/family/api.py) · [状态机](../backend/app/family/service.py) | 一个进程维护一个家庭。首页、演示影片和下文的家庭指标均使用这条路径。 |
+| **Family demo · 家庭版** | 浏览器向标准库 HTTP 服务或 FastAPI 子应用提交事件。两种入口共用 `FamilyEvening`。主 Agent 管理事件与确认，体验规则生成目标，空间执行规则筛选设备动作，网关保存回执。[浏览器](../apps/family-demo/app.js) · [入口一](../backend/family_demo.py) · [入口二](../backend/app/family/api.py) · [状态机](../backend/app/family/service.py) | 默认每个进程运行一个临时家庭。通过 `--state-db` 或 `LIVINGMIND_FAMILY_STATE_DB`，同机多个服务进程可维护同一家庭。首页与演示影片使用家庭版。 |
 | **Classic service · 经典服务** | Expo 客户端使用独立的 FastAPI 路由。提供休息服务、偏好记忆、可选 LangGraph 编排、动作授权、SQL 账本和网关回执核对。[路由](../backend/app/api/routes.py) · [图运行时](../backend/app/graph/runtime.py) · [动作核对](../backend/app/harness/reconciliation.py) | 双 API、PostgreSQL 和独立 HTTP/SQLite 虚拟网关已经有集成测试。家庭版仍使用独立状态机。[双实例设计与验证](durable-gateway.md) |
 
 ```mermaid
@@ -21,10 +21,12 @@ flowchart LR
   P --> S["空间执行 Agent · 能力与范围"]
   S --> C{"成员确认当前版本?"}
   C -->|修改| P
-  C -->|确认| G["家庭网关 · 逐动作编号"]
+  C -->|确认| I["发布执行进度 · 记录本动作的发送意图"]
+  I --> G["家庭网关 · 逐动作编号"]
   G --> T["属性传输 · 写入与独立回读"]
   T --> R["目标、观测值及回执状态"]
-  R --> UI
+  R --> V["提交回执与公开状态视图"]
+  V --> UI
 ```
 
 ## Feature inventory · 功能落地清单
@@ -42,23 +44,31 @@ flowchart LR
 | 语音输入、朗读及打断 | 已实现 · 浏览器能力 | 中文识别、编辑转写、手动输入和可打断朗读都有代码。影片中的孩子使用标注的示例转写。最终结果和临时转写分开处理。[语音适配器](../apps/family-demo/voice.js) · [浏览器回归](../scripts/family-ui-regression.cjs) |
 | 说话人比对 | 已实现 · 条件启用 | 本地录音模板与 ECAPA-TDNN 嵌入可产生候选人或未知。公开样本验证了比对流程，实际家庭远场准确率待测。候选人不直接获得设备控制权。[实现](../backend/app/family/speaker_model.py) · [实验记录](family-voice.md) |
 | 手机、iPad 与证据展示 | 已实现 · 浏览器验证 | 固定视口和触控操作有回归。无声影片与源码导览可重放。原生 Expo 客户端走经典 API。[视口回归](../scripts/family-film/viewports.cjs) · [Expo 入口](../apps/mobile/App.tsx) |
-| 家庭记忆与偏好 | 部分实现 | 家庭版有预置偏好、可过期的当晚例外及进程内记录。经典服务另有可编辑个人偏好。跨家庭版重启的偏好、例外及动作恢复待补。[家庭版](../backend/app/family/service.py) · [经典版](../backend/app/memory/service.py) |
+| 家庭记忆与偏好 | 部分实现 | 家庭版的长期偏好来自演示数据。当晚例外按成员、场景保存。启用共享数据库后，重启可找回这些例外、免打扰状态、待确认建议及动作记录。进入下一晚时临时设定到期。经典服务另有可编辑的长期偏好。[家庭版](../backend/app/family/service.py) · [经典版](../backend/app/memory/service.py) |
 | 工程验证与发布 | 已实现 | CI 包含家庭浏览器回归、移动端、经典 API 契约、三种后端配置及 Docker 端到端。家庭子 API 的独立 OpenAPI 仍缺少可生成完整客户端的字段定义。[CI](../.github/workflows/ci.yml) · [家庭 API](../backend/app/family/api.py) |
 | 能源与节能 | 经典版与独立实验 | 经典服务提供能耗规则及节能模式。独立目录有离线家庭能源仿真与实验资料，家庭版的晚间建议没有调用该仿真模型。[能耗规则](../backend/app/energy/rules.py) · [离线实验](../simulation/home-energy/) |
 | SpaceMind 平台对接 | 待接入 | 已有面向空间、人员偏好和主动服务的产品模型。仓库没有可验证的 SpaceMind 平台认证、事件订阅或官方设备下发实现。[家庭服务边界](family-api.md) |
 
+## Shared household · 多进程、多屏与中断恢复
+
+A slow device may hold the household’s writer lease, while another screen reads the latest committed progress. The family service keeps commands in order and serves state reads independently.
+
+以三项到家动作为例。确认请求先校验当前成员和建议编号，再为每项动作记录发送意图、调用网关、保存回执。写入与恢复同一时间只有一个本机进程负责。共享模式用独立 SQLite 文件持有写者锁，每个动作的检查点与公开视图提交到状态数据库。设备等待期间，其他请求仍能读取已提交的读数、已完成动作数和总动作数。并发确认等待写者完成，再按原建议编号取回决定。[执行与视图发布](../backend/app/family/service.py) · [写者锁与公开视图](../backend/app/family/storage.py)
+
+假设客厅灯已回读，窗帘刚下发，空调还在队列中，此时终止写入进程。接手者取得写者锁后保留灯的回执，将窗帘标为 `unknown` 并令旧读数失去新鲜度，将未发送的空调标为 `skipped`。重试原确认会取得这三个结果。其他标签页保持前台、关闭对话框时，约每 2.5 秒拉取一次状态；编辑框保留打开时的建议版本，提交旧版本会触发重新核对。[进程终止回归](../backend/tests/test_family_storage.py) · [慢回读与重试](../backend/tests/test_family_execution.py) · [前台刷新](../apps/family-demo/app.js)
+
 ## Xiaomi Home · 米家接入到哪一层
 
-Working today: a logical device can be bound to an explicit MIoT property, written through an injected transport and checked against a separate observation. The included transport runs locally. Account login, discovery, model import and vendor network communication remain open.
+The included offline profiles cover hand-bound addresses and property definitions from two published product models. Device discovery, account authorization and communication with a vendor gateway remain external integration work.
 
-今天可以运行的是**MIoT 属性级适配和本地模拟执行**。下面按实际调用链列出覆盖范围。小米官方集成另外实现了账号授权、设备列表、型号规范解析、云端及局域网通信，具体设备支持取决于型号与连接方式。[小米官方集成](https://github.com/XiaoMi/ha_xiaomi_home)
+仓库附有带来源的型号规范节选。离线导入器可将台灯 `yeelink.light.lamp4` 的亮度，以及风扇 `dmaker.fan.p5` 的风速档位，绑定到书房的虚拟设备。运行时可以核对属性地址、单位、读写权限和枚举范围。真实住户账号及设备发现由后续桥接适配器承担。[两种型号与原始规范出处](../backend/examples/family-miot-two-models.json) · [规范导入器](../backend/app/family/miot_spec.py)
 
 | 环节 | 当前状态 | 如何核对 |
 | --- | --- | --- |
 | 逻辑设备 → 属性地址 | **已实现** | 支持给八台虚拟设备中的指定设备配置 `did / siid / piid`。相同设备可通过不同属性地址区分。重复地址在启动时拒绝。[配置加载](../backend/app/family/profile.py) · [示例 JSON](../backend/examples/family-miot-profile.json) |
 | 能力校验、属性写入与回读 | **已实现，模拟验证** | 建议生成、结构化编辑和网关读写共用同一套值域与步长规则。模拟温控器可接受 22.1°C，并在写入前拒绝偏离 0.1°C 步长的 22.15°C。传输对象分别提供 `write_property` 和 `read_property`。回包地址、结果码和读数独立核验，可区分确认、回读不符、未知、拒绝和离线。[网关实现](../backend/app/family/gateway.py) · [契约测试](../backend/tests/test_family_gateway_contract.py) |
-| 超时、断线、重试 | **进程内已实现** | 读数丢失保留上次可靠观测。同一动作编号复用原回执。恢复在线后，虚拟网关刷新当前读数，历史未知结果保留。跨进程对账在经典网关另有实现。[家庭回归](../backend/tests/test_family_gateway_contract.py) · [经典网关](durable-gateway.md) |
-| 真实设备发现与型号能力导入 | **待接入** | 当前从本地描述及手工地址配置加载。尚需把发现到的型号、服务、属性、权限、枚举和单位转换为家庭能力模型。 |
+| 超时、断线、重试 | **模拟验证，可持久化** | 回读缺失时保留上次观测与未知标记。共享模式可在同机重启后检索原决定和分设备回执。恢复在线时更新当前设备读数，历史未知结果保留。[家庭回归](../backend/tests/test_family_gateway_contract.py) · [经典网关](durable-gateway.md) |
+| 型号属性导入 | **已实现，两种型号离线验证** | 从本地规范中的服务和属性提取访问权限、枚举、步长和单位。设备在用户家庭里的真实身份与地址仍需外部发现。[型号读取与绑定](../backend/app/family/miot_spec.py) · [台灯与风扇样例](../backend/examples/family-miot-two-models.json) |
 | 账号 OAuth、家庭选择与厂商通信 | **待接入** | 仓库没有小米登录、令牌刷新、设备列表同步或官方云／局域网客户端。替换传输对象是可用的接入点。 |
 | 属性订阅、MIoT 事件与动作 | **待接入** | 当前覆盖属性读取和写入。能力描述中的 `notify` 是元数据。真实状态推送、事件 `eiid`、动作 `aiid` 及其参数映射均待实现。 |
 
@@ -66,6 +76,13 @@ Working today: a logical device can be bound to an explicit MIoT property, writt
 
 ```sh
 python3 backend/family_demo.py --miot-profile backend/examples/family-miot-profile.json
+```
+
+要在同一台电脑的两个端口复验共享家庭，可在两个终端分别启动下列进程。两者指向同一状态文件、同一份型号配置。触发孩子学习并确认后，两屏可以检索同一批书桌灯和循环扇回执。第二晚仍可使用这份状态文件。[双进程用例](../backend/tests/test_family_storage.py) · [离线型号映射用例](../backend/tests/test_family_miot_spec.py)
+
+```sh
+python3 backend/family_demo.py --port 8765 --state-db /tmp/livingmind-review/house.sqlite3 --miot-profile backend/examples/family-miot-two-models.json
+python3 backend/family_demo.py --port 8766 --state-db /tmp/livingmind-review/house.sqlite3 --miot-profile backend/examples/family-miot-two-models.json
 ```
 
 ## Findings and fixes · 本次修复
@@ -79,21 +96,16 @@ python3 backend/family_demo.py --miot-profile backend/examples/family-miot-profi
 
 ## Remaining work · 后续优先级
 
-| 优先级 | 具体缺口与影响 | 建议的验收条件 |
+| 优先级 | 当前边界 | 验收方式 |
 | --- | --- | --- |
-| **P1 · 家庭动作持久化** | 家庭会话、去重记录与动作回执目前存在内存中。服务重启会恢复初始数据，多个实例各自持有不同家庭。持续运行时时间线随历史增长，每次读取都会复制完整历史。[状态机](../backend/app/family/service.py) | 同一个家庭从第二个进程可见。执行后重启仍可按原动作 ID 读回结果，重试不重复写入。历史记录可分页。优先复用经典版账本与核对经验。 |
-| **P1 · 慢设备下的家庭可用性** | 家庭状态锁内逐台同步调用网关。本轮用暂停回包的传输替身验证，确认在等待时，另一位成员读取家庭状态也会等待。默认内存设备速度快，接网络适配器后会放大此问题。[确认与下发](../backend/app/family/service.py) | 锁内记录已确认的方案版本与动作，锁外执行，结果按动作 ID 合并。让一台设备延迟回读时，另一终端仍能读取状态，同一动作始终只下发一次。 |
-| **P2 · 家庭 API 契约及多屏同步** | 家庭 FastAPI 使用通用字典收请求，前端读取快照字段。两块持续亮屏的设备没有订阅状态变化，后端已保护过期确认，但闲置屏可能长时间显示旧建议。[家庭 API](../backend/app/family/api.py) · [页面同步](../apps/family-demo/app.js) | 给事件、决策、回执提供明确模型与版本，并为家庭子 API 做契约检查。用修订号配合增量拉取或 SSE 验证双屏在另一方确认后能自动更新。 |
-| **P2 · 米家型号与事件覆盖** | 手工绑定能证明属性链路。面对不同型号的百分比、枚举、读写权限和事件语义，还需对照正式型号说明。[小米官方设备规范说明](https://github.com/XiaoMi/ha_xiaomi_home#mapping-relationship-between-miot-spec-v2-and-home-assistant-entity) | 先导入两份公开型号规范，在离线环境跑通能力映射、只读属性、枚举和通知。随后选择一条获得授权的桥接路径，再验收真实设备发现、写入、独立回读及断线重连。 |
-| **P3 · 场景与语音评估** | 默认规则只覆盖定义好的活动。现有测试能验证程序行为，对是否打扰真实住户、远场识别效果和建议接受度仍缺观测证据。[场景用例](../backend/tests/test_family_evening.py) · [语音实验](family-voice.md) | 建立未参与规则编写的场景集，覆盖同室多人、活动先后互换和模糊转写，分别记录错误执行、错误提醒、需要澄清的比例。真实家庭试用另行取得参与者同意。 |
+| P1 · 真实桥接与跨主机协调 | SQLite 共享模式面向同一台机器上的读写进程。接入真实网关和跨主机部署，需要明确谁拥有设备写权限、故障后如何查询原回执，以及授权的生命周期。 | 先在授权环境选一台灯，验证发现、能力读取、写入及独立回读。断开写者后，验证另一进程能查询不确定动作。多主机场景单独验证所有权切换。 |
+| P2 · 历史数据增长 | 事件索引、活动记录、回执和决定随运行积累。每步检查点都序列化家庭状态与公开视图。 | 以一个月的事件量回放，记录数据库大小、确认耗时与快照体积，再制定分页、归档和去重保留期。保留仍可合法重试的原决定及其回执。 |
+| P2 · 推送及接口契约 | 可见标签页已自动拉取变化。更快的跨终端通知、MIoT 属性推送与家庭 API 的字段级契约仍待建设。`notify` 表示型号支持通知的能力。 | 增加可恢复的订阅游标，验证断线后补齐状态、事件去重和草稿保护。通过契约用例核对旧客户端能读取新增字段。 |
+| P3 · 场景与语音评估 | 当前证据来自模拟家庭、浏览器交互与公开语音样本。 | 用未参与规则编写的场景测试多人活动先后顺序和模糊请求。经参与者同意，记录真实使用中的误提醒、接受率及远场语音澄清率。 |
 
-**Recommendation · 建议。** Keep the three roles in one deployable family service while the product is a simulator. Give the state store, typed events and device transport explicit contracts first. 真正接硬件前优先完成状态存储、事件契约和设备传输边界。这样每一项改动都能通过“谁确认了哪版方案、每台设备到底回了什么”来验收。
+## Verification · 验证记录
 
-## Verification · 本轮验证记录
-
-- **41 family tests.** 覆盖家庭状态机、可注入属性传输、地址配置和声纹接口响应。另有 5 项浏览器语音适配单测及双标签页 Chromium 操作回归。语音时序用可控识别回调验证。
-- **Two HTTP entries.** 独立启动标准库服务，通过 HTTP 发送到家事件并确认，再通过 FastAPI 测试客户端重复同一流程。两个入口都从示例配置向 `demo-lamp-01 / 3 / 7` 写入 45 并读回 45。
-- **Backend regression.** 本机默认配置的完整后端测试有 264 项通过、56 项按配置跳过，另有 34 个子测试通过。数据库和多实例组合由仓库 CI 分任务运行。[CI 配置](../.github/workflows/ci.yml)
+测试让第二台设备延迟返回，同时从另一请求读到三项动作已完成一项。真实子进程测试则在第二条命令送出后终止写者，确认恢复时仍只发出原先两条命令。另一个用例运行两个独立 HTTP 服务，通过同一数据库在重启后重放先前决定。浏览器回归覆盖前台双屏同步、执行中快照和编辑草稿保护。两种型号的 6 项专项回归通过。在手机上展开协议详情可直接核对型号、地址及写入／回读响应码。[双型号回执实录](media/family-miot-receipts.png)。[执行进度测试](../backend/tests/test_family_execution.py) · [跨进程测试](../backend/tests/test_family_storage.py) · [浏览器回归](../scripts/family-ui-regression.cjs) · [属性传输测试](../backend/tests/test_family_gateway_contract.py)
 
 已安装后端测试依赖时，在仓库根目录可以复跑以下检查。完整的浏览器依赖和录制方式见[验证指南](family-validation.md)。
 

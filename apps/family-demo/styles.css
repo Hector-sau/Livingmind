@@ -804,6 +804,46 @@ dialog::backdrop {
 .trace-row > span svg {
   width: 16px;
 }
+.receipt-result {
+  flex: 1;
+  min-width: 0;
+}
+.receipt-result > p {
+  margin: 5px 0;
+}
+.receipt-protocol summary {
+  width: fit-content;
+  padding: 6px 2px;
+  color: #225969;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.receipt-protocol dl {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 5px 16px;
+  margin: 0 0 4px;
+  border-left: 2px solid #a5cbd2;
+  padding: 8px 12px;
+  background: #f0f5f5;
+  font-size: 13px;
+  line-height: 1.4;
+}
+.receipt-protocol dt {
+  color: var(--dim);
+}
+.receipt-protocol dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+  font-variant-numeric: tabular-nums;
+}
+@media (pointer: coarse) {
+  .receipt-protocol summary {
+    min-height: 44px;
+    padding-block: 12px;
+  }
+}
 .toast {
   position: fixed;
   bottom: 24px;

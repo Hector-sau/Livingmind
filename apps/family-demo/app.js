@@ -137,9 +137,48 @@ async function fetchHousehold(path, data) {
   return payload;
 }
 
+let lastSnapshot = '';
+let readInFlight = false;
+let requestGeneration = 0;
+let confirming = false;
+
+function applySnapshot(response) {
+  // Decision receipts describe the caller's request. They are not household state.
+  const { decisionResult, decisionReplayed, ...household } = response;
+  const signature = JSON.stringify(household);
+  showConnection(true);
+  if (signature === lastSnapshot) return;
+  lastSnapshot = signature;
+  state = household;
+  render();
+}
+
+function canReadInBackground() {
+  return document.visibilityState === 'visible' && !elSheet.open && (!busy || confirming);
+}
+
+async function refreshVisibleHousehold() {
+  if (readInFlight || !state || !canReadInBackground()) return;
+  const generation = requestGeneration;
+  readInFlight = true;
+  try {
+    const latest = await fetchHousehold('state');
+    // A newer local action takes precedence. A dialog keeps the snapshot its user opened.
+    if (generation === requestGeneration && canReadInBackground()) applySnapshot(latest);
+  } catch {
+    if (generation === requestGeneration && canReadInBackground()) {
+      showConnection(false, '暂时无法刷新家庭状态，正在显示上次读取的结果。');
+    }
+  } finally {
+    readInFlight = false;
+  }
+}
+
 async function call(path, data) {
   if (busy) return false;
   busy = true;
+  confirming = path === 'decision' && data?.decision === 'confirm';
+  requestGeneration++;
   document.body.classList.add('pending');
   try {
     let latest;
@@ -151,10 +190,8 @@ async function call(path, data) {
       // Read the current household once. Never resend the user's decision.
       latest = await fetchHousehold('state');
       if (latest.suggestion?.id === data.suggestionId) throw error;
-      state = latest;
-      showConnection(true);
       closeSheet();
-      render();
+      applySnapshot(latest);
       tip('原建议已失效，已更新家庭状态。请重新核对。');
       return false;
     }
@@ -168,10 +205,8 @@ async function call(path, data) {
       closeSheet();
       tip('家庭建议已经更新，请重新核对。');
     }
-    state = latest;
-    showConnection(true);
-    render();
-    return true;
+    applySnapshot(latest);
+    return latest;
   } catch (err) {
     if (err.api) {
       tip(String(err.message));
@@ -191,6 +226,8 @@ async function call(path, data) {
     }
     return false;
   } finally {
+    requestGeneration++;
+    confirming = false;
     busy = false;
     document.body.classList.remove('pending');
   }
@@ -320,8 +357,26 @@ function renderProposal() {
     receipts = state.receipts || [];
   const indicator = $('service-indicator');
   indicator.classList.toggle('active', !!s);
-  indicator.textContent = s ? '待确认' : state.muted ? '今晚已静音' : '观察中';
+  indicator.textContent = state.execution
+    ? '执行中'
+    : s
+    ? '待确认'
+    : state.muted
+    ? '今晚已静音'
+    : '观察中';
   const body = $('proposal');
+  if (state.execution) {
+    const { memberId, completedActions, totalActions } = state.execution;
+    body.innerHTML =
+      '<h3 data-testid="proposal-title">正在执行已确认的方案</h3><p>' +
+      html(titleForMember(memberId)) +
+      '已确认，正在核对设备动作。</p><div class="targets"><span class="target" data-testid="execution-progress">已核对 ' +
+      html(completedActions) +
+      ' / ' +
+      html(totalActions) +
+      ' 项</span></div>';
+    return;
+  }
   if (s) {
     let acts = (s.actions || [])
       .map(
@@ -394,6 +449,7 @@ function closeSheet() {
 elSheet.addEventListener('close', () => {
   if (dialogKind === 'voice') voice?.interrupt();
   dialogKind = '';
+  void refreshVisibleHousehold();
 });
 elSheet.addEventListener('click', e => {
   if (e.target !== elSheet) return;
@@ -497,16 +553,16 @@ async function decide(decision, extra = {}, memberId) {
     tip('当前没有待处理的主动建议');
     return false;
   }
-  const ok = await call('decision', {
+  const response = await call('decision', {
     suggestionId: s.id,
     decision,
     memberId: memberId || selectedResident,
     ...extra
   });
-  if (ok) {
+  if (response) {
     navigate('home');
-    if (state.decisionReplayed && state.decisionResult) {
-      const result = state.decisionResult;
+    if (response.decisionReplayed && response.decisionResult) {
+      const result = response.decisionResult;
       if (result.decision === 'confirm') {
         if (dialogKind === 'voice') voice?.interrupt();
         receipts(result.receipts, '原建议的执行回执');
@@ -550,20 +606,41 @@ function trace() {
     rows || '<p class="empty">当前方案没有可展示的协作记录。</p>'
   );
 }
+function protocolDetails(receipt) {
+  const packet = receipt.propertyRequest;
+  if (!packet) return '<p class="protocol-missing">没有可展示的协议请求记录。</p>';
+  const model = state.devices.find(d => d.id === receipt.deviceId)?.modelSpec?.model;
+  const replyCode = reply => {
+    if (!reply) return '无回包';
+    return Number.isInteger(reply.code) ? '响应码 ' + reply.code : '响应码未知';
+  };
+  const field = (label, value) => '<dt>' + label + '</dt><dd>' + html(value ?? '未知') + '</dd>';
+  return (
+    '<details class="receipt-protocol" data-testid="receipt-protocol-' + html(receipt.deviceId) + '">' +
+    '<summary>设备协议详情</summary><dl>' +
+    (model ? field('型号', model) : '') +
+    field('设备 DID', packet.did) +
+    field('SIID / PIID', (packet.siid ?? '未知') + ' / ' + (packet.piid ?? '未知')) +
+    field('写入回包', replyCode(receipt.writeReply)) +
+    field('回读回包', replyCode(receipt.readReply)) +
+    '</dl></details>'
+  );
+}
 function receipts(results = state.receipts, title = '设备执行回执') {
   const names = {
     confirmed: '已回读',
     offline: '设备离线',
     unknown: '回执未知',
     mismatch: '读数不符',
-    rejected: '未执行'
+    rejected: '未执行',
+    skipped: '中断前尚未发送'
   };
   const rows = (results || [])
     .map(
       r =>
         '<div class="trace-row"><span>' +
         icon(deviceIcon(r.deviceId)) +
-        '</span><div><b>' +
+        '</span><div class="receipt-result"><b>' +
         html(titleForDevice(r.deviceId)) +
         ' · ' +
         html(names[r.status] || r.status) +
@@ -573,7 +650,7 @@ function receipts(results = state.receipts, title = '设备执行回执') {
         (r.observed != null
           ? '回读 ' + html(targetValue(r.deviceId, r.observed))
           : '尚无可确认的回读值') +
-        '</p></div></div>'
+        '</p>' + protocolDetails(r) + '</div></div>'
     )
     .join('');
   openSheet('receipts', 'DEVICE RECEIPTS', title, rows || '<p class="empty">尚无设备执行回执。</p>');
@@ -897,7 +974,7 @@ $('room-filter').onchange = e => {
   perRoomFilter = e.target.value;
   render();
 };
-document.addEventListener('visibilitychange', () => {
-  if (document.visibilityState === 'visible' && state && !elSheet.open) call('state');
-});
+document.addEventListener('visibilitychange', refreshVisibleHousehold);
+// A visible tablet can follow another resident even when neither screen changes tabs.
+window.setInterval(refreshVisibleHousehold, 2500);
 call('state');

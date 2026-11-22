@@ -6,11 +6,15 @@ from functools import partial
 from pathlib import Path
 
 from .gateway import DEVICES, VirtualFamilyGateway
+from .miot_spec import bind_model_profile
 from .service import FamilyEvening
+from .storage import SQLiteFamilyStore, SharedFamilySession
 
 
 def bind_addresses(bindings):
     devices = deepcopy(DEVICES)
+    if isinstance(bindings, dict):
+        return bind_model_profile(devices, bindings)
     by_id = {device["id"]: device for device in devices}
     if not isinstance(bindings, list) or not bindings:
         raise ValueError("MIoT profile must be a nonempty array of property bindings")
@@ -31,13 +35,18 @@ def bind_addresses(bindings):
     return devices
 
 
-def create_family_session(profile_path=None):
+def create_family_session(profile_path=None, state_db=None):
     path = profile_path or os.environ.get("LIVINGMIND_FAMILY_MIOT_PROFILE")
-    if not path:
-        return FamilyEvening()
-    try:
-        bindings = json.loads(Path(path).read_text(encoding="utf-8"))
-        devices = bind_addresses(bindings)
-        return FamilyEvening(gateway_factory=partial(VirtualFamilyGateway, devices=devices))
-    except (OSError, ValueError) as error:
-        raise ValueError(f"Cannot load MIoT simulation profile {path}: {error}") from error
+    devices = DEVICES
+    if path:
+        try:
+            bindings = json.loads(Path(path).read_text(encoding="utf-8"))
+            devices = bind_addresses(bindings)
+            VirtualFamilyGateway(devices)  # Validate the complete address map at startup.
+        except (OSError, ValueError) as error:
+            raise ValueError(f"Cannot load MIoT simulation profile {path}: {error}") from error
+    factory = partial(VirtualFamilyGateway, devices=devices)
+    database = state_db or os.environ.get("LIVINGMIND_FAMILY_STATE_DB")
+    if database:
+        return SharedFamilySession(SQLiteFamilyStore(database, devices), factory)
+    return FamilyEvening(gateway_factory=factory)

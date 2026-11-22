@@ -15,7 +15,7 @@ fs.mkdirSync(out, { recursive: true });
 
 async function main() {
   const server = spawn(process.env.PYTHON || 'python3', ['backend/family_demo.py', '--port', '0'], {
-    cwd: root, stdio: ['ignore', 'pipe', 'inherit']
+    cwd: root, env: require('../family-test-env.cjs'), stdio: ['ignore', 'pipe', 'inherit']
   });
   let browser;
   try {

@@ -4,15 +4,38 @@ const path = require('node:path');
 const { spawn } = require('node:child_process');
 const { chromium } = require(process.env.PLAYWRIGHT_MODULE || 'playwright');
 
-async function startServer() {
-  const server = spawn(
-    process.env.PYTHON || 'python3',
-    ['-u', 'backend/family_demo.py', '--port', '0'],
-    {
-      cwd: path.join(__dirname, '..'),
-      stdio: ['ignore', 'pipe', 'inherit']
-    }
-  );
+// Only the first property action pauses. The test releases it through stdin,
+// after both browsers have observed execution on the real HTTP read path.
+const heldGatewayServer = `
+import sys
+from family_demo import make_server
+from app.family.gateway import VirtualFamilyGateway
+from app.family.service import FamilyEvening
+
+class HeldGateway(VirtualFamilyGateway):
+    hold = True
+    def submit(self, action_id, device_id, value):
+        if self.hold:
+            self.hold = False
+            sys.stdin.readline()
+        return super().submit(action_id, device_id, value)
+
+with make_server(0) as server:
+    server.session = FamilyEvening(gateway_factory=HeldGateway)
+    print(f"http://127.0.0.1:{server.server_port}", flush=True)
+    server.serve_forever()
+`;
+
+async function startServer({ holdFirstAction = false, profile } = {}) {
+  const args = holdFirstAction
+    ? ['-u', '-c', heldGatewayServer]
+    : ['-u', 'family_demo.py', '--port', '0'];
+  if (profile) args.push('--miot-profile', profile);
+  const server = spawn(process.env.PYTHON || 'python3', args, {
+    cwd: path.join(__dirname, '../backend'),
+    env: require('./family-test-env.cjs'),
+    stdio: [holdFirstAction ? 'pipe' : 'ignore', 'pipe', 'inherit']
+  });
   try {
     const base = await new Promise((resolve, reject) => {
       let out = '';
@@ -200,6 +223,120 @@ async function unrelatedReceipts(first, second, base) {
   assert.equal(await first.getByTestId('action-receipts').count(), 0);
 }
 
+async function visibleHousehold(observer, operator, base) {
+  await operator.goto(base);
+  await operator.getByTestId('presenter-toggle').click();
+  await submit(operator, 'reset-demo', 'reset');
+  await observer.goto(base);
+  await observer.getByTestId('proposal-title').waitFor();
+  const arrival = await event(operator, 'arrival');
+  await observer.getByRole('heading', { name: arrival.suggestion.title }).waitFor({ timeout: 10000 });
+
+  // An unchanged read must not replace focused controls on the passive screen.
+  await observer.getByTestId('action-confirm').focus();
+  await observer.waitForResponse(r => r.url() === base + '/api/family/state');
+  await observer.evaluate(() => new Promise(resolve => requestAnimationFrame(() => resolve())));
+  assert.equal(
+    await observer.getByTestId('action-confirm').evaluate(el => el === document.activeElement),
+    true
+  );
+
+  await observer.getByTestId('action-edit').click();
+  await observer.getByTestId('edit-text').fill('这次只调客厅灯到 35%');
+  const child = await event(operator, 'study');
+  // One full refresh interval passes while the edit is open.
+  await observer.waitForTimeout(2800);
+  assert.equal(await observer.getByTestId('edit-text').inputValue(), '这次只调客厅灯到 35%');
+  assert.equal(await observer.getByTestId('proposal-title').innerText(), arrival.suggestion.title);
+  await observer.locator('#sheet-close').click();
+  await observer.getByRole('heading', { name: child.suggestion.title }).waitFor();
+}
+
+async function slowConfirmation(browser) {
+  const { server, base } = await startServer({ holdFirstAction: true });
+  const context = await browser.newContext();
+  const resident = await context.newPage(),
+    observer = await context.newPage();
+  let submitted;
+  try {
+    await resident.goto(base);
+    await resident.getByTestId('proposal-title').waitFor();
+    await event(resident, 'arrival');
+    await observer.goto(base);
+    await observer.getByTestId('action-confirm').waitFor();
+    submitted = submit(resident, 'action-confirm', 'decision');
+    const progress = observer.getByTestId('execution-progress');
+    await progress.waitFor({ timeout: 10000 });
+    assert.match(await progress.innerText(), /0 \/ 3/);
+    await resident.getByTestId('execution-progress').waitFor({ timeout: 10000 });
+    assert.equal(await observer.getByTestId('action-confirm').count(), 0);
+    server.stdin.end('continue\n');
+    const completed = await (await submitted).json();
+    assert.equal(completed.receipts.length, 3);
+    await observer.getByTestId('action-receipts').waitFor({ timeout: 10000 });
+    await observer.getByTestId('action-receipts').click();
+    assert.match(await observer.locator('#sheet-body').innerText(), /客厅灯/);
+  } finally {
+    if (!server.stdin.writableEnded) server.stdin.end('continue\n');
+    if (submitted) await submitted.catch(() => {});
+    await context.close();
+    server.kill();
+  }
+}
+
+async function twoModelReceipts(browser) {
+  const { server, base } = await startServer({ profile: 'examples/family-miot-two-models.json' });
+  const context = await browser.newContext({
+    viewport: { width: 390, height: 844 },
+    isMobile: true,
+    hasTouch: true
+  });
+  try {
+    const page = await context.newPage();
+    await page.goto(base);
+    await event(page, 'study');
+    assert.equal((await submit(page, 'action-confirm', 'decision')).status(), 200);
+    await page.getByTestId('action-receipts').click();
+    const expected = [
+      ['desk-light', '75%', 'yeelink.light.lamp4', 'sim-model-desk-lamp', '2 / 2'],
+      ['study-fan', '1档', 'dmaker.fan.p5', 'sim-model-study-fan', '2 / 4']
+    ];
+    for (const [device, reading, model, did, address] of expected) {
+      const details = page.getByTestId('receipt-protocol-' + device);
+      assert.equal(await details.getAttribute('open'), null);
+      await page.getByText('目标 ' + reading + ' · 回读 ' + reading, { exact: true }).waitFor();
+      const summary = details.locator('summary');
+      assert.ok((await summary.boundingBox()).height >= 44);
+      await summary.tap();
+      assert.deepEqual(await details.locator('dd').allInnerTexts(), [
+        model, did, address, '响应码 0', '响应码 0'
+      ]);
+    }
+    const sheet = page.locator('dialog[open]');
+    assert.ok(await sheet.evaluate(el => el.scrollWidth <= el.clientWidth));
+
+    // A write acknowledgement without a read acknowledgement must remain visible as such.
+    await page.locator('#sheet-close').click();
+    await page.getByTestId('presenter-toggle').click();
+    await submit(page, 'reset-demo', 'reset');
+    await page.getByTestId('presenter-toggle').click();
+    await page.getByTestId('fault-controls').locator('summary').tap();
+    await page.getByTestId('fault-device').selectOption('study-fan');
+    await page.getByTestId('fault-mode').selectOption('unknown');
+    await submit(page, 'fault-apply', 'devices');
+    await event(page, 'study');
+    await submit(page, 'action-confirm', 'decision');
+    await page.getByTestId('action-receipts').click();
+    const fan = page.getByTestId('receipt-protocol-study-fan');
+    await fan.locator('summary').tap();
+    assert.deepEqual((await fan.locator('dd').allInnerTexts()).slice(-2), ['响应码 0', '无回包']);
+    await sheet.getByText('目标 1档 · 尚无可确认的回读值', { exact: true }).waitFor();
+  } finally {
+    await context.close();
+    server.kill();
+  }
+}
+
 async function main() {
   const { base, server } = await startServer();
   let browser;
@@ -218,8 +355,11 @@ async function main() {
     await speakerDraft(first);
     await interimSpeech(first, base);
     await unrelatedReceipts(first, second, base);
+    await visibleHousehold(first, second, base);
+    await slowConfirmation(browser);
+    await twoModelReceipts(browser);
     console.log(
-      'PASS: shared-tab decisions, speaker attribution, interim speech, and proposal-specific receipts'
+      'PASS: household updates, live execution, stable drafts, speaker attribution, scoped receipts and model protocol details'
     );
   } finally {
     if (browser) await browser.close();

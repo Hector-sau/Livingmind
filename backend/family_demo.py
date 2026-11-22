@@ -2,6 +2,7 @@
 import argparse
 import json
 import re
+import sqlite3
 from functools import partial
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -137,8 +138,8 @@ class Handler(SimpleHTTPRequestHandler):
         return None
 
 
-def make_server(port, static=DEFAULT_STATIC, miot_profile=None):
-    session = create_family_session(miot_profile)
+def make_server(port, static=DEFAULT_STATIC, miot_profile=None, state_db=None):
+    session = create_family_session(miot_profile, state_db)
     server = ThreadingHTTPServer(("127.0.0.1", port), partial(Handler, directory=str(static)))
     server.session = session
     return server
@@ -149,12 +150,13 @@ if __name__ == "__main__":
     parser.add_argument("--port", type=int, default=8765)
     parser.add_argument("--static", type=Path, default=DEFAULT_STATIC)
     parser.add_argument("--miot-profile", type=Path, help="JSON file of property address bindings for the virtual gateway")
+    parser.add_argument("--state-db", type=Path, help="SQLite file for a restartable, locally shared household")
     args = parser.parse_args()
     if not args.static.is_dir():
         parser.error(f"Static App directory missing: {args.static}")
     try:
-        server = make_server(args.port, args.static, args.miot_profile)
-    except ValueError as error:
+        server = make_server(args.port, args.static, args.miot_profile, args.state_db)
+    except (ValueError, OSError, sqlite3.Error) as error:
         parser.error(str(error))
     with server:
         print(f"LivingMind family simulation: http://127.0.0.1:{server.server_port}", flush=True)

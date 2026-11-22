@@ -19,7 +19,7 @@ const devices = [
 async function main(){
   fs.mkdirSync(out,{recursive:true});
   let browser;
-  const server=spawn(process.env.PYTHON || 'python3',['backend/family_demo.py','--port','0'],{cwd:root,stdio:['ignore','pipe','inherit']});
+  const server=spawn(process.env.PYTHON || 'python3',['backend/family_demo.py','--port','0'],{cwd:root,env:require('../family-test-env.cjs'),stdio:['ignore','pipe','inherit']});
   try {
     const [line]=await once(createInterface({input:server.stdout}),'line');
     const base=line.match(/http:\/\/127\.0\.0\.1:\d+/)[0];

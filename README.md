@@ -31,7 +31,17 @@
 python3 backend/family_demo.py
 ```
 
-打开 [本机演示](http://127.0.0.1:8765) 或[本机影片与设备预览](http://127.0.0.1:8765/showcase/)。在 App 中选择 **场景模拟器 → 妈妈到家**。默认版本仅依赖 Python 标准库，设备执行和规划均可离线复现。同一服务进程内的浏览器标签页共享一个家庭会话。可以重置演示，或选择「进入下一晚」观察临时偏好到期。原有 Expo 客户端与完整后端的启动方式见[工程运行指南](docs/classic-quickstart.md)。
+打开 [本机演示](http://127.0.0.1:8765)，选择 **场景模拟器 → 妈妈到家**。默认模式用 Python 标准库在内存中模拟一个家庭，重启服务会回到初始状态。[影片与设备预览](http://127.0.0.1:8765/showcase/) · [原有 Expo 与后端运行指南](docs/classic-quickstart.md)
+
+**体验两种型号并保存进度。** 下面的可选配置将书桌灯和循环扇绑定到两份 MIoT 型号属性定义，SQLite 保存这一户的状态和回执。设备由本机模拟。
+
+```sh
+python3 backend/family_demo.py --port 8766 \
+  --state-db /tmp/livingmind-two-models/house.sqlite3 \
+  --miot-profile backend/examples/family-miot-two-models.json
+```
+
+打开 [型号演示](http://127.0.0.1:8766)，从初始状态选择 **场景模拟器 → 孩子开始学习 → 确认执行**，查看书桌灯 **75%** 和循环扇 **1 档**的回读。展开回执里的“设备协议详情”可查看每个型号和属性地址。停止服务后用同一命令重启，即可恢复这一户。同一台电脑上的多个服务进程也可以共用同一个数据库和型号配置。设备回读较慢时，另一块已打开的面板仍能查看已处理的动作数。若进程中断，已确认动作保留，在途动作记为未知，剩余动作跳过。重试同一次确认可查回原回执。[查看实际回执](docs/media/family-miot-receipts.png) · [型号配置](backend/examples/family-miot-two-models.json) · [跨进程恢复验证](docs/family-validation.md)
 
 ## 手机与 iPad
 

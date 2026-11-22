@@ -82,6 +82,20 @@ def matches_value_range(value, bounds):
     return (Decimal(str(value)) - Decimal(str(low))) % Decimal(str(step)) == 0
 
 
+def supports_value(capability, value):
+    """Apply both the numeric step and the model's exact enumerated wire values."""
+    if type(value) not in (int, float):
+        return False
+    if "int" in capability.get("format", "") and type(value) is not int:
+        return False
+    if "valueRange" in capability and not matches_value_range(value, capability["valueRange"]):
+        return False
+    options = capability.get("valueList")
+    if options is not None:
+        return any(option["value"] == value for option in options)
+    return "valueRange" in capability
+
+
 def decode_observation(device, write_reply, read_reply, expected):
     """A successful set response carries no proof of the observed property value."""
     address = property_packet(device)
@@ -90,7 +104,7 @@ def decode_observation(device, write_reply, read_reply, expected):
     if type(read_reply.get("code")) is not int or read_reply["code"] != 0:
         return "unknown", None
     observed = read_reply.get("value")
-    if not matches_value_range(observed, device["capability"]["valueRange"]):
+    if not supports_value(device["capability"], observed):
         return "unknown", None
     return ("confirmed" if observed == expected else "mismatch"), observed
 
@@ -135,6 +149,25 @@ class MiotPropertyGateway:
         with self.lock:
             return deepcopy(list(self.devices.values()))
 
+    def export_state(self):
+        """Checkpoint only runtime values. Device capabilities come from the configured profile."""
+        with self.lock:
+            return {"devices": {key: {field: device[field] for field in ("value", "lastObserved", "mode")}
+                                for key, device in self.devices.items()},
+                    "receipts": deepcopy(self.receipts)}
+
+    def restore_state(self, saved):
+        with self.lock:
+            if set(saved["devices"]) != set(self.devices):
+                raise ValueError("Saved household uses a different device inventory")
+            for device_id, values in saved["devices"].items():
+                self.devices[device_id].update({key: values[key] for key in ("value", "lastObserved", "mode")})
+            self.receipts = deepcopy(saved["receipts"])
+
+    def mark_unobserved(self, device_id):
+        with self.lock:
+            self.devices[device_id]["mode"] = "unknown"
+
     def submit(self, action_id, device_id, value):
         """Remember uncertain results too. A repeated action never repeats a write."""
         with self.lock:
@@ -151,7 +184,7 @@ class MiotPropertyGateway:
         observed = None
         packet = property_packet(device, value)
         write_reply = read_reply = None
-        if "write" not in cap["access"] or not matches_value_range(value, cap["valueRange"]):
+        if "write" not in cap["access"] or not supports_value(cap, value):
             status = "rejected"
         elif device["mode"] == "offline":
             status = "offline"
@@ -211,6 +244,24 @@ class VirtualFamilyGateway(MiotPropertyGateway):
             self.transport.values[key] = device["value"]
             self.set_mode(device["id"], device["mode"])
 
+    def export_state(self):
+        with self.lock:
+            saved = super().export_state()
+            keys = {did: self.transport.key(property_packet(device)) for did, device in self.devices.items()}
+            saved["virtualValues"] = {did: self.transport.values[key] for did, key in keys.items()}
+            saved["missingReads"] = [did for did, key in keys.items() if key in self.transport.unobserved]
+            return saved
+
+    def restore_state(self, saved):
+        with self.lock:
+            super().restore_state(saved)
+            for did, value in saved["virtualValues"].items():
+                key = self.transport.key(property_packet(self.devices[did]))
+                self.transport.values[key] = value
+            self.transport.unobserved = {
+                self.transport.key(property_packet(self.devices[did])) for did in saved["missingReads"]
+            }
+
     def set_mode(self, device_id, mode):
         if mode not in ("online", "offline", "unknown"):
             raise ValueError("Unknown simulated connection mode")
@@ -224,5 +275,8 @@ class VirtualFamilyGateway(MiotPropertyGateway):
                 self.transport.unobserved.discard(key)
             device["mode"] = mode
             if mode == "online":
+                if "read" not in device["capability"]["access"]:
+                    device["mode"] = "unknown"
+                    return
                 observed = self.transport.read_property(address)["value"]
                 device.update(value=observed, lastObserved=observed)

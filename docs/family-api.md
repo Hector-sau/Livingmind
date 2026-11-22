@@ -8,9 +8,24 @@ Run the App and its local API together from the repository root. Python 3.9+ is 
 python3 backend/family_demo.py
 ```
 
-The existing FastAPI entry point also mounts this API at `/api/family`, with interactive documentation at `/api/family/docs`. Both entry points use the same state machine. Each server process has its own in-memory household. Other browser tabs on the same server see the same session. Resetting or restarting that server restores the fixtures.
+FastAPI also mounts the family API at `/api/family`, with interactive documentation at `/api/family/docs`. Both servers support an in-memory demo by default and an optional persistent household on one machine.
 
-原 FastAPI 服务也挂载了同一套家庭模拟逻辑。每个进程保存一个演示家庭，同一进程的多个标签页共享状态。这个演示适合单实例运行。原版休息服务仍使用原有 API 和存储。
+两个入口都可以用 `LIVINGMIND_FAMILY_STATE_DB` 指向同一份本地 SQLite 文件。标准库入口另提供 `--state-db`。默认内存模式下每个进程有独立家庭，重启恢复初始场景。
+
+## Restartable household · 可恢复的家庭会话
+
+```sh
+python3 backend/family_demo.py --state-db /tmp/livingmind-review.sqlite3 \
+  --miot-profile backend/examples/family-miot-two-models.json
+```
+
+Use the same file and profile after a restart. A second server on the same machine can share the household by adding `--port 8766` to the same command. The sample uses a temporary directory. Choose a persistent local folder to keep the household across system cleanups.
+
+重启服务时使用相同的数据库路径和设备配置。另一终端在同一命令上加 `--port 8766` 即可让第二个本机进程看到同一家庭。数据库保存建议版本、当晚例外、模拟时钟、去重索引、设备值及回执。同目录的 `.writer.sqlite3` 用于协调写操作。运行中请保留两份文件。在 App 中选择“重置演示”会重置共享家庭。
+
+During confirmation, `GET /state` returns a committed view with `lastOutcome: "executing"` and `execution` containing `suggestionId`, `memberId`, `completedActions` and `totalActions`. Other mutations are serialized. When all actions reach an outcome, `execution` becomes `null`.
+
+确认时，系统先保存动作意图，再交给网关，每收到一份回执就保存进度。写进程退出后，下一次读取或写入会尝试接管。已完成的动作保留原回执，可能已经发出的动作标为 `unknown`，尚未发送的动作为 `skipped`。重试同一建议会拿到原结果。进度与回执仍可在另一常亮页面查看。可见页面默认约每 2.5 秒读取快照，编辑或语音弹窗打开时会保留用户草稿。[跨进程验证](../backend/tests/test_family_storage.py) · [执行测试](../backend/tests/test_family_execution.py)
 
 ## Routes · 请求
 
@@ -27,7 +42,7 @@ All successful responses return a complete state snapshot. All POST bodies are J
 | POST | `/next-day` | `{}` begins the next evening at 18:25. Clear tonight’s exceptions, silence settings and open proposal. Keep device values, connection conditions, preferences and history. |
 | POST | `/reset` | `{}` restores every fixture and clears history. |
 
-A unique event advances simulated time by five minutes. A duplicate ID with the same payload produces no second proposal or log entry. Reusing that ID with a different event returns 409. A real activity change can invalidate the previous proposal. A no-op signal from another member preserves a still-valid pending plan. Confirmation is atomic within this process and retried confirmations reuse the original outcome. Matching device settings produce no extra action when the virtual readback is current. Terminal decisions include an immutable `decisionResult` with `suggestionId`, `memberId`, `decision`, `outcome` and per-action `receipts`. A retry sets `decisionReplayed` to true. The top-level snapshot still describes the household at response time.
+A unique event advances simulated time by five minutes. A duplicate ID with the same payload produces no second proposal or log entry. Reusing that ID with a different event returns 409. A real activity change can invalidate the previous proposal. A no-op signal from another member preserves a still-valid pending plan. Confirmations serialize device actions per household, expose partial progress to readers, and preserve the original outcome on retry. Matching device settings produce no extra action when the virtual readback is current. Terminal decisions include an immutable `decisionResult` with `suggestionId`, `memberId`, `decision`, `outcome` and per-action `receipts`. A retry sets `decisionReplayed` to true. The top-level snapshot still describes the household at response time.
 
 每个新信号推进五分钟。重复信号不推进时间。下一条明确身份的活动会撤下已经过时的建议。建议在确认前不会写设备。跨到午夜会进入下一天的傍晚；也可用“下一晚”直接观察临时设置到期。
 
@@ -88,6 +103,19 @@ python3 backend/family_demo.py --miot-profile backend/examples/family-miot-profi
 
 体验规则依据成员偏好和家人活动提出目标。空间执行规则检查设备是否具备可写属性、合法范围以及是否需要调整。主 Agent 处理身份、免打扰、建议有效性和用户确认。三个角色都使用确定性规则，可从 `plannerSource: "rule"`、建议轨迹和分设备结果中核对。
 
+### Public model examples · 两份真实型号规范的离线用法
+
+The example embeds selected properties from two public registry instances. Startup reads the local JSON. The imported metadata is visible in `devices[].modelSpec` and the bound control property in `devices[].capability`. The DIDs in this example address virtual devices.
+
+选择“孩子学习”并确认，打开“设备执行回执”，展开每台设备的“设备协议详情”。演示配置中书桌灯从 20% 调到 75%，循环扇从 2 档调到 1 档。回执可查看型号、DID、SIID/PIID 及实际写入和读取的返回码。读写校验同时检查数值步长、离散枚举和设备访问权限，`notify` 表示型号声明的通知能力。观测值来自虚拟传输。[离线配置](../backend/examples/family-miot-two-models.json) · [导入器](../backend/app/family/miot_spec.py)
+
+| Model / 型号 | 绑定的可写属性 | 演示回读 |
+| --- | --- | --- |
+| `yeelink.light.lamp4` | 书桌灯亮度，`siid=2, piid=2`，1–100%，步长 1 | 75% |
+| `dmaker.fan.p5` | 书房风扇档位，`siid=2, piid=4`，允许 1、2、3、4 | 1 档 |
+
+型号资料包含只读字段和带离散值的属性。家庭场景绑定其中的数值控制项。真实设备的上电状态、发现、账号授权与通知订阅仍需单独联调。小米官方集成的解析器使用相同的规范注册表。[台灯规范](https://miot-spec.org/miot-spec-v2/instance?type=urn:miot-spec-v2:device:light:0000A001:yeelink-lamp4:1) · [风扇规范](https://miot-spec.org/miot-spec-v2/instance?type=urn:miot-spec-v2:device:fan:0000A005:dmaker-p5:1) · [官方解析器](https://github.com/XiaoMi/ha_xiaomi_home/blob/main/custom_components/xiaomi_home/miot/miot_spec.py)
+
 ## Regression checks · 回归
 
 ```sh
@@ -109,6 +137,6 @@ The default works offline. Set `LIVINGMIND_FAMILY_EDITOR=model` and configure th
 
 An exact event ID retry is idempotent. New event IDs for the same member, activity, room and unchanged household context are coalesced for ten simulated minutes. An open suggestion for that same context keeps its original confirmation ID, including any edits. A real change of activity triggers a fresh evaluation. The timeline records each distinct proposal or suppression; coalesced sensor noise does not add another notification.
 
-同一信号的重试和短时间内代表同一活动的不同事件号会被合并。现有建议、临时修改和虚拟设备读数会保留。建议、账本和回执仅在此演示进程中有效；重启没有设备级幂等或跨实例恢复保证。已发布的经典服务有单独的持久化执行路径。
+同一信号的重试和短时间内代表同一活动的不同事件号会被合并。现有建议、临时修改和虚拟设备读数会保留。配置数据库后，重启和同机第二个进程都可使用同一组去重记录。经典休息服务另有 PostgreSQL 执行账本。
 
 Optional speaker recognition has two additional endpoints: `GET /api/family/speaker/status` and `POST /api/family/speaker/identify`. These return attribution information and never authorize a device change. [Voice input and speaker recognition · 语音与说话人说明](family-voice.md)

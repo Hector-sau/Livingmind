@@ -1,0 +1,169 @@
+{
+  "format": "miot-spec-v2",
+  "models": {
+    "yeelink.light.lamp4": {
+      "source": "https://miot-spec.org/miot-spec-v2/instance?type=urn:miot-spec-v2:device:light:0000A001:yeelink-lamp4:1",
+      "instance": {
+        "type": "urn:miot-spec-v2:device:light:0000A001:yeelink-lamp4:1",
+        "services": [
+          {
+            "iid": 1,
+            "type": "urn:miot-spec-v2:service:device-information:00007801:yeelink-lamp4:1",
+            "properties": [
+              {
+                "iid": 2,
+                "type": "urn:miot-spec-v2:property:model:00000002:yeelink-lamp4:1",
+                "format": "string",
+                "access": [
+                  "read"
+                ]
+              }
+            ]
+          },
+          {
+            "iid": 2,
+            "type": "urn:miot-spec-v2:service:light:00007802:yeelink-lamp4:1",
+            "properties": [
+              {
+                "iid": 2,
+                "type": "urn:miot-spec-v2:property:brightness:0000000D:yeelink-lamp4:1",
+                "format": "uint8",
+                "access": [
+                  "read",
+                  "write",
+                  "notify"
+                ],
+                "unit": "percentage",
+                "value-range": [
+                  1,
+                  100,
+                  1
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    },
+    "dmaker.fan.p5": {
+      "source": "https://miot-spec.org/miot-spec-v2/instance?type=urn:miot-spec-v2:device:fan:0000A005:dmaker-p5:1",
+      "instance": {
+        "type": "urn:miot-spec-v2:device:fan:0000A005:dmaker-p5:1",
+        "services": [
+          {
+            "iid": 2,
+            "type": "urn:miot-spec-v2:service:fan:00007808:dmaker-p5:1",
+            "properties": [
+              {
+                "iid": 4,
+                "type": "urn:miot-spec-v2:property:fan-level:00000016:dmaker-p5:1",
+                "format": "uint8",
+                "access": [
+                  "read",
+                  "write",
+                  "notify"
+                ],
+                "value-list": [
+                  {
+                    "value": 1,
+                    "description": "Level1"
+                  },
+                  {
+                    "value": 2,
+                    "description": "Level2"
+                  },
+                  {
+                    "value": 3,
+                    "description": "Level3"
+                  },
+                  {
+                    "value": 4,
+                    "description": "Level4"
+                  }
+                ]
+              },
+              {
+                "iid": 5,
+                "type": "urn:miot-spec-v2:property:horizontal-swing-included-angle:0000011B:dmaker-p5:1",
+                "format": "uint16",
+                "access": [
+                  "read",
+                  "write",
+                  "notify"
+                ],
+                "value-list": [
+                  {
+                    "value": 30,
+                    "description": "30"
+                  },
+                  {
+                    "value": 60,
+                    "description": "60"
+                  },
+                  {
+                    "value": 90,
+                    "description": "90"
+                  },
+                  {
+                    "value": 120,
+                    "description": "120"
+                  },
+                  {
+                    "value": 140,
+                    "description": "140"
+                  }
+                ]
+              },
+              {
+                "iid": 6,
+                "type": "urn:miot-spec-v2:property:fan-level:00000016:dmaker-p5:1",
+                "format": "uint8",
+                "access": [
+                  "read",
+                  "write",
+                  "notify"
+                ],
+                "value-range": [
+                  1,
+                  100,
+                  1
+                ]
+              },
+              {
+                "iid": 7,
+                "type": "urn:miot-spec-v2:property:horizontal-angle:00000019:dmaker-p5:1",
+                "format": "int16",
+                "access": [
+                  "write"
+                ],
+                "value-range": [
+                  -7,
+                  7,
+                  7
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    }
+  },
+  "bindings": [
+    {
+      "deviceId": "desk-light",
+      "did": "sim-model-desk-lamp",
+      "model": "yeelink.light.lamp4",
+      "siid": 2,
+      "piid": 2,
+      "initial": 20
+    },
+    {
+      "deviceId": "study-fan",
+      "did": "sim-model-study-fan",
+      "model": "dmaker.fan.p5",
+      "siid": 2,
+      "piid": 4,
+      "initial": 2
+    }
+  ]
+}

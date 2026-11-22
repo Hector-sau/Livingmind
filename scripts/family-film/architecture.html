@@ -113,7 +113,7 @@
       <article class="panel code-panel">
         <div class="panel-title">读取观察值</div><span class="path">backend/app/family/gateway.py</span><b class="function">decode_observation()</b>
         <pre class="snippet"><code>observed = read_reply.get(<span class="str">"value"</span>)
-<span class="kw">if not</span> <span class="fn">matches_value_range</span>(observed, device[<span class="str">"capability"</span>][<span class="str">"valueRange"</span>]):
+<span class="kw">if not</span> <span class="fn">supports_value</span>(device[<span class="str">"capability"</span>], observed):
     <span class="kw">return</span> <span class="str">"unknown"</span>, <span class="kw">None</span>
 <span class="kw">return</span> (<span class="str">"confirmed"</span> <span class="kw">if</span> observed == expected <span class="kw">else</span> <span class="str">"mismatch"</span>), observed</code></pre>
         <p class="code-note">同时核对写入和读取回包中的 <b>did、siid、piid</b>，再比较设备读数。</p>

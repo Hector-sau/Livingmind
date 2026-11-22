@@ -6,7 +6,7 @@ import re
 from threading import RLock
 from uuid import uuid4
 
-from .gateway import ROOMS, VirtualFamilyGateway, matches_value_range
+from .gateway import ROOMS, VirtualFamilyGateway, supports_value
 from .agents import capability_actions, experience_targets
 from .model_edit import configured_provider, interpret
 
@@ -28,7 +28,12 @@ EVENT_SOURCES = {
     "browser-asr": "浏览器语音识别转写",
 }
 AGENTS = ["主 Agent", "体验 Agent", "空间执行 Agent"]
-ACTION_TEXT = {"confirmed": "虚拟回读一致", "unknown": "状态未知，保留上次读数", "offline": "设备离线，跳过", "rejected": "能力校验拒绝", "mismatch": "回读与目标不一致"}
+ACTION_TEXT = {"confirmed": "虚拟回读一致", "unknown": "状态未知，保留上次读数", "offline": "设备离线，跳过", "rejected": "能力校验拒绝", "mismatch": "回读与目标不一致", "skipped": "中断前尚未发送"}
+
+CHECKPOINT_FIELDS = (
+    "members", "minutes", "day", "suggestion", "muted", "snooze_until",
+    "events", "recent_signals", "decisions", "exceptions", "timeline", "receipts", "outcome",
+)
 
 
 class FamilyError(ValueError):
@@ -50,13 +55,21 @@ def text_field(data, key):
 
 
 class FamilyEvening:
-    def __init__(self, gateway_factory=VirtualFamilyGateway, edit_provider=None):
+    def __init__(self, gateway_factory=VirtualFamilyGateway, edit_provider=None, store=None):
         self.lock = RLock()
+        self.view_lock = RLock()
         self.gateway_factory = gateway_factory
         self.edit_provider = edit_provider or configured_provider()
-        self.reset()
+        self.store = store
+        self.persistence_failed = False
+        self._seed()
+        checkpoint = store.load() if store is not None else None
+        if checkpoint is None:
+            self._publish()
+        else:
+            self._restore(checkpoint)
 
-    def reset(self):
+    def _seed(self):
         self.gateway = self.gateway_factory()
         self.members = {i: {"id": i, "name": n, "activity": a, "roomId": r, "activityLabel": ACTIVITIES[a],
                             "preference": p} for i, n, a, r, p in MEMBERS}
@@ -72,8 +85,13 @@ class FamilyEvening:
         self.timeline = []
         self.receipts = []
         self.outcome = "ready"
+        self.execution = None
         self.log("reset", "家庭空间已就绪", "晚间模拟从 18:25 开始。所有空间信号和设备回读均为模拟。")
-        return self.state()
+
+    def reset(self):
+        with self.lock:
+            self._seed()
+            return self._publish()
 
     @property
     def time(self):
@@ -83,14 +101,71 @@ class FamilyEvening:
         self.timeline.insert(0, {"id": uuid4().hex, "day": self.day, "time": self.time, "kind": kind, "title": title, "detail": detail, **fields})
 
     def state(self):
-        return deepcopy({"plannerSource": "rule", "source": "simulation", "time": self.time, "day": self.day, "members": list(self.members.values()),
-                         "rooms": ROOMS, "devices": self.gateway.snapshot(), "suggestion": self.suggestion,
+        # Published views never change. A read never competes with device I/O.
+        with self.view_lock:
+            view = self._view
+        return deepcopy(view)
+
+    def _publish(self, *, save=True):
+        progress = None
+        if self.execution is not None:
+            progress = {"suggestionId": self.execution["suggestionId"], "memberId": self.execution["memberId"],
+                        "completedActions": len(self.receipts), "totalActions": len(self.execution["actions"])}
+        devices = self.gateway.snapshot()
+        view = deepcopy({"plannerSource": "rule", "source": "simulation", "time": self.time, "day": self.day, "members": list(self.members.values()),
+                         "rooms": ROOMS, "devices": devices, "suggestion": self.suggestion, "execution": progress,
                          "muted": self.muted, "snoozed": self.snooze_until is not None and self.minutes < self.snooze_until,
                          "receipts": self.receipts, "timeline": self.timeline, "lastOutcome": self.outcome})
+        if self.store is not None and save:
+            export = getattr(self.gateway, "export_state", None)
+            try:
+                self.store.save({
+                    "version": 1, "view": view, "devices": devices,
+                    "gateway": export() if callable(export) else None,
+                    "execution": deepcopy(self.execution),
+                    "state": deepcopy({k: getattr(self, k) for k in CHECKPOINT_FIELDS}),
+                })
+            except Exception as exc:
+                # The last durable intent remains the authority. Do not dispatch more writes.
+                self.persistence_failed = True
+                raise FamilyError(503, "CHECKPOINT_UNAVAILABLE", "无法保存家庭状态，请恢复存储后重新载入。") from exc
+        with self.view_lock:
+            self._view = view
+        return deepcopy(view)
+
+    def _restore(self, checkpoint):
+        if checkpoint["version"] != 1:
+            raise ValueError("Unsupported family checkpoint version")
+        for field in CHECKPOINT_FIELDS:
+            setattr(self, field, deepcopy(checkpoint["state"][field]))
+        if checkpoint["gateway"] is not None:
+            self.gateway.restore_state(checkpoint["gateway"])
+        elif self.gateway.snapshot() != checkpoint["devices"]:
+            raise ValueError("Injected gateway must support restoring its saved device state")
+        self.execution = deepcopy(checkpoint["execution"])
+        if self.execution is None:
+            self._publish(save=False)
+            return
+        sid, actor = self.execution["suggestionId"], self.execution["memberId"]
+        for i in range(len(self.receipts), len(self.execution["actions"])):
+            action = self.execution["actions"][i]
+            status = "unknown" if i == self.execution["dispatching"] else "skipped"
+            self.receipts.append(self._uncompleted_receipt(sid, action, status))
+        self._finish_confirmation(sid, actor)
+        self._publish()
+
+    def _check_mutation_available(self):
+        check(not self.persistence_failed, "家庭存储不可用，请重新载入。", status=503, code="CHECKPOINT_UNAVAILABLE")
+        # Holding the mutator lock with an unfinished intent means a previous
+        # writer exited unexpectedly. Only journal recovery can finalize it.
+        check(self.execution is None, "家庭操作已中断，请重新载入。", status=503, code="RECOVERY_REQUIRED")
 
     def dispatch(self, method, path, data=None):
-        """Use one state lock. Optional remote interpretation runs outside the lock."""
+        """Serialize household commands while readers see the last committed progress."""
+        if method == "GET" and path == "/state":
+            return self.state()
         with self.lock:
+            self._check_mutation_available()
             try:
                 return self._dispatch(method, path, data)
             except FamilyError as error:
@@ -104,6 +179,7 @@ class FamilyEvening:
         parsed = interpret(self.edit_provider, data["text"], devices)
         check(parsed is not None, "未理解修改，请明确设备和目标。", code="NOT_UNDERSTOOD")
         with self.lock:
+            self._check_mutation_available()
             # Recheck member, plan identity, range and family constraints after waiting.
             retry = {k: v for k, v in data.items() if k != "text"}
             if data["text"].strip().startswith("这次"):
@@ -113,11 +189,9 @@ class FamilyEvening:
             self.decide({**retry, **parsed})
             self.suggestion["editSource"] = "model"
             self.suggestion["trace"][1]["detail"] += "（模型辅助解析，规则校验通过）"
-            return self.state()
+            return self._publish()
 
     def _dispatch(self, method, path, data):
-        if path == "/state" and method == "GET":
-            return self.state()
         handlers = {"/events": self.event, "/decision": self.decide, "/devices": self.device}
         check(path in {*handlers, "/reset", "/next-day", "/state"}, "未找到路径", status=404, code="NOT_FOUND")
         check(method == "POST" and path != "/state", "此路径不支持该请求方法", status=405, code="METHOD")
@@ -126,9 +200,9 @@ class FamilyEvening:
             return self.reset()
         if path == "/next-day":
             self.next_evening()
-            return self.state()
+            return self._publish()
         result = handlers[path](data)
-        snapshot = self.state()
+        snapshot = self.state() if result is not None and result[1] else self._publish()
         if path == "/decision" and result is not None:
             decision_result, replayed = result
             snapshot["decisionResult"] = deepcopy(decision_result)
@@ -265,23 +339,50 @@ class FamilyEvening:
         if decision == "confirm":
             if suggestion["scope"] == "tonight" and "exception" in suggestion:
                 self.exceptions[suggestion["memberId"], suggestion["eventType"]] = suggestion["exception"]
-            self.receipts = [
-                self.gateway.submit(f"{sid}:{a['deviceId']}", a["deviceId"], a["value"])
-                for a in suggestion["actions"]
-            ]
-            all_ok = all(r["status"] == "confirmed" for r in self.receipts)
-            self.outcome = "confirmed" if all_ok else "incomplete"
-            names = {d["id"]: d["name"] for d in self.gateway.snapshot()}
-            details = [f"{names[r['deviceId']]}：{ACTION_TEXT[r['status']]}" + (f"（{r['observed']}）" if r["observed"] is not None else "") for r in self.receipts]
-            self.log(self.outcome, "已确认 · 虚拟设备执行结果", "；".join(details))
-        else:
-            self.outcome = {"dismiss": "dismissed", "mute": "muted", "snooze": "snoozed"}[decision]
-            if decision == "mute":
-                self.muted = True
-            if decision == "snooze":
-                self.snooze_until = self.minutes + 30
-            labels = {"mute": "今晚免打扰", "dismiss": "已跳过这条建议", "snooze": "已暂停提醒 30 分钟"}
-            self.log(self.outcome, labels[decision], "无设备写入。")
+            self.receipts = []
+            self.suggestion = None
+            self.outcome = "executing"
+            actions = suggestion["actions"]
+            self.execution = {"suggestionId": sid, "memberId": actor, "actions": actions, "dispatching": None}
+            for index, action in enumerate(actions):
+                self.execution["dispatching"] = index
+                self._publish()  # Persist intent before the transport can change a device.
+                try:
+                    receipt = self.gateway.submit(f"{sid}:{action['deviceId']}", action["deviceId"], action["value"])
+                except Exception:
+                    receipt = self._uncompleted_receipt(sid, action, "unknown")
+                self.receipts.append(receipt)
+                self.execution["dispatching"] = None
+                self._publish()  # Make the observed result durable before admitting another action.
+            return self._finish_confirmation(sid, actor), False
+        self.outcome = {"dismiss": "dismissed", "mute": "muted", "snooze": "snoozed"}[decision]
+        if decision == "mute":
+            self.muted = True
+        if decision == "snooze":
+            self.snooze_until = self.minutes + 30
+        labels = {"mute": "今晚免打扰", "dismiss": "已跳过这条建议", "snooze": "已暂停提醒 30 分钟"}
+        self.log(self.outcome, labels[decision], "无设备写入。")
+        self.suggestion = None
+        return self._record_decision(sid, actor, decision), False
+
+    def _uncompleted_receipt(self, sid, action, status):
+        device_id = action["deviceId"]
+        mark_unobserved = getattr(self.gateway, "mark_unobserved", None)
+        if status == "unknown" and callable(mark_unobserved):
+            mark_unobserved(device_id)
+        return {"actionId": f"{sid}:{device_id}", "deviceId": device_id, "requested": action["value"],
+                "status": status, "observed": None, "source": "execution-journal",
+                "propertyRequest": None, "writeReply": None, "readReply": None}
+
+    def _finish_confirmation(self, sid, actor):
+        self.execution = None
+        self.outcome = "confirmed" if all(r["status"] == "confirmed" for r in self.receipts) else "incomplete"
+        names = {d["id"]: d["name"] for d in self.gateway.snapshot()}
+        details = [f"{names[r['deviceId']]}：{ACTION_TEXT[r['status']]}" + (f"（{r['observed']}）" if r["observed"] is not None else "") for r in self.receipts]
+        self.log(self.outcome, "已确认 · 设备执行结果", "；".join(details))
+        return self._record_decision(sid, actor, "confirm")
+
+    def _record_decision(self, sid, actor, decision):
         result = {
             "suggestionId": sid,
             "memberId": actor,
@@ -290,8 +391,7 @@ class FamilyEvening:
             "receipts": deepcopy(self.receipts) if decision == "confirm" else [],
         }
         self.decisions[sid] = result
-        self.suggestion = None
-        return result, False
+        return result
 
     def edit(self, suggestion, data):
         scope = data.get("scope", suggestion["scope"])
@@ -332,7 +432,7 @@ class FamilyEvening:
             bounds = device["capability"]["valueRange"]
             if all(type(bound) is int for bound in bounds):
                 check(type(value) is int, "此设备只接受整数")
-            check(matches_value_range(value, bounds), "数值超出设备支持范围")
+            check(supports_value(device["capability"], value), "数值超出设备支持范围")
             if device_id == "living-speaker" and any(m["activity"] in ("study", "sleep") for m in self.members.values()):
                 limit = 12 if any(m["activity"] == "sleep" for m in self.members.values()) else 18
                 check(value <= limit, f"家人正在学习或休息，当前音量上限为 {limit}%")
